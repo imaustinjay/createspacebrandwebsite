@@ -1,0 +1,15 @@
+{
+  "name": "createspace-site",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "createspace · community + talent — public marketing site (createspacebrand.com)",
+  "scripts": {
+    "dev": "npx -y serve public",
+    "dev:functions": "npx -y netlify-cli dev"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^10.7.9",
+    "nodemailer": "^9.0.1"
+  }
+}

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://createspacebrand.com/sitemap.xml

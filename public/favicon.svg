@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- From the design package's own thumbnail: the two divisions, one roof. -->
+  <defs>
+    <clipPath id="r"><rect width="64" height="64" rx="14"/></clipPath>
+  </defs>
+  <g clip-path="url(#r)">
+    <rect width="64" height="64" fill="#FFFFF0"/>
+    <rect x="32" width="32" height="64" fill="#4E312C"/>
+    <circle cx="16" cy="32" r="6" fill="#567363"/>
+    <circle cx="48" cy="32" r="6" fill="#D694A4"/>
+  </g>
+</svg>

@@ -1,0 +1,37 @@
+# createspacebrand.com — the public marketing site.
+#
+# Deployed as its OWN Netlify site from this same GitHub repo:
+#   Netlify → Add new site → import this repo → set Base directory = "site".
+# The workspace app (createspacebrand.online) keeps deploying from the repo
+# root's netlify.toml; the two sites never share a deploy.
+#
+# Static multi-page site — nothing to compile. npm install runs automatically
+# (package.json is here) so the enquiry function's dependencies get bundled.
+[build]
+  command = "echo 'static site — nothing to build'"
+  publish = "public"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[functions]
+  node_bundler = "esbuild"
+
+# The one API surface: the brand enquiry form on /brands/.
+[[redirects]]
+  from = "/api/enquiry"
+  to = "/.netlify/functions/enquiry"
+  status = 200
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
