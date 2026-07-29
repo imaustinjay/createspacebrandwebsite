@@ -25,10 +25,19 @@ export default async (req) => {
     'Cache-Control': 'public, max-age=300',
     'Netlify-CDN-Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
   }
+  // A failure is never cached: whoever is fixing the configuration should see
+  // the effect of the fix on the next request, not five minutes later.
+  const failHeaders = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
+  // `reason` exists so a misconfiguration is diagnosable by opening
+  // /api/seasons in a browser. It names the failure, never the credentials.
+  const fail = (reason, status) =>
+    new Response(JSON.stringify({ ok: false, reason, ...(status ? { status } : {}) }), {
+      headers: failHeaders,
+    })
 
   const url = clean(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL)
   const key = clean(process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY)
-  if (!url || !key) return new Response(JSON.stringify({ ok: false }), { headers })
+  if (!url || !key) return fail('not-configured')
 
   if (memo.body && Date.now() - memo.at < TTL_MS) {
     return new Response(memo.body, { headers })
@@ -39,7 +48,9 @@ export default async (req) => {
       `${url.replace(/\/$/, '')}/rest/v1/ws_cast_cycles?select=division,season,year,closes_at&status=eq.open`,
       { headers: { apikey: key, authorization: `Bearer ${key}` } }
     )
-    if (!res.ok) throw new Error(String(res.status))
+    // 401/403 = the key is wrong or the anon read policy is missing;
+    // 404 = the table isn't there. Either way the status is the useful clue.
+    if (!res.ok) return fail('rejected', res.status)
     const rows = await res.json()
     const pick = (division) => {
       const r = Array.isArray(rows) ? rows.find((x) => x.division === division) : null
@@ -50,6 +61,7 @@ export default async (req) => {
     return new Response(body, { headers })
   } catch {
     // Unknown is not the same as closed — say nothing rather than guess.
-    return new Response(JSON.stringify({ ok: false }), { headers })
+    // (Usually a wrong project URL: the host doesn't resolve.)
+    return fail('unreachable')
   }
 }
