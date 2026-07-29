@@ -292,17 +292,42 @@ html.js [data-settle].settled :is(.rows > div, .step):nth-child(6) { transition-
   padding-bottom: 16px;
 }
 .brand { flex: none; display: block; transition: transform 0.3s var(--ease-spring); }
-.brand:hover { transform: scale(1.03); }
-.brand img {
-  height: 40px;
-  width: auto;
+.brand:hover { transform: scale(1.03); color: var(--seal); }
+
+/* The wordmark lockup, built from the brand recipe itself (PUBLIC_SITE_CONTEXT
+   §3) rather than an image, so the site chrome can never lose its mark:
+   "createspace" in Lora italic, COMMUNITY + TALENT tracked beneath, joined by
+   the Dusk dot — which carries the breathe, the mark's living pulse. */
+.brand-word {
   display: block;
-  /* The wordmark breathes — a dusk halo on the ~3s human rhythm. */
-  animation: csLogoBreathe 3.4s ease-in-out infinite;
+  font-family: 'Lora', Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 23px;
+  line-height: 1;
+  color: var(--seal);
 }
-@keyframes csLogoBreathe {
-  0%, 100% { filter: drop-shadow(0 0 0 rgba(214, 148, 164, 0)); transform: scale(1); }
-  50%      { filter: drop-shadow(0 3px 9px rgba(214, 148, 164, 0.38)); transform: scale(1.012); }
+.brand-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  font-family: 'Raleway', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--seal);
+  white-space: nowrap;
+}
+.brand-sub::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--dusk);
+  flex: none;
+  animation: csBreathe 3.4s ease-in-out infinite;
 }
 .nav {
   display: flex;
