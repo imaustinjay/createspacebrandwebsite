@@ -684,3 +684,324 @@ input::placeholder { color: var(--faint); }
     filter: none;
   }
 }
+
+/* ============================================================
+   Engine vignettes — the real workspace surfaces, drawn in type
+   and tokens rather than screenshotted. Structure, labels and
+   status semantics are taken from the shipping components
+   (KitSheet, PitchDetail, UgcInvoiceStudio) so what a brand sees
+   here is the interface they actually receive. Figures are
+   illustrative and captioned as such.
+   Sized in container units, so one markup fits every column.
+   ============================================================ */
+.vig {
+  container-type: inline-size;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  background: var(--card);
+  box-shadow:
+    0 1px 2px rgba(78, 49, 44, 0.04),
+    0 10px 26px -14px rgba(78, 49, 44, 0.14),
+    0 30px 60px -34px rgba(78, 49, 44, 0.22);
+}
+.vig-cap {
+  font-size: 11px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--faint);
+  margin: 10px 2px 0;
+}
+
+/* Shared atoms */
+.vig-badge {
+  font-size: clamp(6px, 1.55cqw, 8.5px);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 5px;
+  padding: 2.5px 6px;
+  white-space: nowrap;
+}
+.vig-b-sage { background: rgba(86, 115, 99, 0.13); color: var(--sage); }
+.vig-b-gold { background: rgba(201, 154, 82, 0.16); color: #C99A52; }
+.vig-b-dusk { background: var(--dusk-tint); color: #A85E72; }
+.vig-live {
+  width: 4.5px; height: 4.5px; border-radius: 50%;
+  background: var(--sage); flex: none;
+  animation: csBreathe 3s ease-in-out infinite;
+}
+
+/* ---------- 1 · The media kit sheet ---------- */
+.vig-kit-head {
+  background: var(--seal);
+  color: var(--ivory);
+  padding: 5cqw 5cqw 4.4cqw;
+  display: flex;
+  align-items: center;
+  gap: 3.4cqw;
+  position: relative;
+  overflow: hidden;
+}
+.vig-kit-head::after {           /* the faint oversized monogram */
+  content: 'A';
+  position: absolute;
+  right: -1cqw; top: -6cqw;
+  font-family: 'Lora', Georgia, serif;
+  font-style: italic;
+  font-size: 30cqw;
+  line-height: 1;
+  color: rgba(255, 255, 240, 0.05);
+  pointer-events: none;
+}
+.vig-avatar {
+  width: 11cqw; height: 11cqw;
+  border-radius: 50%;
+  flex: none;
+  background: linear-gradient(135deg, var(--dusk), var(--sage));
+  box-shadow: 0 0 0 1.5px var(--dusk);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Lora', Georgia, serif;
+  font-style: italic;
+  font-size: clamp(9px, 4cqw, 20px);
+  color: var(--ivory);
+}
+.vig-kit-id { min-width: 0; flex: 1; }
+.vig-kit-name {
+  font-family: 'Lora', Georgia, serif;
+  font-style: italic;
+  font-size: clamp(11px, 4.4cqw, 23px);
+  line-height: 1.05;
+  color: var(--ivory);
+}
+.vig-kit-name span { color: var(--dusk); }
+.vig-chips { display: flex; gap: 1.4cqw; margin-top: 1.8cqw; flex-wrap: wrap; }
+.vig-chips span {
+  font-size: clamp(6px, 1.6cqw, 9px);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--ivory);
+  background: rgba(255, 255, 240, 0.12);
+  border: 1px solid rgba(255, 255, 240, 0.18);
+  border-radius: 20px;
+  padding: 2px 6px;
+}
+.vig-kit-reach { text-align: right; flex: none; position: relative; }
+.vig-kit-reach b {
+  display: block;
+  font-weight: 300;
+  font-size: clamp(15px, 6cqw, 32px);
+  line-height: 1;
+}
+.vig-kit-reach i {
+  display: block;
+  font-style: normal;
+  font-size: clamp(5.5px, 1.5cqw, 8px);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dusk);
+  margin-top: 1.4cqw;
+}
+.vig-statband {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: #FFFFFF;
+  border-bottom: 1px solid var(--hairline);
+}
+.vig-statband > div {
+  padding: 3.4cqw 2cqw;
+  text-align: center;
+  border-right: 1px solid rgba(78, 49, 44, 0.06);
+}
+.vig-statband > div:last-child { border-right: none; }
+.vig-statband b {
+  display: block;
+  font-weight: 300;
+  font-size: clamp(10px, 3.4cqw, 19px);
+  line-height: 1.05;
+  color: var(--seal);
+}
+.vig-statband i {
+  display: block;
+  font-style: normal;
+  font-size: clamp(5px, 1.4cqw, 7.5px);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(78, 49, 44, 0.45);
+  margin-top: 1.6cqw;
+}
+.vig-rows { padding: 3cqw 4cqw 4cqw; display: grid; gap: 2cqw; }
+.vig-row {
+  display: flex;
+  align-items: center;
+  gap: 2cqw;
+  font-size: clamp(7px, 2cqw, 11px);
+  font-weight: 600;
+  color: var(--seal);
+}
+.vig-row-glyph {
+  width: 5.4cqw; height: 5.4cqw;
+  border-radius: 3px;
+  flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: clamp(5px, 1.7cqw, 9px);
+  font-weight: 700;
+  color: var(--ivory);
+}
+.vig-row-rate { margin-left: auto; color: var(--sage); font-weight: 700; }
+.vig-row-muted { color: var(--muted); font-weight: 300; }
+
+/* ---------- 2 · The deal room ---------- */
+.vig-bar {
+  background: var(--seal);
+  color: var(--ivory);
+  padding: 3.4cqw 4cqw;
+  display: flex;
+  align-items: center;
+  gap: 2cqw;
+  flex-wrap: wrap;
+}
+.vig-bar-title {
+  font-size: clamp(8px, 2.3cqw, 12.5px);
+  font-weight: 600;
+  color: var(--ivory);
+}
+.vig-bar .vig-badge { margin-left: auto; }
+.vig-stages {
+  display: flex;
+  gap: 1.4cqw;
+  padding: 3cqw 4cqw;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--hairline);
+  background: #FFFDF8;
+}
+.vig-stage {
+  font-size: clamp(5.5px, 1.6cqw, 9px);
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 3px 7px;
+  white-space: nowrap;
+  color: var(--faint);
+  background: rgba(78, 49, 44, 0.06);
+}
+.vig-stage-on {
+  color: var(--ivory);
+  background: var(--seal);
+  font-weight: 700;
+}
+.vig-thread { padding: 3.4cqw 4cqw 4cqw; display: grid; gap: 2.4cqw; }
+.vig-msg {
+  border: 1px solid var(--hairline);
+  border-radius: 9px;
+  padding: 2.6cqw 3cqw;
+  background: #FFFFFF;
+}
+.vig-msg-they { background: #FFFDF8; }
+.vig-msg-head {
+  display: flex;
+  align-items: baseline;
+  gap: 1.6cqw;
+  font-size: clamp(5.5px, 1.5cqw, 8px);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.vig-msg-amt {
+  margin-left: auto;
+  font-size: clamp(8px, 2.4cqw, 13px);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--seal);
+}
+.vig-msg p {
+  margin: 1.8cqw 0 0;
+  font-size: clamp(6.5px, 1.85cqw, 10px);
+  font-weight: 300;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.vig-agreed {
+  display: flex;
+  align-items: center;
+  gap: 1.8cqw;
+  border-radius: 9px;
+  padding: 2.6cqw 3cqw;
+  background: var(--sage-tint);
+  border: 1px solid rgba(86, 115, 99, 0.28);
+  font-size: clamp(6.5px, 1.9cqw, 10.5px);
+  font-weight: 600;
+  color: var(--sage);
+}
+
+/* ---------- 3 · Invoice & payout ---------- */
+.vig-doc { padding: 4cqw; }
+.vig-doc-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 2cqw;
+  padding-bottom: 3cqw;
+  border-bottom: 1px solid var(--hairline);
+}
+.vig-doc-head .vig-kit-name { color: var(--seal); }
+.vig-doc-meta {
+  margin-left: auto;
+  text-align: right;
+  font-size: clamp(5.5px, 1.5cqw, 8px);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  line-height: 1.7;
+}
+.vig-lines { display: grid; }
+.vig-line {
+  display: flex;
+  align-items: baseline;
+  gap: 2cqw;
+  padding: 2.8cqw 0;
+  border-bottom: 1px solid rgba(78, 49, 44, 0.07);
+  font-size: clamp(6.5px, 1.95cqw, 11px);
+  color: var(--seal);
+}
+.vig-line span:first-child { font-weight: 600; }
+.vig-line em {
+  font-style: normal;
+  font-weight: 300;
+  color: var(--faint);
+  font-size: 0.86em;
+}
+.vig-line b { margin-left: auto; font-weight: 700; white-space: nowrap; }
+.vig-line-fee { color: var(--sage); }
+.vig-line-fee b, .vig-line-fee span:first-child { color: var(--sage); }
+.vig-total {
+  display: flex;
+  align-items: baseline;
+  gap: 2cqw;
+  padding: 3.2cqw 0 0;
+  font-size: clamp(7.5px, 2.2cqw, 12px);
+  font-weight: 700;
+  color: var(--seal);
+}
+.vig-total b { margin-left: auto; font-size: clamp(10px, 3cqw, 16px); }
+.vig-payout {
+  margin-top: 3.4cqw;
+  border-radius: 9px;
+  padding: 3cqw;
+  background: var(--sage-tint);
+  border: 1px solid rgba(86, 115, 99, 0.28);
+  display: flex;
+  align-items: center;
+  gap: 2cqw;
+  font-size: clamp(6.5px, 1.9cqw, 10.5px);
+  font-weight: 600;
+  color: var(--sage);
+}
+.vig-payout b { margin-left: auto; font-weight: 700; }
+
+@media (max-width: 900px) {
+  .vig-cap { font-size: 12px; }
+}

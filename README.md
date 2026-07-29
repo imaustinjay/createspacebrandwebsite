@@ -117,9 +117,18 @@ npx -y netlify-cli dev       # pages + the serverless functions
 
 ## Still open (from the handoff, on purpose)
 
-- **Imagery** — every frame is a labelled striped placeholder: campaign
-  stills, a media kit screenshot, a deal room screenshot, an invoice/signing
-  screenshot, and the founder portrait on About.
+- **Photography** — two frames still await real assets: the campaign still
+  and kit shot on Home, and the founder portrait on About. The Platform page
+  no longer has placeholders; its three frames are engine vignettes (see
+  below).
+- **Engine vignettes** (`.vig-*` in `site.css`) draw the media kit, deal room
+  and invoice as they actually exist in the workspace — structure, labels and
+  status semantics lifted from `KitSheet.tsx`, `PitchDetail.tsx` and
+  `UgcInvoiceStudio.tsx`. They are drawn in type and tokens, not
+  screenshotted, so they stay crisp and need no re-capture when the product
+  moves. Figures are illustrative and each frame says so in its caption. If
+  the product's own labels change, update these to match — a vignette that
+  drifts from the real interface stops being honest.
 - **No roster grid**, by decision — only alongside real names and portraits.
 - Commission percentages and the 90/10 split stay qualitative, by decision.
 - The privacy page is a plain-words draft in the house voice — worth a
