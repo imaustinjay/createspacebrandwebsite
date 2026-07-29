@@ -18,10 +18,17 @@
 [functions]
   node_bundler = "esbuild"
 
-# The one API surface: the brand enquiry form on /brands/.
+# The brand enquiry form on /brands/.
 [[redirects]]
   from = "/api/enquiry"
   to = "/.netlify/functions/enquiry"
+  status = 200
+
+# Live season status for the application doors (reads the workspace's open
+# casting cycles via the Supabase anon key; cached 5 minutes).
+[[redirects]]
+  from = "/api/seasons"
+  to = "/.netlify/functions/seasons"
   status = 200
 
 [[headers]]

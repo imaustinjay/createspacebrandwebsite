@@ -93,6 +93,20 @@ img { max-width: 100%; }
 }
 .settle { animation: csSettle 0.55s var(--ease-settle) both; }
 
+/* Below-fold sections settle in as they arrive (armed by reveal.js; without
+   JS everything is simply visible). */
+html.js [data-settle] {
+  opacity: 0;
+  transform: translateY(12px);
+  filter: blur(5px);
+  transition: opacity 0.55s var(--ease-settle), transform 0.55s var(--ease-settle), filter 0.55s var(--ease-settle);
+}
+html.js [data-settle].settled {
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+
 /* ---------- Layout ---------- */
 .shell {
   max-width: 1240px;
@@ -133,8 +147,44 @@ img { max-width: 100%; }
 .dark {
   background: var(--dark-stage);
   color: var(--ivory);
+  position: relative;
+  overflow: hidden;
 }
 .dark h1, .dark h2, .dark h3 { color: var(--ivory); }
+.dark > * { position: relative; z-index: 1; }
+
+/* The house ambience for the dark stage — dusk-tinted washes and
+   slow-drifting light orbs (14–22s). Alive, never noticed as animation. */
+.dark::before,
+.dark::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(60px);
+  will-change: transform;
+}
+.dark::before {
+  width: 520px;
+  height: 520px;
+  left: -140px;
+  top: -180px;
+  background: radial-gradient(circle, rgba(214, 148, 164, 0.13), transparent 70%);
+  animation: csDrift 18s ease-in-out infinite alternate;
+}
+.dark::after {
+  width: 640px;
+  height: 640px;
+  right: -200px;
+  bottom: -240px;
+  background: radial-gradient(circle, rgba(255, 255, 240, 0.05), transparent 70%);
+  animation: csDrift 22s ease-in-out infinite alternate-reverse;
+}
+@keyframes csDrift {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(64px, 44px, 0); }
+}
 
 /* ---------- Header ---------- */
 .site-header {
@@ -252,6 +302,16 @@ h1, h2, h3 { margin: 0; }
   box-shadow: var(--card-shadow);
   transition: transform 0.25s var(--ease-spring), box-shadow 0.25s var(--ease-ignite);
 }
+@media (hover: hover) {
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 1px 2px rgba(78, 49, 44, 0.05),
+      0 10px 24px -12px rgba(78, 49, 44, 0.10),
+      0 30px 56px -28px rgba(78, 49, 44, 0.20),
+      inset 0 -1px 0 rgba(78, 49, 44, 0.02);
+  }
+}
 .card-flat {
   background: var(--ivory);
   border: 1px solid var(--hairline);
@@ -271,6 +331,11 @@ h1, h2, h3 { margin: 0; }
 .pill-sage { background: var(--sage-tint); color: var(--sage); }
 .pill-dusk-dark { background: rgba(214, 148, 164, 0.22); color: var(--ivory); }
 .pill-ivory-dark { background: rgba(255, 255, 240, 0.10); color: rgba(255, 255, 240, 0.86); }
+.pill-faint { background: rgba(78, 49, 44, 0.06); color: var(--faint); }
+
+/* Live season status lines (filled by seasons.js) */
+.season-line { font-size: 13px; font-weight: 400; line-height: 1.6; color: var(--muted); margin: 14px 0 0; }
+.season-line-dark { font-size: 13px; font-weight: 400; line-height: 1.6; color: rgba(255, 255, 240, 0.62); margin: 14px 0 0; }
 
 .dot {
   width: 6px;
@@ -426,4 +491,5 @@ input::placeholder { color: var(--faint); }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
+  html.js [data-settle] { opacity: 1; transform: none; filter: none; }
 }

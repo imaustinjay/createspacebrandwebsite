@@ -12,11 +12,14 @@
   <meta property="og:title" content="createspace · community + talent — creator community and talent representation" />
   <meta property="og:description" content="One house, two divisions: a creator community with no follower requirement, and a represented roster we put in front of brand partners. No one should build alone." />
   <meta property="og:url" content="https://createspacebrand.com/" />
-  <meta name="twitter:card" content="summary" />
+  <meta property="og:image" content="https://createspacebrand.com/assets/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@1,400;1,500;1,600&family=Raleway:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="preload" href="/assets/fonts/raleway-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/assets/fonts/lora-italic-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/assets/fonts/fonts.css" />
   <link rel="stylesheet" href="/assets/site.css" />
   <script type="application/ld+json">
   {
@@ -28,6 +31,8 @@
     "slogan": "Creating Virtually Safe Spaces"
   }
   </script>
+  <script src="/assets/reveal.js" defer></script>
+  <script src="/assets/seasons.js" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -56,7 +61,7 @@
     </p>
   </section>
 
-  <section class="two" style="--gap: 0px; border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); min-height: 560px;">
+  <section data-settle class="two" style="--gap: 0px; border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); min-height: 560px;">
     <a class="door door-light" href="https://createspacebrand.online/apply/community">
       <div class="dot-row">
         <span class="dot dot-sage"></span>
@@ -68,6 +73,7 @@
         <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px;">
           <span class="pill pill-sage">No follower requirement</span>
           <span class="pill pill-sage">Cohort Studio</span>
+          <span data-season="community" data-open-class="pill pill-sage" data-closed-class="pill pill-faint" hidden></span>
         </div>
         <span class="btn btn-primary">Enter the Community door</span>
       </div>
@@ -83,6 +89,7 @@
         <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px;">
           <span class="pill pill-dusk-dark">20k on a single platform to apply</span>
           <span class="pill pill-ivory-dark">Invitation-based onboarding</span>
+          <span data-season="talent" data-open-class="pill pill-dusk-dark" data-closed-class="pill pill-ivory-dark" hidden></span>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
           <a class="btn btn-ivory" href="https://createspacebrand.online/apply/talent">Enter the Talent door</a>
@@ -92,11 +99,11 @@
     </div>
   </section>
 
-  <section class="shell" style="padding-top: 20px;">
+  <section data-settle class="shell" style="padding-top: 20px;">
     <p class="fine" style="margin: 0; max-width: 78ch;">Combined counts across platforms don't qualify for Talent — and the threshold is about brand-deal logistics, not about your worth. If you're short of it, the Community door is genuinely open, and we'd rather you knew that here than three steps into a form.</p>
   </section>
 
-  <section class="shell-narrow" style="padding-top: 100px; padding-bottom: 100px;">
+  <section data-settle class="shell-narrow" style="padding-top: 100px; padding-bottom: 100px;">
     <span class="eyebrow">How we work</span>
     <h2 class="t-sec34" style="margin: 16px 0 40px; max-width: 26ch;">Four commitments we'd rather be <span class="emph-sage">held to.</span></h2>
     <div class="two">
@@ -119,7 +126,7 @@
     </div>
   </section>
 
-  <section class="band">
+  <section data-settle class="band">
     <div class="shell split" style="--cols: 1.05fr 0.95fr; padding-top: 96px; padding-bottom: 96px; align-items: center;">
       <div>
         <span class="eyebrow">For brands</span>
@@ -137,7 +144,7 @@
     </div>
   </section>
 
-  <section class="shell-narrow" style="padding-top: 100px; padding-bottom: 100px; text-align: center;">
+  <section data-settle class="shell-narrow" style="padding-top: 100px; padding-bottom: 100px; text-align: center;">
     <span class="eyebrow">Seasons</span>
     <p class="t-quote32" style="margin: 20px 0 26px;">Applications open in quarterly seasons. Each door tells you whether it's open before you begin, and every decision comes back <span class="emph-dusk">written by a person.</span></p>
     <p class="body" style="margin: 0 auto 34px; max-width: 52ch;">If it's a not-yet, it isn't a soft no — it's an honest one, often with specific feedback, from people who saw something real in what you sent.</p>
@@ -145,7 +152,7 @@
   </section>
 </main>
 
-<section class="dark">
+<section data-settle class="dark">
   <div class="shell" style="padding-top: 84px; padding-bottom: 84px; text-align: center;">
     <h2 class="t-band" style="margin: 0 0 18px;">There's room for <span class="emph-dusk">you</span> here.</h2>
     <p class="body-15" style="margin: 0 auto 32px; max-width: 46ch; color: rgba(255,255,240,0.74);">Pick your door at the front desk. Every application is read by a person, and every decision is made by one.</p>
@@ -175,6 +182,8 @@
       <a href="/about/">About</a>
       <a href="/brands/">For brands</a>
       <a href="/brands/#enquire">Contact</a>
+      <a href="https://createspacebrand.online/">Creator sign in</a>
+      <a href="/privacy/">Privacy</a>
     </div>
   </div>
   <div class="shell" style="padding-bottom: 40px;">

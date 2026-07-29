@@ -11,12 +11,17 @@
   <meta property="og:title" content="Creator community — no follower requirement | createspace" />
   <meta property="og:description" content="A creator community where nobody builds alone. No follower requirement, and there never will be." />
   <meta property="og:url" content="https://createspacebrand.com/creators/" />
-  <meta name="twitter:card" content="summary" />
+  <meta property="og:image" content="https://createspacebrand.com/assets/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@1,400;1,500;1,600&family=Raleway:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="preload" href="/assets/fonts/raleway-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/assets/fonts/lora-italic-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/assets/fonts/fonts.css" />
   <link rel="stylesheet" href="/assets/site.css" />
+  <script src="/assets/reveal.js" defer></script>
+  <script src="/assets/seasons.js" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -42,7 +47,7 @@
     <p class="lede" style="max-width: 56ch; margin: 0;">Community is the division for creators growing their craft and their life alongside other people doing the same. There is no follower requirement, and there never will be.</p>
   </section>
 
-  <section class="shell" style="padding-bottom: 96px;">
+  <section data-settle class="shell" style="padding-bottom: 96px;">
     <div class="split" style="--cols: 1.1fr 0.9fr; --gap: 64px; align-items: start;">
       <div>
         <h2 class="t-30" style="margin: 0 0 28px;">What a cohort actually involves</h2>
@@ -76,12 +81,13 @@
           <li>You get a written letter, whichever way it goes.</li>
         </ol>
         <p class="fine" style="margin: 0;">Seasons are quarterly. The door tells you whether it's open before you start.</p>
+        <p class="season-line" style="margin: 0;" data-season="community" data-label="Community" data-mode="line" hidden></p>
         <a class="btn btn-primary" href="https://createspacebrand.online/apply/community" style="text-align: center;">Apply to Community</a>
       </div>
     </div>
   </section>
 
-  <section class="band">
+  <section data-settle class="band">
     <div class="shell-narrow" style="padding-top: 84px; padding-bottom: 84px; text-align: center;">
       <p class="t-quote30" style="margin: 0 0 22px;">Looking for representation instead? That's the <span class="emph-dusk">other door.</span></p>
       <p class="body" style="margin: 0 auto 28px; max-width: 52ch;">Talent asks for 20,000 followers on a single platform to apply — combined counts across platforms don't qualify. It's a brand-deal logistics floor, not a judgement about your work.</p>
@@ -90,7 +96,7 @@
   </section>
 </main>
 
-<section class="dark">
+<section data-settle class="dark">
   <div class="shell" style="padding-top: 84px; padding-bottom: 84px; text-align: center;">
     <h2 class="t-band" style="margin: 0 0 18px;">There's room for <span class="emph-dusk">you</span> here.</h2>
     <p class="body-15" style="margin: 0 auto 32px; max-width: 46ch; color: rgba(255,255,240,0.74);">Pick your door at the front desk. Every application is read by a person, and every decision is made by one.</p>
@@ -120,6 +126,8 @@
       <a href="/about/">About</a>
       <a href="/brands/">For brands</a>
       <a href="/brands/#enquire">Contact</a>
+      <a href="https://createspacebrand.online/">Creator sign in</a>
+      <a href="/privacy/">Privacy</a>
     </div>
   </div>
   <div class="shell" style="padding-bottom: 40px;">
