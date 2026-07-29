@@ -93,6 +93,66 @@ img { max-width: 100%; }
 }
 .settle { animation: csSettle 0.55s var(--ease-settle) both; }
 
+/* Hero support copy and CTAs arrive a beat after the headline's words. */
+.settle-late { animation: csSettle 0.55s var(--ease-settle) 0.5s both; }
+
+/* Word-by-word headline arrival (spans minted by motion.js; without JS the
+   headline simply renders whole). */
+html.js [data-words] .w {
+  display: inline-block;
+  animation: csWordIn 0.65s var(--ease-settle) both;
+  animation-delay: calc(0.1s + var(--i) * 0.05s);
+}
+@keyframes csWordIn {
+  from { opacity: 0; transform: translateY(0.4em); filter: blur(6px); }
+  to   { opacity: 1; transform: none; filter: none; }
+}
+
+/* ---------- Cross-page transitions ---------- */
+/* The header (and the wordmark in it) holds still while the old page settles
+   out and the new one settles in — same-origin navigations only, and browsers
+   without the View Transitions API simply navigate. */
+@view-transition { navigation: auto; }
+.site-header { view-transition-name: site-header; }
+::view-transition-old(root) { animation: csVtOut 0.25s var(--ease-settle) both; }
+::view-transition-new(root) { animation: csVtIn 0.4s var(--ease-settle) both; }
+@keyframes csVtOut { to { opacity: 0; transform: translateY(-10px); } }
+@keyframes csVtIn { from { opacity: 0; transform: translateY(14px); } }
+
+/* ---------- The constant motion space ---------- */
+/* Faint sage and dusk washes drifting behind the ivory canvas — the light in
+   the room moving, never a spectacle. White bands and cards sit above them. */
+html { background: var(--ivory); }
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  z-index: -1;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+}
+body::before {
+  width: 56vw;
+  height: 56vw;
+  top: -20vw;
+  right: -18vw;
+  background: radial-gradient(circle, rgba(86, 115, 99, 0.07), transparent 70%);
+  animation: csDriftSlow 26s ease-in-out infinite alternate;
+}
+body::after {
+  width: 48vw;
+  height: 48vw;
+  bottom: -18vw;
+  left: -14vw;
+  background: radial-gradient(circle, rgba(214, 148, 164, 0.08), transparent 70%);
+  animation: csDriftSlow 34s ease-in-out infinite alternate-reverse;
+}
+@keyframes csDriftSlow {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-6vw, 5vw, 0); }
+}
+
 /* Below-fold sections settle in as they arrive (armed by reveal.js; without
    JS everything is simply visible). */
 html.js [data-settle] {
@@ -106,6 +166,34 @@ html.js [data-settle].settled {
   transform: none;
   filter: none;
 }
+
+/* Children of a settling section arrive one at a time — cards, list rows and
+   steps stagger in behind their section. */
+html.js [data-settle] :is(.two, .grid3) > *,
+html.js [data-settle] .rows > div,
+html.js [data-settle] .step {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.5s var(--ease-settle), transform 0.5s var(--ease-settle);
+}
+html.js [data-settle].settled :is(.two, .grid3) > *,
+html.js [data-settle].settled .rows > div,
+html.js [data-settle].settled .step {
+  opacity: 1;
+  transform: none;
+}
+html.js [data-settle].settled :is(.two, .grid3) > :nth-child(1),
+html.js [data-settle].settled :is(.rows > div, .step):nth-child(1) { transition-delay: 0.08s; }
+html.js [data-settle].settled :is(.two, .grid3) > :nth-child(2),
+html.js [data-settle].settled :is(.rows > div, .step):nth-child(2) { transition-delay: 0.16s; }
+html.js [data-settle].settled :is(.two, .grid3) > :nth-child(3),
+html.js [data-settle].settled :is(.rows > div, .step):nth-child(3) { transition-delay: 0.24s; }
+html.js [data-settle].settled :is(.two, .grid3) > :nth-child(4),
+html.js [data-settle].settled :is(.rows > div, .step):nth-child(4) { transition-delay: 0.32s; }
+html.js [data-settle].settled :is(.two, .grid3) > :nth-child(5),
+html.js [data-settle].settled :is(.rows > div, .step):nth-child(5) { transition-delay: 0.4s; }
+html.js [data-settle].settled :is(.two, .grid3) > :nth-child(6),
+html.js [data-settle].settled :is(.rows > div, .step):nth-child(6) { transition-delay: 0.48s; }
 
 /* ---------- Layout ---------- */
 .shell {
@@ -203,8 +291,19 @@ html.js [data-settle].settled {
   padding-top: 16px;
   padding-bottom: 16px;
 }
-.brand { flex: none; display: block; }
-.brand img { height: 40px; width: auto; display: block; }
+.brand { flex: none; display: block; transition: transform 0.3s var(--ease-spring); }
+.brand:hover { transform: scale(1.03); }
+.brand img {
+  height: 40px;
+  width: auto;
+  display: block;
+  /* The wordmark breathes — a dusk halo on the ~3s human rhythm. */
+  animation: csLogoBreathe 3.4s ease-in-out infinite;
+}
+@keyframes csLogoBreathe {
+  0%, 100% { filter: drop-shadow(0 0 0 rgba(214, 148, 164, 0)); transform: scale(1); }
+  50%      { filter: drop-shadow(0 3px 9px rgba(214, 148, 164, 0.38)); transform: scale(1.012); }
+}
 .nav {
   display: flex;
   align-items: center;
@@ -460,6 +559,66 @@ input::placeholder { color: var(--faint); }
 .foot-col a { color: inherit; }
 .foot-col a:hover { color: var(--seal); }
 
+/* ---------- The minimal Home hero ---------- */
+.home-hero {
+  position: relative;
+  min-height: 540px;
+  min-height: max(540px, calc(100svh - 132px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.scroll-cue {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  width: 1px;
+  height: 58px;
+  background: linear-gradient(180deg, transparent, rgba(78, 49, 44, 0.20));
+}
+.scroll-cue::after {
+  content: '';
+  position: absolute;
+  left: -2.5px;
+  top: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dusk);
+  animation: csCue 2.8s var(--ease-settle) infinite;
+}
+@keyframes csCue {
+  0%   { transform: translateY(0); opacity: 0; }
+  22%  { opacity: 1; }
+  72%  { opacity: 1; }
+  100% { transform: translateY(52px); opacity: 0; }
+}
+
+/* The rotating proof line — the true differentiators, taking calm turns.
+   Reduced motion (or no JS) holds the first statement still. */
+.rotate-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--sage);
+  margin: 0 0 24px;
+  min-height: 22px;
+  transition: opacity 0.4s var(--ease-settle), transform 0.4s var(--ease-settle);
+}
+.rotate-line::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sage);
+  flex: none;
+  animation: csBreathe 3s ease-in-out infinite;
+}
+
 /* ---------- Anchors under the sticky header ---------- */
 #enquire { scroll-margin-top: 90px; }
 
@@ -491,5 +650,12 @@ input::placeholder { color: var(--faint); }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
-  html.js [data-settle] { opacity: 1; transform: none; filter: none; }
+  html.js [data-settle],
+  html.js [data-settle] :is(.two, .grid3) > *,
+  html.js [data-settle] .rows > div,
+  html.js [data-settle] .step {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
 }
