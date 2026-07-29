@@ -1,9 +1,9 @@
 # createspacebrand.com — the public marketing site.
 #
-# Deployed as its OWN Netlify site from this same GitHub repo:
-#   Netlify → Add new site → import this repo → set Base directory = "site".
-# The workspace app (createspacebrand.online) keeps deploying from the repo
-# root's netlify.toml; the two sites never share a deploy.
+# This repo IS the site: link it to Netlify with no base directory and
+# everything (publish dir, functions, redirects, headers) is read from here.
+# The workspace app (createspacebrand.online) lives in its own repo
+# (imaustinjay/createspace-workspace) and deploys separately.
 #
 # Static multi-page site — nothing to compile. npm install runs automatically
 # (package.json is here) so the enquiry function's dependencies get bundled.

@@ -2,15 +2,16 @@
 
 The public website for **createspace · community + talent**, ported from the
 Claude Design handoff (`Createspace_brand_website_design.zip`). Six real routes,
-one shared stylesheet, one serverless function. The workspace app
-(createspacebrand.online) lives in the repo root and deploys separately —
-nothing in here touches it.
+one shared stylesheet, two serverless functions. The workspace app
+(createspacebrand.online) lives in its own repo — `createspace-workspace` —
+and deploys separately; the brand context this site is built from is
+`reference/PUBLIC_SITE_CONTEXT.md` over there.
 
 ## Structure
 
 ```
-site/
-  netlify.toml            deploy config for THIS site (base directory = site)
+/
+  netlify.toml            deploy config — publish dir, functions, redirects
   package.json            deps for the enquiry function only
   netlify/functions/
     enquiry.mjs           brand enquiry → partnerships mailbox (SMTP)
@@ -40,14 +41,15 @@ became real routes, per the handoff README.
 ## Connecting it (Netlify + GitHub)
 
 1. Netlify → **Add new site** → **Import an existing project** → pick this
-   same GitHub repo.
-2. Set **Base directory** to `site`. Everything else (publish dir, functions)
-   is read from `site/netlify.toml`.
+   repo (`createspacebrandwebsite`). If a Netlify site already exists, link it
+   here instead: Site configuration → Build & deploy → **Link repository**.
+2. Leave **Base directory** empty. Everything else (publish dir, functions)
+   is read from `netlify.toml` at the repo root.
 3. Point the custom domain **createspacebrand.com** at the new site.
 4. Set the environment variables below, then deploy.
 
-The workspace site keeps its own Netlify site + env; the two share nothing but
-the repo. No Supabase is needed for the marketing site — the enquiry form goes
+The workspace keeps its own repo, Netlify site and env; the two share nothing.
+No Supabase database is needed for the marketing site — the enquiry form goes
 to email, and every application flow lives on createspacebrand.online.
 
 ## Environment variables (the enquiry form)
@@ -70,8 +72,8 @@ Abuse guards on the function: a honeypot field, a minimum-fill-time check
 ## Local preview
 
 ```bash
-cd site && npx -y serve public         # pages only
-cd site && npx -y netlify-cli dev      # pages + the enquiry function
+npx -y serve public          # pages only
+npx -y netlify-cli dev       # pages + the serverless functions
 ```
 
 ## Still open (from the handoff, on purpose)
