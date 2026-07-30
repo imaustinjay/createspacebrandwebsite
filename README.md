@@ -28,7 +28,7 @@ and deploys separately; the brand context this site is built from is
     assets/enquiry.js     form submit → /api/enquiry → confirmation state
     assets/seasons.js     fills the door-status slots from /api/seasons
     assets/reveal.js      below-fold sections settle in (house motion verb)
-    assets/motion.js      word-staggered headlines + the rotating proof line
+    assets/motion.js      mobile nav, word-staggered headlines, rotating proof line
     assets/fonts/         self-hosted Raleway + Lora italic (variable woff2)
     assets/og.png         share-preview card (dark stage + lockup)
     404.html · robots.txt · sitemap.xml · favicon.svg

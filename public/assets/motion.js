@@ -33,6 +33,39 @@
     })(root)
   })
 
+  // Mobile navigation. The panel itself is CSS, driven off [data-nav-open] on
+  // the header; this manages state and every way back out: Escape, a tap
+  // outside, following a link, or growing past the mobile breakpoint.
+  var header = document.querySelector('.site-header')
+  var toggle = document.querySelector('.nav-toggle')
+  if (header && toggle) {
+    var setOpen = function (open) {
+      if (open) header.setAttribute('data-nav-open', '')
+      else header.removeAttribute('data-nav-open')
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false')
+    }
+    toggle.addEventListener('click', function () {
+      setOpen(!header.hasAttribute('data-nav-open'))
+    })
+    header.querySelectorAll('.nav a').forEach(function (a) {
+      a.addEventListener('click', function () { setOpen(false) })
+    })
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && header.hasAttribute('data-nav-open')) {
+        setOpen(false)
+        toggle.focus()
+      }
+    })
+    document.addEventListener('click', function (e) {
+      if (header.hasAttribute('data-nav-open') && !header.contains(e.target)) setOpen(false)
+    })
+    // Rotating to landscape can cross the breakpoint while the panel is open,
+    // which would otherwise strand it over the desktop layout.
+    window.addEventListener('resize', function () {
+      if (window.innerWidth > 860) setOpen(false)
+    })
+  }
+
   // The rotating proof line — one true statement at a time, on a slow turn.
   var line = document.querySelector('[data-rotate]')
   if (!line || calm) return
