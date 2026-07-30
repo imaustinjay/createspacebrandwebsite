@@ -117,10 +117,9 @@ npx -y netlify-cli dev       # pages + the serverless functions
 
 ## Still open (from the handoff, on purpose)
 
-- **Photography** — two frames still await real assets: the campaign still
-  and kit shot on Home, and the founder portrait on About. The Platform page
-  no longer has placeholders; its three frames are engine vignettes (see
-  below).
+- **Photography** — one frame still awaits a real asset: the founder portrait
+  on About. Home and The platform carry engine vignettes instead (see below),
+  so no striped placeholders remain anywhere else.
 - **Engine vignettes** (`.vig-*` in `site.css`) draw the media kit, deal room
   and invoice as they actually exist in the workspace — structure, labels and
   status semantics lifted from `KitSheet.tsx`, `PitchDetail.tsx` and
