@@ -44,7 +44,13 @@
 
 html {
   scroll-behavior: smooth;
+  /* iOS enlarges text on rotation unless this is pinned. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
+
+/* Safari's grey tap flash fights the house's own hover/active states. */
+a, button { -webkit-tap-highlight-color: rgba(214, 148, 164, 0.18); }
 
 body {
   margin: 0;
@@ -151,6 +157,16 @@ body::after {
 @keyframes csDriftSlow {
   from { transform: translate3d(0, 0, 0); }
   to   { transform: translate3d(-6vw, 5vw, 0); }
+}
+
+/* Phones: a large blurred fixed layer is repainted every scroll frame on iOS,
+   which is the single most expensive thing on the page. Shrink the blur and
+   hold the washes still — at this size the drift was imperceptible anyway. */
+@media (max-width: 760px) {
+  body::before, body::after {
+    filter: blur(50px);
+    animation: none;
+  }
 }
 
 /* Below-fold sections settle in as they arrive (armed by reveal.js; without
@@ -433,6 +449,8 @@ h1, h2, h3 { margin: 0; }
 /* ---------- Buttons ---------- */
 .btn {
   display: inline-block;
+  -webkit-appearance: none;
+  appearance: none;
   font-family: 'Raleway', 'Helvetica Neue', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
@@ -591,6 +609,7 @@ a.door-light:hover { background: #FFFFFF; color: inherit; }
   color: var(--muted);
 }
 input, select {
+  -webkit-appearance: none;
   font-family: 'Raleway', 'Helvetica Neue', Arial, sans-serif;
   font-size: 14.5px;
   font-weight: 400;
@@ -602,7 +621,17 @@ input, select {
   outline: none;
   width: 100%;
 }
-select { appearance: none; }
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  /* Safari drops the native chevron with appearance:none — draw our own. */
+  background-image: linear-gradient(45deg, transparent 50%, rgba(78,49,44,0.5) 50%),
+                    linear-gradient(135deg, rgba(78,49,44,0.5) 50%, transparent 50%);
+  background-position: calc(100% - 17px) 50%, calc(100% - 12px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 34px;
+}
 input:focus, select:focus {
   border-color: var(--sage);
   box-shadow: 0 0 0 3px var(--dusk-tint);
@@ -809,6 +838,7 @@ input::placeholder { color: var(--faint); }
 
 /* Shared atoms */
 .vig-badge {
+  font-size: 8.5px;
   font-size: clamp(6px, 1.55cqw, 8.5px);
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -830,9 +860,11 @@ input::placeholder { color: var(--faint); }
 .vig-kit-head {
   background: var(--seal);
   color: var(--ivory);
+  padding: 20px 20px 18px;
   padding: 5cqw 5cqw 4.4cqw;
   display: flex;
   align-items: center;
+  gap: 14px;
   gap: 3.4cqw;
   position: relative;
   overflow: hidden;
@@ -840,15 +872,18 @@ input::placeholder { color: var(--faint); }
 .vig-kit-head::after {           /* the faint oversized monogram */
   content: 'A';
   position: absolute;
+  right: -4px; top: -24px;
   right: -1cqw; top: -6cqw;
   font-family: 'Lora', Georgia, serif;
   font-style: italic;
+  font-size: 120px;
   font-size: 30cqw;
   line-height: 1;
   color: rgba(255, 255, 240, 0.05);
   pointer-events: none;
 }
 .vig-avatar {
+  width: 44px; height: 44px;
   width: 11cqw; height: 11cqw;
   border-radius: 50%;
   flex: none;
@@ -857,6 +892,7 @@ input::placeholder { color: var(--faint); }
   display: flex; align-items: center; justify-content: center;
   font-family: 'Lora', Georgia, serif;
   font-style: italic;
+  font-size: 20px;
   font-size: clamp(9px, 4cqw, 20px);
   color: var(--ivory);
 }
@@ -864,6 +900,7 @@ input::placeholder { color: var(--faint); }
 .vig-kit-name {
   font-family: 'Lora', Georgia, serif;
   font-style: italic;
+  font-size: 23px;
   font-size: clamp(11px, 4.4cqw, 23px);
   line-height: 1.05;
   color: var(--ivory);
@@ -871,6 +908,7 @@ input::placeholder { color: var(--faint); }
 .vig-kit-name span { color: var(--dusk); }
 .vig-chips { display: flex; gap: 1.4cqw; margin-top: 1.8cqw; flex-wrap: wrap; }
 .vig-chips span {
+  font-size: 9px;
   font-size: clamp(6px, 1.6cqw, 9px);
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -884,17 +922,20 @@ input::placeholder { color: var(--faint); }
 .vig-kit-reach b {
   display: block;
   font-weight: 300;
+  font-size: 32px;
   font-size: clamp(15px, 6cqw, 32px);
   line-height: 1;
 }
 .vig-kit-reach i {
   display: block;
   font-style: normal;
+  font-size: 8px;
   font-size: clamp(5.5px, 1.5cqw, 8px);
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--dusk);
+  margin-top: 6px;
   margin-top: 1.4cqw;
 }
 .vig-statband {
@@ -904,6 +945,7 @@ input::placeholder { color: var(--faint); }
   border-bottom: 1px solid var(--hairline);
 }
 .vig-statband > div {
+  padding: 14px 8px;
   padding: 3.4cqw 2cqw;
   text-align: center;
   border-right: 1px solid rgba(78, 49, 44, 0.06);
@@ -912,6 +954,7 @@ input::placeholder { color: var(--faint); }
 .vig-statband b {
   display: block;
   font-weight: 300;
+  font-size: 19px;
   font-size: clamp(10px, 3.4cqw, 19px);
   line-height: 1.05;
   color: var(--seal);
@@ -919,27 +962,33 @@ input::placeholder { color: var(--faint); }
 .vig-statband i {
   display: block;
   font-style: normal;
+  font-size: 7.5px;
   font-size: clamp(5px, 1.4cqw, 7.5px);
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: rgba(78, 49, 44, 0.45);
+  margin-top: 6px;
   margin-top: 1.6cqw;
 }
 .vig-rows { padding: 3cqw 4cqw 4cqw; display: grid; gap: 2cqw; }
 .vig-row {
   display: flex;
   align-items: center;
+  gap: 8px;
   gap: 2cqw;
+  font-size: 11px;
   font-size: clamp(7px, 2cqw, 11px);
   font-weight: 600;
   color: var(--seal);
 }
 .vig-row-glyph {
+  width: 22px; height: 22px;
   width: 5.4cqw; height: 5.4cqw;
   border-radius: 3px;
   flex: none;
   display: flex; align-items: center; justify-content: center;
+  font-size: 9px;
   font-size: clamp(5px, 1.7cqw, 9px);
   font-weight: 700;
   color: var(--ivory);
@@ -951,13 +1000,16 @@ input::placeholder { color: var(--faint); }
 .vig-bar {
   background: var(--seal);
   color: var(--ivory);
+  padding: 14px 16px;
   padding: 3.4cqw 4cqw;
   display: flex;
   align-items: center;
+  gap: 8px;
   gap: 2cqw;
   flex-wrap: wrap;
 }
 .vig-bar-title {
+  font-size: 12.5px;
   font-size: clamp(8px, 2.3cqw, 12.5px);
   font-weight: 600;
   color: var(--ivory);
@@ -965,13 +1017,16 @@ input::placeholder { color: var(--faint); }
 .vig-bar .vig-badge { margin-left: auto; }
 .vig-stages {
   display: flex;
+  gap: 6px;
   gap: 1.4cqw;
+  padding: 12px 16px;
   padding: 3cqw 4cqw;
   flex-wrap: wrap;
   border-bottom: 1px solid var(--hairline);
   background: #FFFDF8;
 }
 .vig-stage {
+  font-size: 9px;
   font-size: clamp(5.5px, 1.6cqw, 9px);
   font-weight: 600;
   border-radius: 6px;
@@ -989,6 +1044,7 @@ input::placeholder { color: var(--faint); }
 .vig-msg {
   border: 1px solid var(--hairline);
   border-radius: 9px;
+  padding: 10px 12px;
   padding: 2.6cqw 3cqw;
   background: #FFFFFF;
 }
@@ -996,7 +1052,9 @@ input::placeholder { color: var(--faint); }
 .vig-msg-head {
   display: flex;
   align-items: baseline;
+  gap: 6px;
   gap: 1.6cqw;
+  font-size: 8px;
   font-size: clamp(5.5px, 1.5cqw, 8px);
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -1005,6 +1063,7 @@ input::placeholder { color: var(--faint); }
 }
 .vig-msg-amt {
   margin-left: auto;
+  font-size: 13px;
   font-size: clamp(8px, 2.4cqw, 13px);
   font-weight: 700;
   letter-spacing: 0;
@@ -1012,7 +1071,9 @@ input::placeholder { color: var(--faint); }
   color: var(--seal);
 }
 .vig-msg p {
+  margin: 7px 0 0;
   margin: 1.8cqw 0 0;
+  font-size: 10px;
   font-size: clamp(6.5px, 1.85cqw, 10px);
   font-weight: 300;
   line-height: 1.55;
@@ -1021,11 +1082,14 @@ input::placeholder { color: var(--faint); }
 .vig-agreed {
   display: flex;
   align-items: center;
+  gap: 7px;
   gap: 1.8cqw;
   border-radius: 9px;
+  padding: 10px 12px;
   padding: 2.6cqw 3cqw;
   background: var(--sage-tint);
   border: 1px solid rgba(86, 115, 99, 0.28);
+  font-size: 10.5px;
   font-size: clamp(6.5px, 1.9cqw, 10.5px);
   font-weight: 600;
   color: var(--sage);
@@ -1036,7 +1100,9 @@ input::placeholder { color: var(--faint); }
 .vig-doc-head {
   display: flex;
   align-items: flex-start;
+  gap: 8px;
   gap: 2cqw;
+  padding-bottom: 12px;
   padding-bottom: 3cqw;
   border-bottom: 1px solid var(--hairline);
 }
@@ -1044,6 +1110,7 @@ input::placeholder { color: var(--faint); }
 .vig-doc-meta {
   margin-left: auto;
   text-align: right;
+  font-size: 8px;
   font-size: clamp(5.5px, 1.5cqw, 8px);
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -1055,9 +1122,12 @@ input::placeholder { color: var(--faint); }
 .vig-line {
   display: flex;
   align-items: baseline;
+  gap: 8px;
   gap: 2cqw;
+  padding: 11px 0;
   padding: 2.8cqw 0;
   border-bottom: 1px solid rgba(78, 49, 44, 0.07);
+  font-size: 11px;
   font-size: clamp(6.5px, 1.95cqw, 11px);
   color: var(--seal);
 }
@@ -1074,22 +1144,29 @@ input::placeholder { color: var(--faint); }
 .vig-total {
   display: flex;
   align-items: baseline;
+  gap: 8px;
   gap: 2cqw;
+  padding: 13px 0 0;
   padding: 3.2cqw 0 0;
+  font-size: 12px;
   font-size: clamp(7.5px, 2.2cqw, 12px);
   font-weight: 700;
   color: var(--seal);
 }
 .vig-total b { margin-left: auto; font-size: clamp(10px, 3cqw, 16px); }
 .vig-payout {
+  margin-top: 14px;
   margin-top: 3.4cqw;
   border-radius: 9px;
+  padding: 12px;
   padding: 3cqw;
   background: var(--sage-tint);
   border: 1px solid rgba(86, 115, 99, 0.28);
   display: flex;
   align-items: center;
+  gap: 8px;
   gap: 2cqw;
+  font-size: 10.5px;
   font-size: clamp(6.5px, 1.9cqw, 10.5px);
   font-weight: 600;
   color: var(--sage);
@@ -1107,9 +1184,11 @@ input::placeholder { color: var(--faint); }
 .vig-mini-head {
   background: var(--seal);
   color: var(--ivory);
+  padding: 24px 20px;
   padding: 6cqw 5cqw;
   display: flex;
   align-items: center;
+  gap: 12px;
   gap: 3cqw;
 }
 .vig-mini-head .vig-avatar { width: 13cqw; height: 13cqw; }
@@ -1120,6 +1199,7 @@ input::placeholder { color: var(--faint); }
 .vig-mini-stat b {
   display: block;
   font-weight: 300;
+  font-size: 40px;
   font-size: clamp(20px, 11cqw, 40px);
   line-height: 1;
   color: var(--seal);
@@ -1127,23 +1207,29 @@ input::placeholder { color: var(--faint); }
 .vig-mini-stat i {
   display: block;
   font-style: normal;
+  font-size: 10px;
   font-size: clamp(7px, 2.9cqw, 10px);
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--sage);
+  margin-top: 8px;
   margin-top: 2cqw;
 }
 .vig-mini-rows {
   display: grid;
+  gap: 10px;
   gap: 2.6cqw;
+  padding-top: 16px;
   padding-top: 4cqw;
   border-top: 1px solid var(--hairline);
 }
 .vig-mini-rows > div {
   display: flex;
   align-items: center;
+  gap: 8px;
   gap: 2cqw;
+  font-size: 12px;
   font-size: clamp(9px, 3.4cqw, 12px);
   font-weight: 600;
   color: var(--seal);
@@ -1154,16 +1240,21 @@ input::placeholder { color: var(--faint); }
 .vig-mini-label {
   font-family: 'Lora', Georgia, serif;
   font-style: italic;
+  font-size: 22px;
   font-size: clamp(14px, 6.4cqw, 22px);
   color: var(--seal);
+  margin-bottom: 16px;
   margin-bottom: 4cqw;
 }
 .vig-mini-line {
   display: flex;
   align-items: baseline;
+  gap: 8px;
   gap: 2cqw;
+  padding: 14px 0;
   padding: 3.4cqw 0;
   border-bottom: 1px solid rgba(78, 49, 44, 0.07);
+  font-size: 12.5px;
   font-size: clamp(9px, 3.4cqw, 12.5px);
   font-weight: 600;
   color: var(--seal);
@@ -1171,20 +1262,26 @@ input::placeholder { color: var(--faint); }
 .vig-mini-line b { margin-left: auto; font-weight: 700; white-space: nowrap; }
 .vig-mini-total {
   border-bottom: none;
+  padding-top: 16px;
   padding-top: 4cqw;
+  font-size: 14px;
   font-size: clamp(10px, 3.8cqw, 14px);
   font-weight: 700;
 }
 .vig-mini-total b { font-size: clamp(12px, 4.8cqw, 18px); }
 .vig-mini-payout {
+  margin-top: 16px;
   margin-top: 4cqw;
   border-radius: 9px;
+  padding: 14px;
   padding: 3.4cqw;
   background: var(--sage-tint);
   border: 1px solid rgba(86, 115, 99, 0.28);
   display: flex;
   align-items: center;
+  gap: 10px;
   gap: 2.4cqw;
+  font-size: 11.5px;
   font-size: clamp(8.5px, 3.1cqw, 11.5px);
   font-weight: 600;
   color: var(--sage);

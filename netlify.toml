@@ -31,10 +31,31 @@
   to = "/.netlify/functions/seasons"
   status = 200
 
+# Fonts never change under a given filename — cache them hard.
+[[headers]]
+  for = "/assets/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Stylesheets and scripts DO change, and their filenames don't. A long
+# max-age here means a returning visitor pairs new HTML with stale CSS —
+# which is exactly how the site broke on 2026-07-30. Revalidate instead:
+# ETags make the usual answer a 304, so this costs almost nothing and can
+# never serve a mismatched pair again.
+[[headers]]
+  for = "/assets/*.css"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/assets/*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
 [[headers]]
   for = "/assets/*"
   [headers.values]
-    Cache-Control = "public, max-age=604800"
+    Cache-Control = "public, max-age=86400"
 
 [[headers]]
   for = "/*"

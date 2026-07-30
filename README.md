@@ -108,6 +108,40 @@ nothing.
 Failures are never cached, so a fix shows on the very next request. Successes
 are cached five minutes at the CDN.
 
+## Caching — read before changing an asset
+
+Stylesheets and scripts are served `max-age=0, must-revalidate`, so a returning
+visitor always revalidates and can never pair new HTML with stale CSS. ETags
+make the usual answer a 304, so the cost is negligible. Fonts are immutable
+under their filenames and cached for a year.
+
+This matters because it went wrong once: `/assets/*` was originally cached hard
+for seven days, and the 2026-07-30 deploy served new HTML with week-old CSS —
+the vignettes rendered as unstyled text and the mobile menu button appeared raw.
+If you ever reintroduce a long `max-age` on CSS or JS, add a fingerprint to the
+filename in the same change.
+
+The `?v=` query on the asset links is a one-time cache-buster for visitors who
+were already holding the old seven-day cache. It doesn't need bumping on every
+deploy now that revalidation is on — only if a long cache is reintroduced.
+
+## Browser support
+
+Targets current Chrome, Safari, Firefox and Edge, degrading rather than
+breaking on older ones:
+
+- **Container queries** size the engine vignettes. Every `cqw` declaration is
+  preceded by a px fallback, so a browser without support renders a slightly
+  tighter but complete card instead of unstyled text. Verified by stripping
+  every `cqw` line and re-rendering.
+- **Cross-document view transitions** are progressive: unsupported browsers
+  simply navigate.
+- `100svh`, `backdrop-filter`, `appearance` and `text-size-adjust` all carry
+  fallbacks or `-webkit-` prefixes.
+- On phones the ambient background washes stop drifting and blur less — a
+  large blurred fixed layer is the most expensive thing iOS repaints per
+  scroll frame, and at that size the drift wasn't perceptible.
+
 ## Local preview
 
 ```bash
