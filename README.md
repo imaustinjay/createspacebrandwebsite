@@ -1,8 +1,9 @@
 # createspacebrand.com — public marketing site
 
 The public website for **createspace · community + talent**, ported from the
-Claude Design handoff (`Createspace_brand_website_design.zip`). Six real routes,
-one shared stylesheet, two serverless functions. The workspace app
+Claude Design handoff (`Createspace_brand_website_design.zip`), plus the
+storefront from the second handoff (`Createspace_Storefront_standalone.html`).
+Twenty-six real routes, two stylesheets, three serverless functions. The workspace app
 (createspacebrand.online) lives in its own repo — `createspace-workspace` —
 and deploys separately; the brand context this site is built from is
 `reference/PUBLIC_SITE_CONTEXT.md` over there.
@@ -16,6 +17,7 @@ and deploys separately; the brand context this site is built from is
   netlify/functions/
     enquiry.mjs           brand enquiry → partnerships mailbox (SMTP)
     seasons.mjs           live door status ← workspace casting cycles (anon RLS)
+    shop.mjs              every storefront form → the shop mailbox (SMTP)
   public/                 everything served, exactly as-is — no build step
     index.html            Home
     creators/index.html   For creators (Community division)
@@ -24,7 +26,23 @@ and deploys separately; the brand context this site is built from is
     platform/index.html   The platform
     about/index.html      About + founder letter
     privacy/index.html    Privacy — what the site holds, plainly
+    contact/index.html    Contact — a person, not a queue
+    partnerships/         Partnerships — collaborations, sponsorship, tools
+    careers/              Careers — no open roles, plus the alert list
+    internships/          Internships — what interns work on, plus the form
+    shop/index.html       The shop — hero, the Fall Drop, the craft
+    shop/products/        Digital products, then one page per product
+    shop/the-craft/       the craft — the membership
+    shop/workshops/       The Workshop
+    shop/cohort/          The Cohort + interest form
+    shop/services/        Done-for-you services
+    shop/faq/             FAQ
+    shop/account/         Sign up / log in
+    shop/checkout/        Three-step checkout (noindex)
+    shop/order/           Order confirmation (noindex)
     assets/site.css       tokens (verbatim from reference/PUBLIC_SITE_CONTEXT.md §3) + components
+    assets/shop.css       storefront components, in those same tokens
+    assets/shop.js        cart, drawer, countdown, FAQ, checkout, forms
     assets/enquiry.js     form submit → /api/enquiry → confirmation state
     assets/seasons.js     fills the door-status slots from /api/seasons
     assets/reveal.js      below-fold sections settle in (house motion verb)
@@ -57,6 +75,7 @@ below). Every application flow itself lives on createspacebrand.online.
 | Variable | What it is |
 |---|---|
 | `PARTNERSHIPS_EMAIL` | Where enquiries land (e.g. the partnerships@ mailbox). Server-side only — deliberately never printed in the client bundle, per the handoff, so it can't be scraped. |
+| `SHOP_EMAIL` | Where the storefront's forms land (contact, cohort interest, careers and workshop alerts, internship applications, the Fall Drop list, account reservations). Falls back to `PARTNERSHIPS_EMAIL` if unset. Server-side only, same as above. |
 | `MAIL_USER` / `MAIL_PASSWORD` | SMTP login for the sending mailbox (falls back to `TITAN_EMAIL` / `TITAN_PASSWORD`, same convention as the workspace's `shared/mailCore.mjs`). |
 | `MAIL_SMTP_HOST` / `MAIL_SMTP_PORT` | Optional; default `smtp.titan.email` : `465`. |
 | `MAIL_FROM_NAME` | Optional visible From name; defaults to the house name. |
@@ -67,11 +86,15 @@ scopes" default is fine). A variable scoped to Builds only is invisible at
 runtime, which looks exactly like a missing variable.
 
 Until the variables are set, the form returns a calm "the enquiry desk isn't
-connected yet" message — nothing breaks, nothing is silently dropped.
+connected yet" message — nothing breaks, nothing is silently dropped. The
+storefront's forms behave identically: an unconfigured desk reads as an honest
+failure the visitor can retry, never as a confirmation for a message that went
+nowhere.
 
-Abuse guards on the function: a honeypot field, a minimum-fill-time check
-(instant submissions are quietly discarded), and a per-IP limit of 5 an hour
-(durable via Netlify Blobs, in-memory fallback locally).
+Abuse guards on both functions: a honeypot field, a minimum-fill-time check
+(instant submissions are quietly discarded), and a per-IP hourly limit —
+5 for the brand enquiry, 8 for the shop desk (durable via Netlify Blobs,
+in-memory fallback locally).
 
 ## Supabase — the live season doors
 
@@ -107,6 +130,45 @@ nothing.
 
 Failures are never cached, so a fix shows on the very next request. Successes
 are cached five minutes at the CDN.
+
+## The shop
+
+`/shop/*` plus Contact, Partnerships, Careers and Internships come from the
+storefront handoff. The SPA in that file became real routes, the same way the
+first handoff did — one page per screen, the cart carried in `localStorage`,
+the order handed to the confirmation page through `sessionStorage`.
+
+**It is drawn in the house's tokens, not the handoff's.** The storefront
+mock shipped its own near-identical palette (`#FCFBE9` / `#3B2419` / `#D89BB0`
+/ `#4F6B58`) and its own type (Jost, Questrial, Playfair Display). Those map
+one-to-one onto ivory / seal / dusk / sage and onto Raleway + Lora italic, so
+the shop was built on the existing tokens rather than forking the site's
+identity into a second brand two clicks from the front door. `site.css` is
+untouched; everything new lives in `shop.css`.
+
+The existing pages gained exactly two lines each: a `Shop` entry in the nav and
+a `Shop` link in the footer's House column. Nothing else about them changed.
+
+### Still to wire
+
+- **Stripe.** There is no payment integration yet, so `/shop/checkout/` is a
+  working front end with nothing behind it: no session, no charge, no receipt.
+  Every price in the handoff is an em-dash for the same reason. The checkout
+  and the confirmation each carry a `.preview-note` saying so plainly, and card
+  details are never stored, never persisted and never sent anywhere. **Delete
+  those two notes in the same change that wires Stripe** — and not before.
+- **Accounts.** `/shop/account/` reserves the address for launch day rather
+  than pretending to create an account. The password is validated in the
+  browser and never leaves it — `shop.js` strips it from the payload and the
+  function has no field for it.
+- **Downloads.** The confirmation lists what was bought with its Download
+  button disabled, because the files unlock on August 17 and a live-looking
+  link that 404s is the one thing that page can't afford.
+- **Product photography.** Every product shot is a labelled striped frame, the
+  same convention the rest of the site uses for imagery that doesn't exist yet.
+- **The three role addresses** on Contact (`hello@`, `partners@`, `press@`) are
+  published as `mailto:` links, per the design. They need to exist, or be
+  changed, before launch.
 
 ## Caching — read before changing an asset
 

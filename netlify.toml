@@ -24,6 +24,14 @@
   to = "/.netlify/functions/enquiry"
   status = 200
 
+# The shop desk — contact, cohort interest, careers and workshop alerts,
+# internship applications, the Fall Drop first-look list, and account
+# reservations. One handler, one destination mailbox.
+[[redirects]]
+  from = "/api/shop"
+  to = "/.netlify/functions/shop"
+  status = 200
+
 # Live season status for the application doors (reads the workspace's open
 # casting cycles via the Supabase anon key; cached 5 minutes).
 [[redirects]]

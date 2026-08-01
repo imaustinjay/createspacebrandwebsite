@@ -1,0 +1,1203 @@
+/* ============================================================
+   createspace · the shop — storefront components.
+
+   Loaded only by /shop/* and the four house pages the storefront
+   design added (contact, partnerships, careers, internships).
+   site.css is untouched: everything here is additive, and every
+   colour resolves to a token already defined there. The design
+   handoff drew the storefront in its own near-identical palette
+   (#FCFBE9 / #3B2419 / #D89BB0 / #4F6B58); those map one-to-one
+   onto the house's ivory / seal / dusk / sage, so the shop reads
+   as the same building rather than a second brand.
+   ============================================================ */
+
+:root {
+  /* The one surface the storefront needs that the house didn't have:
+     a warm neutral panel, derived from the seal rather than invented. */
+  --shop-tint: rgba(78, 49, 44, 0.042);
+  --shop-tint-strong: rgba(78, 49, 44, 0.065);
+}
+
+/* The storefront hides and shows a great deal — confirmation panels, cart
+   states, checkout steps, payment panels. [hidden] is only a UA rule, so any
+   class here that sets display would quietly beat it and show a form and its
+   own "sent" message at the same time. This settles it once. */
+[hidden] { display: none !important; }
+
+/* ---------- The announcement bar ---------- */
+/* Sits above the sticky header, so it scrolls away and the header
+   still docks to the top of the viewport. */
+.shop-bar {
+  background: var(--dark-stage);
+  color: var(--ivory);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.shop-bar-in {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding-top: 11px;
+  padding-bottom: 11px;
+}
+.shop-bar .dot { animation: csBreathe 3.4s ease-in-out infinite; }
+.shop-bar-sep { opacity: 0.35; }
+.shop-bar-count {
+  letter-spacing: 0.14em;
+  color: var(--dusk);
+  font-variant-numeric: tabular-nums;
+}
+.shop-bar a {
+  color: var(--ivory);
+  border-bottom: 1px solid rgba(255, 255, 240, 0.45);
+  padding-bottom: 2px;
+}
+.shop-bar a:hover { color: var(--dusk); border-bottom-color: var(--dusk); }
+
+/* ---------- Header: the shop dropdown and the cart ---------- */
+/* The house header markup is unchanged — the storefront adds one nav
+   entry that carries a panel, and one control beside Apply. */
+.nav .has-drop { position: relative; display: flex; align-items: center; }
+
+.nav-drop {
+  /* Right-anchored: Shop is the last nav entry, so a left-anchored panel
+     this wide would hang off the side of the window. */
+  position: absolute;
+  top: 100%;
+  right: -16px;
+  margin-top: 14px;
+  width: 620px;
+  max-width: calc(100vw - 48px);
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  box-shadow: 0 22px 48px -18px rgba(78, 49, 44, 0.22);
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 6px;
+  z-index: 50;
+  /* Closed: collapsed, unfocusable, out of the accessibility tree. */
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition: opacity 0.18s var(--ease-settle), transform 0.18s var(--ease-settle), visibility 0.18s;
+}
+/* A hairline hop-gap: the panel hangs 14px below the link, and this
+   bridges it so the pointer doesn't fall out of the hover on the way. */
+.nav .has-drop::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  right: -16px;
+  width: 120px;
+  height: 16px;
+}
+.nav .has-drop:hover .nav-drop,
+.nav .has-drop:focus-within .nav-drop {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.nav-drop-col { display: grid; align-content: start; }
+.nav-drop-col + .nav-drop-col {
+  border-left: 1px solid var(--hairline);
+  padding-left: 12px;
+}
+.nav-drop .eyebrow { padding: 12px 14px 8px; }
+.nav-drop a {
+  display: block;
+  border-radius: 11px;
+  padding: 12px 14px;
+  color: var(--seal);
+  font-size: 15px;
+  font-weight: 500;
+  transition: background 0.2s var(--ease-ignite);
+}
+.nav-drop a:hover { background: var(--shop-tint); color: var(--seal); }
+.nav-drop a small {
+  display: block;
+  margin-top: 3px;
+  font-size: 12.5px;
+  font-weight: 300;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.nav-drop-tight a { padding: 9px 14px; font-size: 14.5px; font-weight: 500; }
+.nav-drop-rule { height: 1px; background: var(--hairline); margin: 7px 14px; }
+.nav-drop-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cart-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-family: 'Raleway', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--seal);
+  cursor: pointer;
+  transition: border-color 0.25s var(--ease-ignite), transform 0.15s var(--ease-spring);
+}
+.cart-btn:hover { border-color: var(--border-strong); }
+.cart-btn:active { transform: scale(0.97); }
+.cart-count {
+  min-width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--seal);
+  color: var(--ivory);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* The count lands with a small spring whenever the cart changes. */
+.cart-btn[data-bump] .cart-count { animation: csBump 0.4s var(--ease-spring); }
+@keyframes csBump {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.32); background: var(--sage); }
+  100% { transform: scale(1); }
+}
+
+/* ---------- The cart drawer ---------- */
+.cart-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(46, 27, 21, 0.36);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  transition: opacity 0.3s var(--ease-settle);
+}
+.cart-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 91;
+  width: 440px;
+  max-width: 92vw;
+  display: flex;
+  flex-direction: column;
+  background: var(--ivory);
+  border-left: 1px solid var(--hairline);
+  box-shadow: -24px 0 60px -20px rgba(78, 49, 44, 0.35);
+  transform: translateX(102%);
+  transition: transform 0.32s var(--ease-settle);
+}
+[data-cart-open] .cart-scrim { opacity: 1; }
+[data-cart-open] .cart-drawer { transform: none; }
+.cart-scrim[hidden], .cart-drawer[hidden] { display: none; }
+
+.cart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 28px;
+  border-bottom: 1px solid var(--hairline);
+}
+.cart-close {
+  -webkit-appearance: none;
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 4px;
+  margin: -4px;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--faint);
+  cursor: pointer;
+}
+.cart-close:hover { color: var(--seal); }
+.cart-body { flex: 1; overflow-y: auto; padding: 4px 28px 18px; }
+.cart-item {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  gap: 16px;
+  align-items: start;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.cart-item-shot {
+  aspect-ratio: 1;
+  border-radius: 9px;
+  border: 1px solid var(--hairline);
+  background-image: repeating-linear-gradient(135deg, #F7F3E8 0 6px, #FFFDF8 6px 12px);
+}
+.cart-item-name { font-size: 15.5px; font-weight: 500; line-height: 1.35; }
+.cart-item-tier {
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.cart-remove {
+  -webkit-appearance: none;
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 10px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cart-remove:hover { color: var(--seal); }
+.cart-empty { padding: 52px 0; text-align: center; }
+.cart-foot {
+  border-top: 1px solid var(--hairline);
+  padding: 22px 28px 26px;
+  background: var(--card);
+}
+.cart-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 6px;
+}
+.cart-total b { font-size: 16.5px; font-weight: 600; }
+.cart-total span { font-size: 22px; font-weight: 300; }
+.cart-seal {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+  margin: 14px 0 0;
+}
+
+/* ---------- Shared storefront atoms ---------- */
+.shop-eyebrow {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* Dot-led lists — the design's recurring "what's inside" rhythm. */
+.dot-list { display: grid; gap: 12px; }
+.dot-list > li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 13px;
+  align-items: start;
+  font-size: 14.5px;
+  font-weight: 300;
+  line-height: 1.65;
+  color: var(--muted);
+}
+.dot-list > li::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--dusk);
+  margin-top: 9px;
+}
+.dot-list-lg > li { font-size: 15.5px; color: var(--seal); }
+.dot-list-lg > li::before { width: 6px; height: 6px; }
+
+/* Label / value rows — spec sheets, order reviews, cohort mechanics. */
+.spec-rows { display: grid; }
+.spec-rows > div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: baseline;
+  padding: 15px 0;
+  border-top: 1px solid var(--hairline);
+  font-size: 14.5px;
+}
+.spec-rows > div:last-child { border-bottom: 1px solid var(--hairline); }
+.spec-rows dt, .spec-rows > div > span:first-child {
+  font-weight: 300;
+  color: var(--muted);
+}
+.spec-rows dd, .spec-rows > div > span:last-child {
+  margin: 0;
+  font-weight: 500;
+  text-align: right;
+}
+.spec-sage { color: var(--sage) !important; }
+
+/* Numbered rows — "what you leave with", "what interns work on". */
+.num-rows { display: grid; }
+.num-rows > div {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 18px;
+  padding: 22px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.num-rows > div:first-child { border-top: 1px solid var(--hairline); }
+.num-rows b {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--sage);
+  padding-top: 5px;
+}
+.num-rows h3 { font-size: 17px; font-weight: 500; margin: 0 0 6px; }
+
+/* A bordered card that states a number, then a claim — used on the
+   craft and partnerships grids. */
+.num-card { --pad: 30px 32px; }
+.num-card .num {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--sage);
+  margin-bottom: 14px;
+}
+.num-card h3 { font-size: 20px; font-weight: 400; line-height: 1.3; margin: 0 0 10px; }
+
+/* The sage-outlined band the design uses for anything to do with
+   the craft, and for the closing call on a page. */
+.band-sage {
+  border: 1.5px solid var(--sage);
+  border-radius: 20px;
+  background: var(--card);
+  overflow: hidden;
+}
+.band-sage-split {
+  display: grid;
+  grid-template-columns: 1fr 0.85fr;
+}
+.band-sage-aside {
+  background: var(--shop-tint);
+  border-left: 1px solid var(--hairline);
+  padding: 40px 38px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.band-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+/* The tinted flat panel — quieter than a card, warmer than the page. */
+.panel-tint {
+  background: var(--shop-tint);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  padding: var(--pad, 30px 34px);
+}
+
+/* ---------- Shop home ---------- */
+.shop-hero {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 72px;
+  align-items: start;
+}
+.shop-facts {
+  display: flex;
+  gap: 30px;
+  flex-wrap: wrap;
+  margin-top: 42px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.ways { display: flex; flex-direction: column; }
+.ways > a {
+  display: block;
+  padding: 19px 0;
+  border-top: 1px solid var(--hairline);
+  color: var(--seal);
+  transition: opacity 0.25s var(--ease-ignite);
+}
+.ways > a:last-child { border-bottom: 1px solid var(--hairline); }
+.ways > a:hover { opacity: 0.62; color: var(--seal); }
+.ways b { display: block; font-size: 17px; font-weight: 400; margin-bottom: 5px; }
+.ways span { font-size: 13.5px; font-weight: 300; line-height: 1.65; color: var(--muted); }
+
+/* ---------- The Fall Drop ---------- */
+.drop-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 72px;
+  align-items: end;
+}
+.cd-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 28px;
+}
+.cd-cell {
+  border: 1px solid rgba(255, 255, 240, 0.20);
+  border-radius: 12px;
+  padding: 18px 6px;
+  text-align: center;
+}
+.cd-cell b {
+  display: block;
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 300;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.cd-cell i {
+  display: block;
+  margin-top: 7px;
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: rgba(255, 255, 240, 0.5);
+}
+.cd-sec b { color: var(--dusk); }
+
+/* The inline email capture the drop, careers and workshop pages share. */
+.catch { display: flex; gap: 10px; flex-wrap: wrap; }
+.catch input { flex: 1 1 220px; width: auto; }
+.catch .btn { flex: none; }
+.catch-dark input {
+  background: rgba(255, 255, 240, 0.07);
+  border-color: rgba(255, 255, 240, 0.24);
+  color: var(--ivory);
+}
+.catch-dark input::placeholder { color: rgba(255, 255, 240, 0.42); }
+.catch-dark input:focus {
+  border-color: var(--dusk);
+  box-shadow: 0 0 0 3px rgba(214, 148, 164, 0.18);
+}
+.note-dusk {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  border: 1px solid var(--dusk);
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+.note-dusk .dot { margin-top: 7px; }
+
+/* ---------- The catalog ---------- */
+.prod-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+.prod-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+  transition: transform 0.25s var(--ease-spring), border-color 0.25s var(--ease-ignite);
+}
+@media (hover: hover) {
+  .prod-card:hover { transform: translateY(-2px); border-color: var(--border-strong); }
+}
+.prod-shot {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-bottom: 1px solid var(--hairline);
+  background-image: repeating-linear-gradient(135deg, #F7F3E8 0 11px, #FFFDF8 11px 22px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+}
+.prod-shot span {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--faint);
+  text-align: left;
+}
+.prod-flag {
+  flex: none;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--ivory);
+  background: var(--sage);
+  padding: 5px 11px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.prod-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 26px 28px 28px;
+}
+.prod-name {
+  font-family: 'Lora', Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: 500;
+  font-size: 27px;
+  line-height: 1.25;
+  color: var(--seal);
+  margin: 12px 0 13px;
+}
+a.prod-name:hover { color: var(--sage); }
+.prod-inside {
+  flex: 1;
+  border-top: 1px solid var(--hairline);
+  padding-top: 18px;
+  margin-bottom: 20px;
+}
+.prod-actions { display: flex; align-items: center; gap: 11px; }
+.prod-actions .btn:first-child { flex: 1; }
+.prod-member {
+  margin: 15px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sage);
+}
+
+.bundle-split {
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+}
+.bundle-shot {
+  border-right: 1px solid var(--hairline);
+  background-image: repeating-linear-gradient(135deg, #F7F3E8 0 11px, #FFFDF8 11px 22px);
+  display: flex;
+  align-items: flex-end;
+  padding: 22px;
+  min-height: 300px;
+}
+.bundle-shot span {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  color: var(--faint);
+}
+.tag-sage {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--sage);
+  color: var(--ivory);
+  padding: 7px 15px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* ---------- Product detail ---------- */
+.pd-grid {
+  display: grid;
+  grid-template-columns: 1fr 0.95fr;
+  gap: 64px;
+  align-items: start;
+}
+.pd-shot {
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  background-image: repeating-linear-gradient(135deg, #F7F3E8 0 11px, #FFFDF8 11px 22px);
+  display: flex;
+  align-items: flex-end;
+  padding: 20px;
+}
+.pd-shot span {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  color: var(--faint);
+}
+.pd-thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+.pd-thumbs > div {
+  aspect-ratio: 1;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background-image: repeating-linear-gradient(135deg, #F7F3E8 0 9px, #FFFDF8 9px 18px);
+}
+.pd-name {
+  font-family: 'Lora', Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: 500;
+  font-size: clamp(34px, 4vw, 48px);
+  line-height: 1.18;
+  margin: 0;
+}
+.pd-split { display: grid; grid-template-columns: 1fr 1fr; gap: 0 30px; }
+
+.back-link {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.back-link:hover { color: var(--seal); }
+
+/* ---------- Services ---------- */
+.svc-table { display: grid; grid-template-columns: 1.1fr 1.5fr auto auto; gap: 0 30px; }
+.svc-head {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding: 16px 0 12px;
+}
+.svc-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  border-top: 1px solid var(--hairline);
+  padding: 22px 0;
+}
+.svc-row h3 { font-size: 19px; font-weight: 400; margin: 0; }
+.svc-row .btn { white-space: nowrap; }
+
+/* ---------- FAQ ---------- */
+.faq { border-bottom: 1px solid var(--hairline); }
+.faq details { border-top: 1px solid var(--hairline); }
+.faq summary {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 24px;
+  align-items: center;
+  padding: 24px 4px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 19px;
+  font-weight: 400;
+  line-height: 1.4;
+  transition: opacity 0.2s var(--ease-ignite);
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary:hover { opacity: 0.62; }
+.faq summary::after {
+  content: '+';
+  font-size: 20px;
+  line-height: 1;
+  color: var(--muted);
+}
+.faq details[open] summary::after { content: '\2212'; }
+.faq p {
+  margin: 0;
+  padding: 0 6em 26px 4px;
+  font-size: 16px;
+  font-weight: 300;
+  line-height: 1.8;
+  color: var(--muted);
+}
+
+/* ---------- Forms (the storefront's own card-framed shape) ---------- */
+.form-card {
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  padding: 32px 34px 30px;
+  box-shadow: var(--card-shadow);
+}
+.form-stack { display: grid; gap: 17px; }
+.form-two { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+textarea {
+  -webkit-appearance: none;
+  font-family: 'Raleway', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14.5px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--seal);
+  background: var(--ivory);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 12px 14px;
+  outline: none;
+  width: 100%;
+  resize: vertical;
+}
+textarea:focus { border-color: var(--sage); box-shadow: 0 0 0 3px var(--dusk-tint); }
+textarea::placeholder { color: var(--faint); }
+.check {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 13px;
+  align-items: start;
+  cursor: pointer;
+}
+.check input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--sage);
+  cursor: pointer;
+  -webkit-appearance: auto;
+  appearance: auto;
+}
+.check span { font-size: 14px; font-weight: 300; line-height: 1.6; color: var(--muted); }
+.check b { display: block; font-size: 15px; font-weight: 400; color: var(--seal); margin-bottom: 4px; }
+
+/* The tab pair on the account page. */
+.tabs {
+  display: flex;
+  gap: 6px;
+  background: var(--shop-tint);
+  border-radius: 11px;
+  padding: 5px;
+  margin-bottom: 26px;
+}
+.tabs button {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  padding: 11px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--seal);
+  cursor: pointer;
+  transition: background 0.2s var(--ease-ignite);
+}
+.tabs button[aria-selected="true"] { background: var(--card); box-shadow: 0 1px 3px rgba(78, 49, 44, 0.07); }
+
+/* Confirmation panels — every form resolves into one of these. */
+.done-panel { padding: 12px 0; }
+.done-mark {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 18px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--sage);
+}
+.done-mark::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--sage);
+  animation: csBreathe 3s ease-in-out infinite;
+}
+.done-title {
+  font-family: 'Lora', Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: 500;
+  font-size: 29px;
+  line-height: 1.25;
+  margin: 0 0 13px;
+}
+
+/* ---------- Checkout ---------- */
+.steps {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 40px;
+}
+.steps > div { display: flex; align-items: center; gap: 11px; opacity: 0.45; }
+.steps > div[data-on] { opacity: 1; }
+.steps b {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.steps > div[data-on] b { background: var(--seal); border-color: var(--seal); color: var(--ivory); }
+.steps span {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.steps i { flex: 1 1 24px; height: 1px; background: var(--hairline); }
+
+.checkout-grid {
+  display: grid;
+  grid-template-columns: 1.35fr 0.85fr;
+  gap: 48px;
+  align-items: start;
+}
+.pay-methods { display: flex; gap: 11px; flex-wrap: wrap; }
+.pay-methods button {
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 11px;
+  padding: 13px 22px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--seal);
+  cursor: pointer;
+  transition: border-color 0.2s var(--ease-ignite);
+}
+.pay-methods button[aria-pressed="true"] { border-color: var(--sage); }
+.secure-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--sage-tint);
+  padding: 14px 18px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--sage);
+}
+.secure-row::before {
+  content: '';
+  flex: none;
+  width: 12px;
+  height: 15px;
+  border: 1.5px solid var(--sage);
+  border-radius: 3px;
+  border-top-left-radius: 7px;
+  border-top-right-radius: 7px;
+  border-top-width: 5px;
+}
+.mock-frame {
+  border: 1px dashed var(--border-strong);
+  border-radius: 14px;
+  padding: 40px 30px;
+  text-align: center;
+  max-width: 34em;
+}
+.review-card {
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  overflow: hidden;
+  max-width: 36em;
+}
+.review-card > div {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 20px;
+  padding: 19px 24px;
+  border-bottom: 1px solid var(--hairline);
+}
+.review-card > div:last-child { border-bottom: none; }
+.review-card dt {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.review-card dd { margin: 0; font-size: 15px; font-weight: 300; }
+
+.summary {
+  position: sticky;
+  top: 96px;
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  padding: 26px 28px 24px;
+  box-shadow: var(--card-shadow);
+}
+.summary-line {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: start;
+  padding: 15px 0;
+  border-top: 1px solid var(--hairline);
+}
+.summary-line b { font-size: 15px; font-weight: 500; line-height: 1.4; }
+.summary-line i {
+  display: block;
+  margin-top: 5px;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.summary-line > span:last-child { font-size: 15px; color: var(--muted); }
+.summary-total {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: baseline;
+  padding-top: 17px;
+  border-top: 1px solid var(--border);
+}
+.summary-total b { font-size: 17px; font-weight: 600; }
+.summary-total span { font-size: 24px; font-weight: 300; }
+.summary-notes {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--hairline);
+  font-size: 12.5px;
+  font-weight: 300;
+  color: var(--muted);
+}
+
+/* The one thing the design could not know: Stripe isn't wired yet, so
+   the flow has to say so rather than imply a charge. Delete this block
+   and the markup that uses it on the day checkout goes live. */
+.preview-note {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--dusk);
+  border-radius: 11px;
+  background: var(--dusk-tint);
+  padding: 15px 18px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.65;
+  color: var(--seal);
+}
+
+/* ---------- Order confirmation ---------- */
+.files-card {
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+}
+.files-card > .shop-eyebrow { padding: 22px 28px 4px; }
+.file-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 20px;
+  align-items: center;
+  padding: 20px 28px;
+  border-top: 1px solid var(--hairline);
+}
+.file-row .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+.file-row b { font-size: 17px; font-weight: 400; }
+.file-row i {
+  display: block;
+  margin-top: 5px;
+  font-style: normal;
+  font-size: 12.5px;
+  font-weight: 300;
+  color: var(--muted);
+}
+.file-row .btn { white-space: nowrap; }
+
+/* ---------- The shop footer ---------- */
+/* The house footer stays exactly as it is on the pages that already had
+   it; the storefront carries its own, per the design — same tokens, its
+   own information architecture, plus the payment line. */
+.shop-footer {
+  margin-top: clamp(72px, 9vw, 104px);
+  background: var(--shop-tint);
+  border-top: 1px solid var(--hairline);
+}
+.shop-footer-in {
+  display: flex;
+  justify-content: space-between;
+  gap: 48px;
+  flex-wrap: wrap;
+  padding-top: 56px;
+  padding-bottom: 40px;
+}
+.shop-footer-cols { display: flex; gap: 56px; flex-wrap: wrap; }
+.shop-footer-legal {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding-top: 24px;
+  padding-bottom: 36px;
+  border-top: 1px solid var(--hairline);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1080px) {
+  .shop-hero, .drop-grid, .pd-grid, .checkout-grid,
+  .band-sage-split, .bundle-split { grid-template-columns: 1fr; }
+  .shop-hero { gap: 44px; }
+  .drop-grid { gap: 40px; }
+  .pd-grid { gap: 40px; }
+  .checkout-grid { gap: 36px; }
+  .band-sage-aside { border-left: none; border-top: 1px solid var(--hairline); }
+  .bundle-shot { border-right: none; border-bottom: 1px solid var(--hairline); min-height: 220px; }
+  .summary { position: static; }
+
+  /* The service table becomes a stack of rows on narrow screens —
+     subgrid columns can't survive the fold. */
+  .svc-table { grid-template-columns: 1fr; }
+  .svc-head { display: none; }
+  .svc-row { grid-template-columns: 1fr; gap: 10px; }
+  .svc-row .btn { justify-self: start; margin-top: 4px; }
+}
+
+@media (max-width: 900px) {
+  .prod-grid, .form-two, .pd-split { grid-template-columns: 1fr; }
+  .prod-grid { gap: 20px; }
+  textarea { font-size: 16px; }
+  .faq p { padding-right: 0; }
+  .review-card > div { grid-template-columns: 1fr; gap: 6px; }
+}
+
+@media (max-width: 860px) {
+  /* The dropdown panel can't hover on a phone — inside the mobile nav
+     panel it becomes a plain indented list, always open. */
+  .nav .has-drop { display: block; }
+  .nav .has-drop::after { display: none; }
+  .nav-drop {
+    position: static;
+    width: auto;
+    max-width: none;
+    margin: 0 0 6px;
+    padding: 0 0 6px 14px;
+    display: block;
+    transform: none;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    transition: none;
+    /* Inherit, never assert: the closed mobile panel is hidden and
+       pointer-events: none, and a child that said "visible / auto" here
+       would keep swallowing taps across the page behind an invisible menu. */
+    visibility: inherit;
+    opacity: 1;
+    pointer-events: inherit;
+  }
+  .nav-drop-col + .nav-drop-col { border-left: none; padding-left: 0; }
+  .nav-drop .eyebrow { padding: 10px 0 4px; }
+  .nav-drop-rule { margin: 4px 0; }
+  .nav-drop a,
+  .nav-drop-tight a {
+    padding: 10px 0;
+    font-size: 14px;
+    font-weight: 400;
+    border-bottom: none;
+    color: var(--muted);
+  }
+  .nav-drop a:hover { background: transparent; color: var(--seal); }
+  .nav-drop a small { display: none; }
+
+  .cart-btn { padding: 9px 13px; font-size: 13px; }
+  .shop-bar-in { gap: 12px; font-size: 11px; padding-top: 9px; padding-bottom: 9px; }
+  .shop-bar-hide { display: none; }
+
+  .steps { gap: 10px; margin-bottom: 30px; }
+  .steps i { display: none; }
+  .steps span { font-size: 11px; }
+  .shop-footer-cols { gap: 34px; }
+  .cart-item { grid-template-columns: 48px 1fr; }
+}
+
+/* The header row is the storefront's tightest piece of arithmetic. The
+   wordmark lockup needs 143px and will not be shrunk — it's the mark — so
+   below roughly 420px the cart and Apply can't both sit beside it without
+   the tracked COMMUNITY + TALENT line running under the cart pill. Apply
+   moves into the menu panel instead of anything getting squeezed; the cart
+   stays in the header, where a shop's cart belongs. */
+.nav .nav-apply-alt { display: none; }
+
+@media (max-width: 470px) {
+  .nav-row > .nav-apply { display: none; }
+  .nav .nav-apply-alt { display: block; }
+}
+
+/* Smallest phones: the cart trades its word for a drawn bag, so a lone
+   number never has to carry the meaning on its own. Drawn in CSS like the
+   rest of the house's small marks, never an icon font. */
+@media (max-width: 370px) {
+  .cart-label {
+    position: relative;
+    display: block;
+    width: 13px;
+    height: 14px;
+    font-size: 0;
+    border: 1.5px solid currentColor;
+    border-radius: 2px 2px 4px 4px;
+  }
+  .cart-label::before {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: -5px;
+    width: 5px;
+    height: 5px;
+    border: 1.5px solid currentColor;
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+  }
+  .cart-btn { padding: 9px 12px; gap: 8px; }
+  .nav-row { gap: 10px; }
+}
+
+@media (max-width: 560px) {
+  .cd-grid { grid-template-columns: repeat(2, 1fr); }
+  .band-sage-aside { padding: 30px 24px; }
+  .form-card { padding: 26px 22px 24px; }
+  .prod-body { padding: 22px 22px 24px; }
+  .steps > div span { display: none; }
+  .steps > div[data-on] span { display: inline; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cart-drawer, .cart-scrim, .nav-drop { transition: none !important; }
+}
