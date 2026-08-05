@@ -26,6 +26,7 @@ and deploys separately; the brand context this site is built from is
     platform/index.html   The platform
     about/index.html      About + founder letter
     privacy/index.html    Privacy — what the site holds, plainly
+    terms/index.html      Terms of service — the house rules, plainly
     contact/index.html    Contact — a person, not a queue
     partnerships/         Partnerships — collaborations, sponsorship, tools
     careers/              Careers — no open roles, plus the alert list
@@ -226,5 +227,14 @@ npx -y netlify-cli dev       # pages + the serverless functions
   drifts from the real interface stops being honest.
 - **No roster grid**, by decision — only alongside real names and portraits.
 - Commission percentages and the 90/10 split stay qualitative, by decision.
-- The privacy page is a plain-words draft in the house voice — worth a
-  founder read-through before treating it as policy.
+- The privacy and terms pages are plain-words drafts in the house voice —
+  worth a founder read-through before treating them as policy. The terms
+  page exists (with the home page's "What createspace does" section) to
+  satisfy Google's app-verification requirements: a home page that states
+  the app's purpose, plus publicly linked privacy and terms pages.
+- Home also displays the exact OAuth consent-screen app name —
+  **createspace brand** — in its title, hero lede and "What createspace
+  does" app row, because Google requires the configured app name to match
+  a name visible on the home page. If the consent screen's name is ever
+  changed (e.g. to "createspace · community + talent"), these mentions
+  can be relaxed — but not removed in the same review cycle.
