@@ -123,6 +123,9 @@ export default async (req, context) => {
   // the automation moves on with nothing learned; nothing is sent.
   const elapsedMs = Number(body.elapsedMs || 0)
   if (String(body.website || '') || (elapsedMs > 0 && elapsedMs < 3000)) {
+    // Logged so a too-quick human test is distinguishable from a real send in
+    // the function log; the visitor still sees success either way.
+    console.log('shop desk: discarded as bot signals', { kind: body.kind, elapsedMs })
     return Response.json({ ok: true })
   }
 
@@ -197,9 +200,12 @@ export default async (req, context) => {
       text,
       html,
     })
+    console.log('shop desk: sent', { kind: body.kind, to })
     return Response.json({ ok: true })
-  } catch {
-    // Never leak SMTP detail (or the destination) to the public form.
+  } catch (err) {
+    // Never leak SMTP detail (or the destination) to the public form — but do
+    // put the provider's actual answer in the private function log.
+    console.error('shop desk: SMTP send failed —', err?.message || err)
     return Response.json(
       { error: "That didn't send — our side, not yours. Give it a moment and try again." },
       { status: 502 }
