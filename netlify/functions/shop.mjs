@@ -148,7 +148,10 @@ export default async (req, context) => {
     )
   }
 
-  const to = clean(process.env.SHOP_EMAIL || process.env.PARTNERSHIPS_EMAIL)
+  // Destination: the house inbox, hello@createspacebrand.com, for now — an
+  // env var still overrides it without a code change if role mailboxes return.
+  const to =
+    clean(process.env.SHOP_EMAIL || process.env.PARTNERSHIPS_EMAIL) || 'hello@createspacebrand.com'
   const user = clean(process.env.MAIL_USER || process.env.TITAN_EMAIL)
   const password = clean(process.env.MAIL_PASSWORD || process.env.TITAN_PASSWORD)
   if (!to || !user || !password) {

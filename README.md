@@ -75,8 +75,8 @@ below). Every application flow itself lives on createspacebrand.online.
 
 | Variable | What it is |
 |---|---|
-| `PARTNERSHIPS_EMAIL` | Where enquiries land (e.g. the partnerships@ mailbox). Server-side only — deliberately never printed in the client bundle, per the handoff, so it can't be scraped. |
-| `SHOP_EMAIL` | Where the storefront's forms land (contact, cohort interest, careers and workshop alerts, internship applications, the Fall Drop list, account reservations). Falls back to `PARTNERSHIPS_EMAIL` if unset. Server-side only, same as above. |
+| `PARTNERSHIPS_EMAIL` | Where brand enquiries land. Optional override — unset, they go to the house inbox, `hello@createspacebrand.com`. Server-side only — deliberately never printed in the client bundle, per the handoff, so it can't be scraped. |
+| `SHOP_EMAIL` | Where the storefront's forms land (contact, cohort interest, careers and workshop alerts, internship applications, the Fall Drop list, account reservations). Optional override — falls back to `PARTNERSHIPS_EMAIL`, then to `hello@createspacebrand.com`. Server-side only, same as above. |
 | `MAIL_USER` / `MAIL_PASSWORD` | SMTP login for the sending mailbox (falls back to `TITAN_EMAIL` / `TITAN_PASSWORD`, same convention as the workspace's `shared/mailCore.mjs`). |
 | `MAIL_SMTP_HOST` / `MAIL_SMTP_PORT` | Optional; default `smtp.titan.email` : `465`. |
 | `MAIL_FROM_NAME` | Optional visible From name; defaults to the house name. |
@@ -86,8 +86,8 @@ Every variable must be scoped so **Functions** can read it (Netlify's "All
 scopes" default is fine). A variable scoped to Builds only is invisible at
 runtime, which looks exactly like a missing variable.
 
-Until the variables are set, the form returns a calm "the enquiry desk isn't
-connected yet" message — nothing breaks, nothing is silently dropped. The
+Until the SMTP variables are set, the form returns a calm "the enquiry desk
+isn't connected yet" message — nothing breaks, nothing is silently dropped. The
 storefront's forms behave identically: an unconfigured desk reads as an honest
 failure the visitor can retry, never as a confirmation for a message that went
 nowhere.
@@ -167,9 +167,10 @@ a `Shop` link in the footer's House column. Nothing else about them changed.
   link that 404s is the one thing that page can't afford.
 - **Product photography.** Every product shot is a labelled striped frame, the
   same convention the rest of the site uses for imagery that doesn't exist yet.
-- **The three role addresses** on Contact (`hello@`, `partners@`, `press@`) are
-  published as `mailto:` links, per the design. They need to exist, or be
-  changed, before launch.
+- ~~**The three role addresses** on Contact~~ Resolved: the Contact page
+  publishes no addresses anymore. The form is the single way in, and every
+  form on the site delivers to `hello@createspacebrand.com` unless an env
+  var says otherwise (see the environment table above).
 
 ## Caching — read before changing an asset
 

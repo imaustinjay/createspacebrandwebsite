@@ -1,7 +1,8 @@
 // Brand enquiry — the one serverless surface of the marketing site.
-// Sends the enquiry to the partnerships mailbox. The destination address is an
-// env var (PARTNERSHIPS_EMAIL) and is never echoed to the client, so it can't
-// be scraped from the bundle or the API.
+// Sends the enquiry to the house inbox — hello@createspacebrand.com for now,
+// with PARTNERSHIPS_EMAIL as an env-var override once a dedicated mailbox
+// exists. The destination is never echoed to the client, so it can't be
+// scraped from the bundle or the API.
 //
 // SMTP credentials follow the workspace convention (shared/mailCore.mjs in the
 // repo root): MAIL_USER/MAIL_PASSWORD preferred, TITAN_* as the legacy
@@ -106,7 +107,7 @@ export default async (req, context) => {
     )
   }
 
-  const to = clean(process.env.PARTNERSHIPS_EMAIL)
+  const to = clean(process.env.PARTNERSHIPS_EMAIL) || 'hello@createspacebrand.com'
   const user = clean(process.env.MAIL_USER || process.env.TITAN_EMAIL)
   const password = clean(process.env.MAIL_PASSWORD || process.env.TITAN_PASSWORD)
   if (!to || !user || !password) {

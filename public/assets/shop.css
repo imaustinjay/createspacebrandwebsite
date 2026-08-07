@@ -58,14 +58,31 @@
 }
 .shop-bar a:hover { color: var(--dusk); border-bottom-color: var(--dusk); }
 
-/* ---------- Header: the shop dropdown and the cart ---------- */
-/* The house header markup is unchanged — the storefront adds one nav
-   entry that carries a panel, and one control beside Apply. */
+/* ---------- Header: the Menu dropdown and the cart ---------- */
+/* The house header markup is unchanged — the storefront adds a plain Shop
+   link, a Menu entry that carries the panel for the rest of the site's
+   pages, and one control beside Apply. */
 .nav .has-drop { position: relative; display: flex; align-items: center; }
 
+/* The Menu trigger — a button, not a link: it opens the panel and goes
+   nowhere itself. font/color inherit keeps it reading exactly like the
+   nav links beside it. */
+.nav-menu {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.nav-menu:hover,
+.nav .has-drop:hover .nav-menu,
+.nav .has-drop:focus-within .nav-menu { color: var(--seal); }
+
 .nav-drop {
-  /* Right-anchored: Shop is the last nav entry, so a left-anchored panel
-     this wide would hang off the side of the window. */
+  /* Right-anchored: Menu sits at the far end of the nav, so a left-anchored
+     panel this wide would hang off the side of the window. */
   position: absolute;
   top: 100%;
   right: -16px;
@@ -88,7 +105,7 @@
   pointer-events: none;
   transition: opacity 0.18s var(--ease-settle), transform 0.18s var(--ease-settle), visibility 0.18s;
 }
-/* A hairline hop-gap: the panel hangs 14px below the link, and this
+/* A hairline hop-gap: the panel hangs 14px below the trigger, and this
    bridges it so the pointer doesn't fall out of the hover on the way. */
 .nav .has-drop::after {
   content: '';
@@ -1101,9 +1118,11 @@ textarea::placeholder { color: var(--faint); }
 
 @media (max-width: 860px) {
   /* The dropdown panel can't hover on a phone — inside the mobile nav
-     panel it becomes a plain indented list, always open. */
+     panel it becomes a plain indented list, always open. The whole panel
+     IS the menu there, so the Menu trigger itself disappears. */
   .nav .has-drop { display: block; }
   .nav .has-drop::after { display: none; }
+  .nav-menu { display: none; }
   .nav-drop {
     position: static;
     width: auto;
