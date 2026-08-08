@@ -147,8 +147,12 @@ the shop was built on the existing tokens rather than forking the site's
 identity into a second brand two clicks from the front door. `site.css` is
 untouched; everything new lives in `shop.css`.
 
-The existing pages gained exactly two lines each: a `Shop` entry in the nav and
-a `Shop` link in the footer's House column. Nothing else about them changed.
+The header is shared by every page: For creators, For brands and Shop sit in
+the nav, and everything else is reached through the Menu — the three-line
+button at the end of the nav whose panel lists the rest of the site. The panel
+is a house component in `site.css`, so it renders identically on pages that
+never load `shop.css`; the storefront adds only the cart control and the
+announcement bar.
 
 ### Still to wire
 
