@@ -178,20 +178,23 @@ announcement bar.
 
 ## Caching — read before changing an asset
 
-Stylesheets and scripts are served `max-age=0, must-revalidate`, so a returning
-visitor always revalidates and can never pair new HTML with stale CSS. ETags
-make the usual answer a 304, so the cost is negligible. Fonts are immutable
-under their filenames and cached for a year.
+Everything under `/assets` (except fonts) is served `max-age=0,
+must-revalidate`, so a returning visitor always revalidates and can never pair
+new HTML with stale CSS. ETags make the usual answer a 304, so the cost is
+negligible. Fonts are immutable under their filenames and cached for a year.
 
-This matters because it went wrong once: `/assets/*` was originally cached hard
-for seven days, and the 2026-07-30 deploy served new HTML with week-old CSS —
-the vignettes rendered as unstyled text and the mobile menu button appeared raw.
-If you ever reintroduce a long `max-age` on CSS or JS, add a fingerprint to the
-filename in the same change.
+This matters because it went wrong twice. `/assets/*` was originally cached
+hard for seven days, and the 2026-07-30 deploy served new HTML with week-old
+CSS — the vignettes rendered as unstyled text and the mobile menu button
+appeared raw. The first fix added `/assets/*.css` and `/assets/*.js`
+revalidation rules — but Netlify header patterns only support a trailing
+splat, so those rules silently never matched, stylesheets stayed on a day-long
+cache, and the 2026-08-09 header rework repeated the failure on phones. Now
+the whole of `/assets/*` revalidates.
 
-The `?v=` query on the asset links is a one-time cache-buster for visitors who
-were already holding the old seven-day cache. It doesn't need bumping on every
-deploy now that revalidation is on — only if a long cache is reintroduced.
+The `?v=` query on the asset links is the second guard: **bump it in the same
+change whenever a stylesheet or script changes.** A changed URL can never be
+served from any cache, whatever the header rules happen to do.
 
 ## Browser support
 

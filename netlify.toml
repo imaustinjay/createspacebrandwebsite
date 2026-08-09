@@ -45,25 +45,19 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# Stylesheets and scripts DO change, and their filenames don't. A long
-# max-age here means a returning visitor pairs new HTML with stale CSS —
-# which is exactly how the site broke on 2026-07-30. Revalidate instead:
-# ETags make the usual answer a 304, so this costs almost nothing and can
-# never serve a mismatched pair again.
-[[headers]]
-  for = "/assets/*.css"
-  [headers.values]
-    Cache-Control = "public, max-age=0, must-revalidate"
-
-[[headers]]
-  for = "/assets/*.js"
-  [headers.values]
-    Cache-Control = "public, max-age=0, must-revalidate"
-
+# Everything else under /assets revalidates on every visit. This used to be
+# split into /assets/*.css and /assets/*.js revalidation rules over a
+# day-long /assets/* default — but Netlify header patterns only support a
+# trailing splat, so the .css/.js rules never matched and stylesheets fell
+# through to the day-long cache. That paired the 2026-08-09 header rework's
+# new HTML with day-old CSS on phones (the 2026-07-30 failure again, one
+# layer down). ETags keep the usual answer a 304, so revalidating images
+# too costs almost nothing. The ?v= fingerprint on asset links is the
+# second guard: bump it in the same change whenever CSS or JS changes.
 [[headers]]
   for = "/assets/*"
   [headers.values]
-    Cache-Control = "public, max-age=86400"
+    Cache-Control = "public, max-age=0, must-revalidate"
 
 [[headers]]
   for = "/*"
