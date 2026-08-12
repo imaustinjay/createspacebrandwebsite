@@ -19,10 +19,9 @@
 }
 
 /* The storefront hides and shows a great deal — confirmation panels, cart
-   states, checkout steps, payment panels. [hidden] is only a UA rule, so any
-   class here that sets display would quietly beat it and show a form and its
-   own "sent" message at the same time. This settles it once. */
-[hidden] { display: none !important; }
+   states, checkout steps, payment panels — and relies on [hidden] beating any
+   class that sets display. That rule now lives in site.css, which every page
+   here loads first, so the whole site is covered rather than just this half. */
 
 /* ---------- The announcement bar ---------- */
 /* Sits above the sticky header, so it scrolls away and the header

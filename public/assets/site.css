@@ -74,6 +74,15 @@ img { max-width: 100%; }
   border-radius: 4px;
 }
 
+/* [hidden] is only a UA rule, so any class here that sets display quietly beats
+   it — a .btn marked hidden still draws, because .btn sets inline-block. That is
+   how /collection/ came to show "Start your application" while no window was
+   open. This settles it once, for every page.
+
+   It lived in shop.css first, where hidden panels are everywhere; pages that
+   never load the storefront's stylesheet were left exposed. It belongs here. */
+[hidden] { display: none !important; }
+
 .skip {
   position: absolute;
   left: -9999px;

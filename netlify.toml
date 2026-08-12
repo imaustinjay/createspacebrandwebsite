@@ -24,9 +24,10 @@
   to = "/.netlify/functions/enquiry"
   status = 200
 
-# The shop desk — contact, cohort interest, careers and workshop alerts,
-# internship applications, the Fall Drop first-look list, and account
-# reservations. One handler, one destination mailbox.
+# The shop desk — contact, careers and workshop alerts, internship
+# applications, the Fall Drop first-look list, account reservations, and the
+# Collection Program's notify list when the workspace can't take it. One
+# handler, one destination mailbox.
 [[redirects]]
   from = "/api/shop"
   to = "/.netlify/functions/shop"
@@ -38,6 +39,29 @@
   from = "/api/seasons"
   to = "/.netlify/functions/seasons"
   status = 200
+
+# The Collection Program's live state, proxied straight through to the
+# workspace app, which owns the cycles, the seats and the notify list. A proxy
+# (status 200), not a redirect: a 301 would drop the POST body the notify form
+# sends, and same-origin keeps the page working regardless of CORS.
+#
+# The endpoint is public and thin — a state, the dates, both prices, and
+# whether seats remain. It exposes nothing that isn't already on the page.
+# Until the workspace ships its cohort release this proxies to a 404, which is
+# exactly why /collection/ treats an unanswered read as "unknown", never as
+# "closed", and why the notify form falls back to the shop desk.
+[[redirects]]
+  from = "/api/cohort-status"
+  to = "https://createspacebrand.online/api/cohort-status"
+  status = 200
+  force = true
+
+# The Cohort became The Collection Program, and moved out of the storefront to
+# sit with the Community division it belongs to. The old address keeps working.
+[[redirects]]
+  from = "/shop/cohort/*"
+  to = "/collection/"
+  status = 301
 
 # Fonts never change under a given filename — cache them hard.
 [[headers]]

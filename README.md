@@ -3,7 +3,7 @@
 The public website for **createspace · community + talent**, ported from the
 Claude Design handoff (`Createspace_brand_website_design.zip`), plus the
 storefront from the second handoff (`Createspace_Storefront_standalone.html`).
-Twenty-six real routes, two stylesheets, three serverless functions. The workspace app
+Twenty-seven real routes, two stylesheets, three serverless functions. The workspace app
 (createspacebrand.online) lives in its own repo — `createspace-workspace` —
 and deploys separately; the brand context this site is built from is
 `reference/PUBLIC_SITE_CONTEXT.md` over there.
@@ -28,6 +28,7 @@ and deploys separately; the brand context this site is built from is
     privacy/index.html    Privacy — what the site holds, plainly
     terms/index.html      Terms of service — the house rules, plainly
     contact/index.html    Contact — a person, not a queue
+    collection/           The Collection Program — the paid Community cohort
     partnerships/         Partnerships — collaborations, sponsorship, tools
     careers/              Careers — no open roles, plus the alert list
     internships/          Internships — what interns work on, plus the form
@@ -35,7 +36,6 @@ and deploys separately; the brand context this site is built from is
     shop/products/        Digital products, then one page per product
     shop/the-craft/       the craft — the membership
     shop/workshops/       The Workshop
-    shop/cohort/          The Cohort + interest form
     shop/services/        Done-for-you services
     shop/faq/             FAQ
     shop/account/         Sign up / log in
@@ -46,6 +46,7 @@ and deploys separately; the brand context this site is built from is
     assets/shop.js        cart, drawer, countdown, FAQ, checkout, forms
     assets/enquiry.js     form submit → /api/enquiry → confirmation state
     assets/seasons.js     fills the door-status slots from /api/seasons
+    assets/collection.js  live cycle state + notify list, from /api/cohort-status
     assets/reveal.js      below-fold sections settle in (house motion verb)
     assets/motion.js      mobile nav, word-staggered headlines, rotating proof line
     assets/fonts/         self-hosted Raleway + Lora italic (variable woff2)
@@ -76,7 +77,7 @@ below). Every application flow itself lives on createspacebrand.online.
 | Variable | What it is |
 |---|---|
 | `PARTNERSHIPS_EMAIL` | Where brand enquiries land. Optional override — unset, they go to the house inbox, `hello@createspacebrand.com`. Server-side only — deliberately never printed in the client bundle, per the handoff, so it can't be scraped. |
-| `SHOP_EMAIL` | Where the storefront's forms land (contact, cohort interest, careers and workshop alerts, internship applications, the Fall Drop list, account reservations). Optional override — falls back to `PARTNERSHIPS_EMAIL`, then to `hello@createspacebrand.com`. Server-side only, same as above. |
+| `SHOP_EMAIL` | Where the storefront's forms land (contact, careers and workshop alerts, internship applications, the Fall Drop list, account reservations, and the Collection Program notify list when the workspace endpoint can't be reached). Optional override — falls back to `PARTNERSHIPS_EMAIL`, then to `hello@createspacebrand.com`. Server-side only, same as above. |
 | `MAIL_USER` / `MAIL_PASSWORD` | SMTP login for the sending mailbox (falls back to `TITAN_EMAIL` / `TITAN_PASSWORD`, same convention as the workspace's `shared/mailCore.mjs`). |
 | `MAIL_SMTP_HOST` / `MAIL_SMTP_PORT` | Optional; default `smtp.titan.email` : `465`. |
 | `MAIL_FROM_NAME` | Optional visible From name; defaults to the house name. |
@@ -131,6 +132,73 @@ nothing.
 
 Failures are never cached, so a fix shows on the very next request. Successes
 are cached five minutes at the CDN.
+
+## The Collection Program — `/collection/`
+
+The paid cohort of the Community division: eight weeks, twenty seats, $497 for
+a member and $647 direct ($497 seat + a $150 non-member fee). It replaced the
+storefront's placeholder "The Cohort" page, which was mid-ticket copy with an
+interest form and no product behind it; `/shop/cohort/*` now 301s here.
+
+**The page never states a date, a price or a status of its own.** What the
+program *is* — the shape, the week-by-week arc, the cadence, the two prices as
+prose, the terms — is static copy. Everything time-sensitive is read live from
+the workspace at request time, because a hardcoded "applications open March
+1st" is how a marketing site ends up lying about its own product.
+
+Never hardcode here: a start date, an application deadline, a seats-left count,
+or an Apply button that renders when no window is open. And **unknown is not
+closed** — if the read fails, the page stays on its honest default ("the
+program runs in announced cycles, leave your email") rather than rendering a
+closed state it can't verify. That is why `collection.js` catches and does
+nothing: the default is already the correct answer.
+
+### The connection to the internal space
+
+Everything past the application lives in the workspace at
+createspacebrand.online. Nothing about money touches this site — no card
+details, no payment, no Stripe key.
+
+| Step | Where it happens |
+|---|---|
+| Read about it, or join the notify list | here, `/collection/` |
+| Apply (25 questions, autosaved) | `createspacebrand.online/cohort` |
+| A person reads it; an acceptance letter goes out | the workspace's cohort console |
+| Seven days to claim the seat — claiming is paying | the workspace, via Stripe |
+| Welcome letter → the portal; Week 0 (Arrival) opens | the workspace's creator portal |
+| Coming back later | "Open your portal" on `/collection/`, and Creator sign in in the footer |
+
+Inside the portal a seat opens four areas — Pathway, Studio, Sessions and My
+Cohort — and weeks unlock on the cohort's shared calendar rather than on
+individual completion. The page describes that handoff explicitly in its
+"What a seat actually opens" section, so nobody has to guess where the room is,
+and a member who loses their welcome letter still has a signposted way back in.
+
+### `/api/cohort-status`
+
+`netlify.toml` proxies it (status 200, not a redirect — a 301 would drop the
+notify form's POST body) straight to the workspace, which owns the cycles, the
+seats and the list. Same-origin, so it works regardless of CORS and the CDN can
+cache it. `GET` returns the state; `POST {email, source}` joins the notify list
+and returns a `message` the page renders verbatim.
+
+**It is not live yet.** The workspace's cohort release is unmerged
+(`createspace-workspace` PR #162), so the proxy currently reaches a 404. That
+is survivable by design — the page shows its honest default — and the notify
+form falls back to `/api/shop` (`kind: cohort`), which puts the same email in
+the house inbox. Nobody who asks to be told is lost to the deployment gap. When
+that PR merges, the live states light up with no change needed here.
+
+Verify with `curl https://createspacebrand.com/api/cohort-status`: JSON means
+connected, HTML or a 404 means the workspace hasn't shipped it yet.
+
+### Stripe
+
+The cohort's payment is the workspace's job and already exists there —
+`cohort-checkout.mjs`, a Stripe Checkout session, a webhook that confirms the
+seat and mints the portal invitation. Wiring Stripe **on this site** is a
+separate piece of work for the storefront (`/shop/checkout/`), and it doesn't
+touch `/collection/` at all.
 
 ## The shop
 

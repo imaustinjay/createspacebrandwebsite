@@ -23,10 +23,15 @@ const FORMS = {
       ['message', 'Message', 'required'],
     ],
   },
+  // The Collection Program's notify list, as a fallback. /collection/ posts to
+  // /api/cohort-status first — the workspace holds the real list — and only
+  // lands here when that endpoint can't be reached, so a reader who asked to be
+  // told is never lost to a deployment gap. An email is the whole point of it;
+  // the rest of the fields stay accepted for anything still posting them.
   cohort: {
-    subject: () => 'Cohort interest',
+    subject: () => 'The Collection Program — notify list',
     fields: [
-      ['name', 'Name', 'required'],
+      ['name', 'Name'],
       ['email', 'Email', 'required'],
       ['handle', 'Handle'],
       ['stage', 'Where they’re at'],
