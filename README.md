@@ -91,7 +91,7 @@ below). Every application flow itself lives on createspacebrand.online.
 | `STRIPE_SECRET_KEY` | The storefront's whole payment integration hangs off this one value (`sk_test_…` then `sk_live_…`). Unset, no price is shown anywhere and the pay button says so — see [Stripe — the checkout](#stripe--the-checkout). Server-side only; it must never appear in a page. |
 | `STRIPE_PUBLISHABLE_KEY` | The matching `pk_test_…` / `pk_live_…`. It is public by design — it is what lets Stripe's payment field render inside our checkout. Without it the checkout stays closed and says which key is missing in the function log. |
 | `STRIPE_WEBHOOK_SECRET` | The signing secret of the webhook endpoint at `/api/stripe-webhook`. Without it, payments still succeed but **nothing is delivered**: no files, no buyer email, no house notification. Holds **more than one**, comma- or space-separated — test and live are separate endpoints with separate secrets, and keeping both means a sandbox purchase still checks delivery after the switch to live. Also how you rotate one without a window where signatures fail. |
-| `ADMIN_TOKEN` | Opens `/shop/admin/`, where the product files are uploaded. 24+ random characters. Unset, the stockroom is shut rather than open — see [Digital delivery](#digital-delivery--the-stockroom). |
+| `ADMIN_TOKEN` | Opens `/shop/admin/`, where the product files are uploaded. The one value nobody hands you — **/shop/admin/ has a "Make me one" button** that generates it in the browser. 16 characters minimum, 40 from the button. Unset, the stockroom is shut rather than open — see [Digital delivery](#digital-delivery--the-stockroom). |
 | `STRIPE_PRICE_*` | Optional, one per product (`STRIPE_PRICE_START_SMALL`, …). Only needed if the prices don't carry lookup keys; an env var wins where both exist. |
 | `STRIPE_AUTOMATIC_TAX` | Optional, `true` to turn on Stripe Tax. Off by default — it needs Stripe Tax configured on the account first, and it makes a billing address required at checkout. |
 | `STRIPE_CRAFT_TRIAL_UNTIL` | Optional ISO date for the craft's subscription trial, so "nothing is charged before August 17" is enforced rather than promised. Ignored once it's in the past. |
@@ -401,6 +401,18 @@ download token that opens it (Blobs has no secondary index).
 unless `ADMIN_TOKEN` is set to something at least 16 characters long. Paste the
 key, drop a file on a product, and it is on sale with delivery attached. The key
 is held in `sessionStorage`, so closing the tab closes the stockroom.
+
+The gate has a **"Make me one"** button, because `ADMIN_TOKEN` is the only value
+in the table that nobody hands you — Stripe's come from Stripe, the mailbox's
+from the mailbox, and this one you invent. It draws 40 characters from the
+browser's CSPRNG (rejection-sampled, so the alphabet isn't skewed) out of an
+alphabet with no `0`/`O`/`1`/`l` and no punctuation, so it survives being read
+off a screen and pasted into a shell. It is generated in the tab and sent
+nowhere; it becomes real only once it is in Netlify.
+
+Note the step that catches everyone: **Netlify hands environment variables to
+functions at deploy time.** A variable added after the last build doesn't exist
+until the next one — set it, then Deploys → Trigger deploy.
 
 **Two ways to deliver**, per product, mixed freely:
 

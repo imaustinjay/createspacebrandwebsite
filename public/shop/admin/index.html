@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="/assets/fonts/fonts.css?v=2" />
   <link rel="stylesheet" href="/assets/site.css?v=4" />
   <link rel="stylesheet" href="/assets/shop.css?v=5" />
-  <script src="/assets/admin.js?v=3" defer></script>
+  <script src="/assets/admin.js?v=4" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -45,9 +45,31 @@
           <input type="password" name="token" autocomplete="off" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" />
         </label>
         <p class="form-error" data-error hidden></p>
-        <button class="btn btn-primary" type="button" data-unlock style="justify-self: start;">Open the stockroom</button>
+        <div style="display: flex; gap: 11px; flex-wrap: wrap; align-items: center;">
+          <button class="btn btn-primary" type="button" data-unlock>Open the stockroom</button>
+          <button class="btn btn-secondary" type="button" data-make-key>Make me one</button>
+        </div>
       </div>
-      <p class="fine-12" style="margin: 16px 0 0;">Set it in Netlify → Site configuration → Environment variables, scoped to Functions. Twenty-four random characters or more. It is the only thing standing between the internet and the upload endpoint.</p>
+
+      <!-- Nobody hands you this key: you invent it. So invent it here rather
+           than sending someone off to find a generator they have to trust.
+           It is made by the browser's own crypto, in this tab, and is not
+           sent anywhere — the page has nowhere to send it to. -->
+      <div data-new-key hidden style="margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--hairline);">
+        <span class="shop-eyebrow" style="display: block; margin-bottom: 10px;">Your new key</span>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+          <input type="text" data-key-value readonly spellcheck="false" style="flex: 1 1 22em; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13.5px; padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 11px; background: var(--card); color: var(--seal);" />
+          <button class="btn btn-secondary" type="button" data-copy-key>Copy</button>
+        </div>
+        <ol class="fine-12" style="margin: 14px 0 0; padding-left: 1.3em; line-height: 1.9;">
+          <li>Copy it, and keep a copy somewhere safe — this page won't remember it.</li>
+          <li>Netlify → Site configuration → Environment variables → add <b>ADMIN_TOKEN</b>, paste, save.</li>
+          <li><b>Redeploy.</b> Netlify hands variables to functions at deploy time, so a new one doesn't exist until the next build — Deploys → Trigger deploy.</li>
+          <li>Come back, paste it above, and the stockroom opens.</li>
+        </ol>
+      </div>
+
+      <p class="fine-12" style="margin: 16px 0 0;">This is the one value nobody gives you — Stripe's keys come from Stripe, but this one is yours to choose. It is the only thing standing between the internet and the upload endpoint, so let the button pick it rather than thinking of something.</p>
     </div>
   </section>
 

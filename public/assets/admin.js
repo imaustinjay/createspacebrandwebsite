@@ -299,6 +299,66 @@
       })
   }
 
+  // ---------------------------------------------------------- a new key
+  // 32 bytes from the browser's CSPRNG, in an alphabet that survives being
+  // pasted into a dashboard, read off a screen, and typed back in: no
+  // punctuation to be eaten by a shell, and no 0/O/1/l to be misread.
+  //
+  // Never sent anywhere. There is nowhere to send it — this runs entirely in
+  // the tab, and the value only becomes real once it's in Netlify.
+  var ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
+
+  function makeKey(length) {
+    var bytes = new Uint8Array(length)
+    window.crypto.getRandomValues(bytes)
+    var out = ''
+    // Reject above the largest whole multiple of the alphabet rather than
+    // taking a modulo of everything, which would quietly favour the first
+    // few letters. Redraw instead of biasing.
+    var limit = 256 - (256 % ALPHABET.length)
+    for (var i = 0; i < bytes.length; i++) {
+      if (bytes[i] >= limit) {
+        var extra = new Uint8Array(1)
+        do { window.crypto.getRandomValues(extra) } while (extra[0] >= limit)
+        bytes[i] = extra[0]
+      }
+      out += ALPHABET[bytes[i] % ALPHABET.length]
+    }
+    return out
+  }
+
+  var maker = room.querySelector('[data-make-key]')
+  if (maker && window.crypto && window.crypto.getRandomValues) {
+    var newKeyBox = room.querySelector('[data-new-key]')
+    var newKeyValue = room.querySelector('[data-key-value]')
+    var copyBtn = room.querySelector('[data-copy-key]')
+
+    maker.addEventListener('click', function () {
+      newKeyValue.value = makeKey(40)
+      newKeyBox.hidden = false
+      newKeyValue.focus()
+      newKeyValue.select()
+    })
+
+    copyBtn.addEventListener('click', function () {
+      newKeyValue.select()
+      var done = function () {
+        copyBtn.textContent = 'Copied'
+        window.setTimeout(function () { copyBtn.textContent = 'Copy' }, 2000)
+      }
+      if (window.navigator.clipboard && window.navigator.clipboard.writeText) {
+        window.navigator.clipboard.writeText(newKeyValue.value).then(done, function () {
+          // Clipboard permission refused — it's selected, so ⌘C still works.
+          copyBtn.textContent = 'Press ⌘C'
+        })
+      } else {
+        copyBtn.textContent = 'Press ⌘C'
+      }
+    })
+  } else if (maker) {
+    maker.hidden = true
+  }
+
   room.querySelector('[data-unlock]').addEventListener('click', function () {
     gateError.hidden = true
     var value = (tokenInput.value || '').trim()
