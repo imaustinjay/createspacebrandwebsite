@@ -60,11 +60,15 @@ async function wiring() {
       priced = -1 // reachable difference between "none priced" and "couldn't ask"
     }
   }
+  const hooks = clean(process.env.STRIPE_WEBHOOK_SECRET).split(/[\s,]+/).filter(Boolean).length
   return {
     secretKey: Boolean(secret),
     publishableKey: Boolean(clean(process.env.STRIPE_PUBLISHABLE_KEY)),
     mode: secret.startsWith('sk_live') ? 'live' : secret.startsWith('sk_test') ? 'test' : null,
-    webhookSecret: Boolean(clean(process.env.STRIPE_WEBHOOK_SECRET)),
+    webhookSecret: hooks > 0,
+    // More than one is normal and deliberate: test and live are separate
+    // endpoints with separate secrets, and both can be held at once.
+    webhookSecrets: hooks,
     mail: Boolean(mailbox()),
     priced,
     of: IDS.length,

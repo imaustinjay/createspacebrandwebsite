@@ -90,7 +90,7 @@ below). Every application flow itself lives on createspacebrand.online.
 |---|---|
 | `STRIPE_SECRET_KEY` | The storefront's whole payment integration hangs off this one value (`sk_test_…` then `sk_live_…`). Unset, no price is shown anywhere and the pay button says so — see [Stripe — the checkout](#stripe--the-checkout). Server-side only; it must never appear in a page. |
 | `STRIPE_PUBLISHABLE_KEY` | The matching `pk_test_…` / `pk_live_…`. It is public by design — it is what lets Stripe's payment field render inside our checkout. Without it the checkout stays closed and says which key is missing in the function log. |
-| `STRIPE_WEBHOOK_SECRET` | The signing secret of the webhook endpoint at `/api/stripe-webhook`. Without it, payments still succeed but **nothing is delivered**: no files, no buyer email, no house notification. |
+| `STRIPE_WEBHOOK_SECRET` | The signing secret of the webhook endpoint at `/api/stripe-webhook`. Without it, payments still succeed but **nothing is delivered**: no files, no buyer email, no house notification. Holds **more than one**, comma- or space-separated — test and live are separate endpoints with separate secrets, and keeping both means a sandbox purchase still checks delivery after the switch to live. Also how you rotate one without a window where signatures fail. |
 | `ADMIN_TOKEN` | Opens `/shop/admin/`, where the product files are uploaded. 24+ random characters. Unset, the stockroom is shut rather than open — see [Digital delivery](#digital-delivery--the-stockroom). |
 | `STRIPE_PRICE_*` | Optional, one per product (`STRIPE_PRICE_START_SMALL`, …). Only needed if the prices don't carry lookup keys; an env var wins where both exist. |
 | `STRIPE_AUTOMATIC_TAX` | Optional, `true` to turn on Stripe Tax. Off by default — it needs Stripe Tax configured on the account first, and it makes a billing address required at checkout. |
@@ -316,9 +316,11 @@ follows within five minutes, with no deploy.
 4. **Add the webhook** in Stripe → Developers → Webhooks, pointing at
    `https://createspacebrand.com/api/stripe-webhook`, subscribed to
    `payment_intent.succeeded`, `payment_intent.payment_failed` and
-   `setup_intent.succeeded`. Put its signing secret in
+   `setup_intent.succeeded`. Payload style **Snapshot** — the thin style sends
+   a stub this webhook can't read. Put its signing secret in
    `STRIPE_WEBHOOK_SECRET`. **Nothing is delivered without this** — the
-   webhook is what emails the files.
+   webhook is what emails the files. Test and live need one endpoint each;
+   `STRIPE_WEBHOOK_SECRET` holds both secrets at once, comma-separated.
 5. **Turn on Stripe's own email receipts** (Settings → Customer emails →
    *Successful payments*). The webhook writes the house's own email — what was
    bought, the download links, where to find them again — and leaves the tax

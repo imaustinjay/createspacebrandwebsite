@@ -24,12 +24,31 @@ const HANDLED = new Set([
   'setup_intent.succeeded',
 ])
 
+// STRIPE_WEBHOOK_SECRET may hold more than one, separated by commas or
+// whitespace, and each is tried until one verifies.
+//
+// This exists for the two moments it would otherwise bite. **Test and live are
+// separate endpoints with separate signing secrets** — holding both means the
+// sandbox keeps working after the switch to live, so a test purchase is always
+// available to check delivery with. And **rotating a secret** stops being a
+// window where signatures fail: add the new one, move Stripe over, drop the
+// old one, with the shop up throughout.
+//
+// Trying several is not a weakening: each is a full HMAC check, and a forged
+// signature fails every one of them.
+function webhookSecrets() {
+  return clean(process.env.STRIPE_WEBHOOK_SECRET)
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
 export default async (req) => {
   if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 })
 
   const stripe = stripeClient()
-  const secret = clean(process.env.STRIPE_WEBHOOK_SECRET)
-  if (!stripe || !secret) {
+  const secrets = webhookSecrets()
+  if (!stripe || !secrets.length) {
     // Nothing to retry: this is a missing environment variable, not a blip.
     console.error('stripe-webhook: not configured — STRIPE_SECRET_KEY and/or STRIPE_WEBHOOK_SECRET missing')
     return Response.json({ received: true, handled: false, reason: 'not-configured' })
@@ -38,13 +57,20 @@ export default async (req) => {
   const signature = req.headers.get('stripe-signature') || ''
   const raw = await req.text()
 
-  let event
-  try {
-    event = await stripe.webhooks.constructEventAsync(raw, signature, secret)
-  } catch (err) {
+  let event = null
+  let lastError = null
+  for (const secret of secrets) {
+    try {
+      event = await stripe.webhooks.constructEventAsync(raw, signature, secret)
+      break
+    } catch (err) {
+      lastError = err
+    }
+  }
+  if (!event) {
     // A bad signature is either an attacker or the wrong signing secret for
     // this endpoint. Both are 400s — retrying changes neither.
-    console.error('stripe-webhook: signature rejected —', err?.message || err)
+    console.error('stripe-webhook: signature rejected —', lastError?.message || lastError)
     return Response.json({ error: 'Invalid signature' }, { status: 400 })
   }
 

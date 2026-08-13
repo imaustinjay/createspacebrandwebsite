@@ -75,7 +75,15 @@
             ? 'All ' + config.of + ' products priced'
             : config.priced + ' of ' + config.of + ' priced — the rest show no price and can’t be bought',
       ],
-      ['Webhook', config.webhookSecret, config.webhookSecret ? 'Payments will be delivered' : 'Set STRIPE_WEBHOOK_SECRET — without it nothing is emailed, ever'],
+      [
+        'Webhook',
+        config.webhookSecret,
+        config.webhookSecret
+          ? config.webhookSecrets > 1
+            ? config.webhookSecrets + ' signing secrets held — test and live can both deliver'
+            : 'Payments will be delivered'
+          : 'Set STRIPE_WEBHOOK_SECRET — without it nothing is emailed, ever',
+      ],
       ['Mailbox', config.mail, config.mail ? 'Receipts and files can be sent' : 'Set MAIL_USER and MAIL_PASSWORD — no files can be delivered'],
     ]
 
