@@ -24,6 +24,11 @@ const HANDLED = new Set([
   'setup_intent.succeeded',
 ])
 
+// `pi_00000000000000` and friends — the object Stripe's dashboard sends when
+// you press "Send test event". Never a real intent, which always carries
+// random characters.
+const PLACEHOLDER_ID = /^[a-z]+_0+$/
+
 // STRIPE_WEBHOOK_SECRET may hold more than one, separated by commas or
 // whitespace, and each is tried until one verifies.
 //
@@ -80,6 +85,18 @@ export default async (req) => {
 
   const intent = event.data.object
   const meta = intent.metadata || {}
+
+  // Stripe's dashboard "Send test event" posts a real, correctly signed event
+  // carrying a placeholder object — an id of nothing but zeros. Getting a 200
+  // back is the one free way to prove STRIPE_WEBHOOK_SECRET is right without
+  // spending money, so answer it as the check it is rather than letting it
+  // fall through to the warning meant for a stranger's payment.
+  if (PLACEHOLDER_ID.test(intent.id || '')) {
+    console.log('stripe-webhook: dashboard test event — signature verified, nothing to deliver', {
+      type: event.type,
+    })
+    return Response.json({ received: true, handled: false, reason: 'test-event', signature: 'ok' })
+  }
 
   if (event.type === 'payment_intent.payment_failed') {
     console.warn('stripe-webhook: payment failed', {

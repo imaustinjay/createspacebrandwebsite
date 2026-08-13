@@ -405,6 +405,15 @@ intents rather than about the mix-up. So `/api/checkout` compares the pair and
 says which is which. A shop that is honestly shut beats one that takes someone
 to a payment field that cannot work.
 
+**Checking the webhook without spending money.** Stripe's dashboard has a
+*Send test event* button on each endpoint. It posts a real, correctly signed
+event carrying a placeholder object, so it proves `STRIPE_WEBHOOK_SECRET`
+exactly: a **200** means the signature verified, a **400** means the secret is
+wrong. The webhook recognises the placeholder and answers
+`{"reason":"test-event","signature":"ok"}` rather than treating it as a
+stranger's payment. It proves the secret and the URL — not delivery, which
+needs a real purchase or a sandbox key.
+
 If Apple Pay doesn't appear on the live site, register the domain: Stripe →
 Settings → Payments → Payment methods → Apple Pay → add `createspacebrand.com`.
 Test mode doesn't need it, so this is the one difference that only shows up
