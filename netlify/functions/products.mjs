@@ -13,7 +13,8 @@
 //
 // The upload is a raw body rather than multipart on purpose: no parser, no
 // dependency, and a browser can send a File straight down it.
-import { IDS, SHELF, clean } from '../shared/catalog.mjs'
+import { IDS, SHELF, clean, resolvePrices, stripeClient } from '../shared/catalog.mjs'
+import { mailbox } from '../shared/mail.mjs'
 import {
   deliverableCount,
   manifest,
@@ -37,6 +38,37 @@ function unauthorised() {
     { error: 'Not authorised.' },
     { status: 401, headers: { ...NO_STORE, 'WWW-Authenticate': 'Bearer' } }
   )
+}
+
+// Which of the shop's wires are actually connected. Booleans and a mode —
+// never a key, never a fragment of one. Behind the same admin token as
+// everything else here, because even "the webhook secret is unset" is
+// something a stranger has no business knowing.
+//
+// This exists because setting the shop up means pasting five values into a
+// dashboard nobody can see from here, and "did that take?" should be a page
+// you look at rather than a purchase you risk.
+async function wiring() {
+  const secret = clean(process.env.STRIPE_SECRET_KEY)
+  const stripe = stripeClient()
+  let priced = 0
+  if (stripe) {
+    try {
+      priced = Object.keys(await resolvePrices(stripe)).length
+    } catch (err) {
+      console.error('products: price check failed —', err?.message || err)
+      priced = -1 // reachable difference between "none priced" and "couldn't ask"
+    }
+  }
+  return {
+    secretKey: Boolean(secret),
+    publishableKey: Boolean(clean(process.env.STRIPE_PUBLISHABLE_KEY)),
+    mode: secret.startsWith('sk_live') ? 'live' : secret.startsWith('sk_test') ? 'test' : null,
+    webhookSecret: Boolean(clean(process.env.STRIPE_WEBHOOK_SECRET)),
+    mail: Boolean(mailbox()),
+    priced,
+    of: IDS.length,
+  }
 }
 
 // A constant-time-ish compare, so a wrong token can't be narrowed down by
@@ -76,7 +108,10 @@ export default async (req) => {
       links: shelves[id].links || [],
       ready: deliverableCount(shelves[id]) > 0,
     }))
-    return Response.json({ ok: true, products, maxUpload: MAX_UPLOAD }, { headers: NO_STORE })
+    return Response.json(
+      { ok: true, products, maxUpload: MAX_UPLOAD, config: await wiring() },
+      { headers: NO_STORE }
+    )
   }
 
   if (!SHELF[item]) {

@@ -327,7 +327,16 @@ follows within five minutes, with no deploy.
    nothing uploaded still sells; the buyer is told plainly that the file is
    being finished rather than handed a link that 404s.
 
-Verify with `curl https://createspacebrand.com/api/catalog`:
+**Check it landed** at `/shop/admin/`, which opens with a *wiring* panel: both
+Stripe keys, which mode they're in, how many of the six products resolved a
+price, the webhook secret, and the mailbox — each either connected or with the
+variable to set. It reports booleans and a mode, never a key or a fragment of
+one, and it sits behind the same `ADMIN_TOKEN` as the rest of the stockroom.
+Setting the shop up means pasting five values into a dashboard the site can't
+see; this makes "did that take?" a page you look at rather than a purchase you
+risk.
+
+For the shelf specifically, `curl https://createspacebrand.com/api/catalog`:
 
 | Response | Meaning |
 |---|---|

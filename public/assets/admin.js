@@ -55,6 +55,64 @@
     return node
   }
 
+  // ------------------------------------------------------------- the wiring
+  // Setting the shop up means pasting values into a dashboard this page can't
+  // see. Rather than find out whether they took by risking a purchase, ask.
+  function renderWiring(config) {
+    var panel = room.querySelector('[data-wiring]')
+    if (!panel || !config) return
+    panel.innerHTML = ''
+
+    var rows = [
+      ['Stripe secret key', config.secretKey, config.mode ? config.mode === 'live' ? 'Live mode — real money' : 'Test mode' : 'Set STRIPE_SECRET_KEY in Netlify'],
+      ['Stripe publishable key', config.publishableKey, config.publishableKey ? 'The payment field can render' : 'Set STRIPE_PUBLISHABLE_KEY — without it the checkout stays shut'],
+      [
+        'Prices',
+        config.priced === config.of,
+        config.priced < 0
+          ? "Couldn't reach Stripe to ask"
+          : config.priced === config.of
+            ? 'All ' + config.of + ' products priced'
+            : config.priced + ' of ' + config.of + ' priced — the rest show no price and can’t be bought',
+      ],
+      ['Webhook', config.webhookSecret, config.webhookSecret ? 'Payments will be delivered' : 'Set STRIPE_WEBHOOK_SECRET — without it nothing is emailed, ever'],
+      ['Mailbox', config.mail, config.mail ? 'Receipts and files can be sent' : 'Set MAIL_USER and MAIL_PASSWORD — no files can be delivered'],
+    ]
+
+    var ready = rows.every(function (r) { return r[1] })
+    var head = el('div')
+    head.style.cssText = 'display: flex; justify-content: space-between; align-items: baseline; gap: 20px; flex-wrap: wrap; margin-bottom: 16px;'
+    head.appendChild(el('span', 'shop-eyebrow', 'The wiring'))
+    var verdict = el('span', 'shop-eyebrow', ready ? 'Ready to sell' : 'Not ready yet')
+    verdict.style.color = ready ? 'var(--sage)' : 'var(--dusk)'
+    head.appendChild(verdict)
+    panel.appendChild(head)
+
+    rows.forEach(function (row) {
+      var line = el('div')
+      line.style.cssText = 'display: grid; grid-template-columns: 14px 1fr; gap: 12px; align-items: start; padding: 9px 0; border-top: 1px solid var(--hairline);'
+      var mark = el('span')
+      mark.setAttribute('aria-hidden', 'true')
+      mark.style.cssText =
+        'width: 9px; height: 9px; margin-top: 6px; border-radius: 999px; background: ' +
+        (row[1] ? 'var(--sage)' : 'var(--dusk)')
+      line.appendChild(mark)
+      var text = el('div')
+      var name = el('b', null, row[0])
+      name.style.cssText = 'display: block; font-size: 14.5px; font-weight: 500;'
+      var note = el('span', 'fine-12', row[2])
+      note.style.cssText = 'display: block; margin-top: 2px;'
+      // Screen readers get the state as a word, not as a coloured dot.
+      var state = el('span', null, row[1] ? 'Connected. ' : 'Missing. ')
+      state.style.cssText = 'position: absolute; left: -9999px;'
+      text.appendChild(state)
+      text.appendChild(name)
+      text.appendChild(note)
+      line.appendChild(text)
+      panel.appendChild(line)
+    })
+  }
+
   // Saving reloads the shelf, which rebuilds these cards — so the "Saved."
   // that was just written would vanish in the same tick. The message is
   // carried through the reload instead and printed by whichever card it
@@ -222,6 +280,7 @@
       .then(function (data) {
         gate.hidden = true
         stock.hidden = false
+        renderWiring(data.config)
         render(data.products || [], flash)
       })
       .catch(function (err) {
