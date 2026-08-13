@@ -810,24 +810,21 @@ textarea::placeholder { color: var(--faint); }
   gap: 48px;
   align-items: start;
 }
-/* What Stripe's page will offer, stated rather than chosen: the method is
-   picked there, so these are a promise about that page and not a control. */
-.pay-chips {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.pay-chips li {
+/* The card that holds the payment. Stripe's Payment Element mounts inside it
+   and is handed these same tokens through the Appearance API (see the
+   `appearance()` function in shop.js), so the seam between our card and their
+   iframe shouldn't be findable. */
+.pay-panel {
   background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 10px 18px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--seal);
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  padding: 24px 26px;
+  box-shadow: var(--card-shadow);
+}
+.pay-rule {
+  height: 1px;
+  background: var(--hairline);
+  margin: 20px 0 22px;
 }
 .pay-due {
   display: flex;
@@ -843,6 +840,29 @@ textarea::placeholder { color: var(--faint); }
   color: var(--faint);
 }
 .pay-due b { font-size: 26px; font-weight: 300; }
+
+.pay-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 26px 0 6px;
+  font-size: 14px;
+  font-weight: 300;
+  color: var(--muted);
+}
+.pay-spinner {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  border: 1.5px solid var(--border-strong);
+  border-top-color: var(--sage);
+  border-radius: 999px;
+  animation: pay-turn 0.8s linear infinite;
+}
+@keyframes pay-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .pay-spinner { animation-duration: 2.4s; }
+}
 .secure-row {
   display: flex;
   align-items: center;
@@ -984,6 +1004,22 @@ textarea::placeholder { color: var(--faint); }
   padding: 20px 28px;
   border-top: 1px solid var(--hairline);
 }
+/* A product can deliver more than one thing — a preset pack and its guide,
+   a Notion link beside a PDF — so the right-hand side is a stack, not a
+   button. It wraps under the name on a phone rather than squeezing. */
+.file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  justify-content: flex-end;
+}
+.file-soon {
+  font-size: 12.5px;
+  font-weight: 300;
+  color: var(--muted);
+  text-align: right;
+  max-width: 22ch;
+}
 .file-row .btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -1070,7 +1106,13 @@ textarea::placeholder { color: var(--faint); }
   .steps i { display: none; }
   .steps span { font-size: 11px; }
   .shop-footer-cols { gap: 34px; }
-  .cart-item { grid-template-columns: 48px 1fr; }
+  .cart-item { grid-template-columns: 48px 1fr auto; }
+
+  /* Download buttons drop under the product they belong to rather than
+     fighting its name for the row. */
+  .file-row { grid-template-columns: 1fr; gap: 14px; }
+  .file-actions { justify-content: flex-start; }
+  .file-soon { text-align: left; max-width: none; }
 }
 
 /* The header row is the storefront's tightest piece of arithmetic. The

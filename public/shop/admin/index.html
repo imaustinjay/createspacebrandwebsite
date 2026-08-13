@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Stockroom | createspace</title>
+  <meta name="description" content="Where the digital products are kept." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" href="/assets/fonts/raleway-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/assets/fonts/fonts.css?v=2" />
+  <link rel="stylesheet" href="/assets/site.css?v=4" />
+  <link rel="stylesheet" href="/assets/shop.css?v=5" />
+  <script src="/assets/admin.js?v=1" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="shell nav-row">
+    <a class="brand" href="/" aria-label="createspace · community + talent — home">
+      <span class="brand-word">createspace</span>
+      <span class="brand-sub">community + talent</span>
+    </a>
+    <nav class="nav" aria-label="Site">
+      <a href="/shop/">Shop</a>
+      <a href="/shop/products/">Products</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="shell" data-stockroom style="max-width: 900px; padding-top: 40px; padding-bottom: clamp(60px, 8vw, 96px);">
+  <span class="eyebrow eyebrow-wide">Stockroom</span>
+  <h1 class="t-sec36" style="margin: 18px 0 0; max-width: 22ch;">What a buyer actually <span class="emph-sage">receives.</span></h1>
+  <p class="lede" style="margin: 18px 0 0; max-width: 48ch;">Put a product's files here and they are delivered — instantly, by email, the moment someone pays for it. Nothing else needs doing.</p>
+
+  <!-- The key is typed, never stored in the page, and never in localStorage:
+       it lives in sessionStorage so closing the tab closes the stockroom. -->
+  <section data-gate style="margin-top: 34px;">
+    <div class="card" style="--pad: 26px 28px; max-width: 34em;">
+      <span class="shop-eyebrow" style="display: block; margin-bottom: 14px;">Admin key</span>
+      <div class="form-stack">
+        <label class="field">
+          <span>The value of ADMIN_TOKEN</span>
+          <input type="password" name="token" autocomplete="off" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" />
+        </label>
+        <p class="form-error" data-error hidden></p>
+        <button class="btn btn-primary" type="button" data-unlock style="justify-self: start;">Open the stockroom</button>
+      </div>
+      <p class="fine-12" style="margin: 16px 0 0;">Set it in Netlify → Site configuration → Environment variables, scoped to Functions. Twenty-four random characters or more. It is the only thing standing between the internet and the upload endpoint.</p>
+    </div>
+  </section>
+
+  <section data-room hidden style="margin-top: 34px;">
+    <div class="note-line" style="margin-bottom: 28px;"><span><strong>These files are what people buy.</strong> Anything uploaded here is served only to someone holding a download token from a paid order — never publicly, never from a guessable URL. Files over the upload ceiling belong behind a link instead.</span></div>
+    <div data-products></div>
+    <p class="fine" style="margin: 26px 0 0;">Close this tab and the key is forgotten.</p>
+  </section>
+</main>
+
+<footer class="shop-footer">
+  <div class="shell shop-footer-legal">
+    <span>© 2026 createspace · community + talent</span>
+    <span>Stockroom — not linked from anywhere, and noindex</span>
+  </div>
+</footer>
+</body>
+</html>

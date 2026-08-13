@@ -4,12 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Secure checkout | createspace</title>
-  <meta name="description" content="Digital delivery only. Your details, one last look, then payment on Stripe’s own secure page." />
+  <meta name="description" content="Digital delivery only. Your details, one last look, then payment — all without leaving createspace." />
   <link rel="canonical" href="https://createspacebrand.com/shop/checkout/" />
   <meta property="og:site_name" content="createspace · community + talent" />
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Secure checkout | createspace" />
-  <meta property="og:description" content="Digital delivery only. Your details, one last look, then payment on Stripe’s own secure page." />
+  <meta property="og:description" content="Digital delivery only. Your details, one last look, then payment — all without leaving createspace." />
   <meta property="og:url" content="https://createspacebrand.com/shop/checkout/" />
   <meta property="og:image" content="https://createspacebrand.com/assets/og.png" />
   <meta property="og:image:width" content="1200" />
@@ -21,10 +21,11 @@
   <link rel="preload" href="/assets/fonts/lora-italic-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="/assets/fonts/fonts.css?v=2" />
   <link rel="stylesheet" href="/assets/site.css?v=4" />
-  <link rel="stylesheet" href="/assets/shop.css?v=4" />
+  <link rel="stylesheet" href="/assets/shop.css?v=5" />
   <script src="/assets/reveal.js?v=2" defer></script>
   <script src="/assets/motion.js?v=2" defer></script>
-  <script src="/assets/shop.js?v=2" defer></script>
+  <script src="https://js.stripe.com/v3/"></script>
+  <script src="/assets/shop.js?v=3" defer></script>
 </head>
 <body data-drop-date="2026-09-14T09:00:00-04:00">
 <a class="skip" href="#main">Skip to content</a>
@@ -153,32 +154,43 @@
 
       <section data-step="3" hidden>
         <h1 class="t-sec34" style="margin: 0 0 10px;">Pay <span class="emph-sage">securely.</span></h1>
-        <p class="body-15" style="margin: 0 0 24px;">The last step happens on Stripe's own payment page. Your card is typed there, not here — it never passes through createspace, and there is no card field anywhere on this site.</p>
+        <p class="body-15" style="margin: 0 0 24px;">Right here — you're not being sent anywhere. The fields below are Stripe's own, so your card number never enters this page or our servers; they're simply drawn in our type rather than someone else's.</p>
 
         <p class="secure-row" style="margin: 0 0 26px;">Encrypted · PCI-DSS Level 1 · 3-D Secure enabled</p>
 
-        <span class="shop-eyebrow" style="display: block; margin-bottom: 13px;">What you can pay with</span>
-        <ul class="pay-chips" style="margin-bottom: 26px;">
-          <li>Card</li>
-          <li>Apple&nbsp;Pay</li>
-          <li>Google&nbsp;Pay</li>
-          <li>Link</li>
-        </ul>
-
-        <div class="card-flat" style="--pad: 20px 22px; max-width: 34em;">
-          <div class="pay-due">
+        <div class="pay-panel" style="max-width: 34em;">
+          <div class="pay-due" data-pay-due>
             <span>Due today</span>
             <b data-pay-total>&mdash;</b>
           </div>
-          <p class="body-14" style="margin: 12px 0 0;">The final amount, any tax and any promotion code are confirmed on Stripe's page before you're charged a penny.</p>
+          <div class="pay-due" data-pay-free hidden>
+            <span>Due today</span>
+            <b>Nothing</b>
+          </div>
+          <p class="fine-12" data-pay-free hidden style="margin: 10px 0 0;">Your card is filed for the day the doors open — nothing is taken before then, and you can cancel any time.</p>
+
+          <div class="pay-rule"></div>
+
+          <!-- Stripe's Payment Element mounts here: card, Apple Pay, Google
+               Pay and Link, whichever the account has switched on. It is an
+               iframe, which is exactly why no card data touches this page —
+               and it is handed this site's own design tokens, so it is set in
+               Raleway, in seal and sage, with our radii. -->
+          <div data-payment-element></div>
+
+          <div class="pay-loading" data-pay-state="loading">
+            <span class="pay-spinner" aria-hidden="true"></span>
+            <span>Opening a secure payment&hellip;</span>
+          </div>
+          <p class="fine-12" data-pay-state="problem" hidden style="margin: 0;">The payment field couldn't open. Nothing was charged.</p>
         </div>
 
         <p class="form-error" data-error hidden style="margin-top: 20px;"></p>
         <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 28px;">
-          <button class="btn btn-primary btn-lg" type="button" data-pay style="background: var(--sage);">Continue to secure payment</button>
+          <button class="btn btn-primary btn-lg" type="button" data-pay disabled style="background: var(--sage);">Pay securely</button>
           <button class="btn btn-secondary btn-lg" type="button" data-goto="2">Back</button>
         </div>
-        <p class="fine" style="margin: 20px 0 0; max-width: 40em;">Payment is processed by Stripe over TLS 1.3. createspace never sees or stores card data. If your bank requests it, a 3-D Secure challenge appears before the charge completes. You'll come straight back here afterwards with your order.</p>
+        <p class="fine" style="margin: 20px 0 0; max-width: 40em;">Payment is processed by Stripe over TLS 1.3. createspace never sees or stores card data. If your bank asks for it, a 3-D Secure challenge appears before the charge completes — and you land straight back here with your order and your files.</p>
       </section>
     </div>
 
@@ -187,10 +199,10 @@
       <div class="summary-line" data-summary-empty><b style="font-weight: 300; color: var(--muted);">Your cart is empty.</b></div>
       <div class="summary-line" data-summary-after><span style="font-weight: 300; color: var(--muted);">Subtotal</span><span data-summary-subtotal>&mdash;</span></div>
       <div class="summary-total"><b>Total</b><span data-summary-total>&mdash;</span></div>
-      <p class="fine-12" style="margin: 14px 0 0;">Live amounts, read from Stripe. Member pricing, promotion codes and any applicable tax are applied on Stripe's payment page, and the total there is the final word.</p>
+      <p class="fine-12" style="margin: 14px 0 0;">Live amounts, read from Stripe and confirmed again on our side before a penny moves. This is the total.</p>
       <div class="summary-notes">
-        <span>Access unlocks August 17</span>
-        <span>Emailed receipt &amp; permanent link</span>
+        <span>Delivered by email, instantly</span>
+        <span>Receipt &amp; permanent download link</span>
         <span>Invitation into the craft included</span>
       </div>
     </aside>
@@ -253,7 +265,7 @@
   </div>
   <div class="cart-foot">
     <div class="cart-total"><b>Total</b><span>&mdash;</span></div>
-    <p class="fine-12" style="margin: 0 0 18px;">Live prices, read from Stripe. Tax and any promotion code are applied at payment.</p>
+    <p class="fine-12" style="margin: 0 0 18px;">Live prices, read from Stripe. Paid for here — you are never sent to another site.</p>
     <button class="btn btn-primary" type="button" data-checkout style="width: 100%;" hidden>Secure checkout</button>
     <p class="cart-seal">Stripe · PCI-DSS Level 1 · 3-D Secure</p>
   </div>

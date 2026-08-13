@@ -48,17 +48,35 @@
   to = "/.netlify/functions/catalog"
   status = 200
 
-# Cart in, Stripe Checkout Session out. Amounts are resolved server-side from
-# the price ids — the browser never names a price.
+# Cart in, a client secret out. The payment is then taken by Stripe's Payment
+# Element mounted inside /shop/checkout/ — the buyer never leaves the site, and
+# no card field exists in this repo. Amounts are resolved server-side from the
+# price ids: the browser never names a price.
 [[redirects]]
   from = "/api/checkout"
   to = "/.netlify/functions/checkout"
   status = 200
 
-# One order read back from Stripe, for the confirmation page.
+# One order read back from Stripe, for the confirmation page — by Stripe's
+# return parameters straight after paying, or by the receipt's permanent token
+# any time after.
 [[redirects]]
   from = "/api/order"
   to = "/.netlify/functions/order"
+  status = 200
+
+# The door a receipt opens: the download token names what it bought, and
+# nothing leaves storage without one.
+[[redirects]]
+  from = "/api/download"
+  to = "/.netlify/functions/download"
+  status = 200
+
+# The stockroom — uploading the digital products themselves. Behind
+# ADMIN_TOKEN; closed entirely when that isn't set.
+[[redirects]]
+  from = "/api/products"
+  to = "/.netlify/functions/products"
   status = 200
 
 # Stripe's own callback — the side of the checkout that can be trusted, and
@@ -95,10 +113,18 @@
   status = 301
 
 # Fonts never change under a given filename — cache them hard.
+#
+# They're also readable cross-origin, which is not a leak (they're already
+# public files) and is a requirement: the checkout hands this stylesheet to
+# Stripe's Payment Element iframe so the card field is set in Raleway like
+# everything around it. Without the header the iframe silently falls back to
+# a system font, and the one part of the page that has to look trustworthy is
+# the one part that looks borrowed.
 [[headers]]
   for = "/assets/fonts/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+    Access-Control-Allow-Origin = "*"
 
 # Everything else under /assets revalidates on every visit. This used to be
 # split into /assets/*.css and /assets/*.js revalidation rules over a

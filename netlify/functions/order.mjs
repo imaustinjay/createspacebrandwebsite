@@ -1,26 +1,67 @@
-// GET /api/order?session_id=cs_… — read one order back, from Stripe.
+// GET /api/order — read one order back, from Stripe, and hand over its files.
 //
-// The confirmation page used to invent its own order out of sessionStorage:
-// a random reference, no amount, and the same happy screen whether or not a
-// payment had happened. This is the fix. The page now shows what Stripe says
-// and nothing else, so "Payment confirmed" is a fact rather than a layout.
+// The confirmation page used to invent an order out of sessionStorage: a
+// random reference, no amount, and the same happy screen whether or not a
+// payment had happened. This is the fix. The page shows what Stripe says and
+// nothing else, so "Payment confirmed" is a fact rather than a layout.
 //
-// The session id is the capability — it's unguessable, it's only ever handed
-// to the person who just paid, and it's the standard Stripe pattern for a
-// return page. Nothing here is retrievable without it.
-import { SHELF, money, shelfIdForPrice, stripeClient } from '../shared/catalog.mjs'
+//   /api/order?payment_intent=pi_…&payment_intent_client_secret=…
+//   /api/order?setup_intent=seti_…&setup_intent_client_secret=…
+//
+// The client secret is the capability, and it is checked: knowing an intent
+// id is not enough to read somebody's order. Stripe puts both on the return
+// URL, so the buyer has them and nobody else does.
+import { SHELF, money, stripeClient } from '../shared/catalog.mjs'
+import { deliverableCount, ensureOrder, manifests, orderByToken, readableSize } from '../shared/storage.mjs'
 
-const SESSION_RE = /^cs_(test_|live_)?[A-Za-z0-9]+$/
 const NO_STORE = { 'Cache-Control': 'no-store' }
+const PAYMENT_RE = /^pi_[A-Za-z0-9]+$/
+const SETUP_RE = /^seti_[A-Za-z0-9]+$/
+const TOKEN_RE = /^[A-Za-z0-9_-]{16,64}$/
+
+// succeeded → the money is ours. processing → an asynchronous method is still
+// clearing, which is neither a success to celebrate nor a failure to
+// apologise for. Everything else means the buyer never finished.
+function stateOf(status) {
+  if (status === 'succeeded') return 'paid'
+  if (status === 'processing') return 'processing'
+  if (status === 'canceled') return 'unfinished'
+  return 'unfinished'
+}
 
 export default async (req) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     return new Response('Method Not Allowed', { status: 405 })
   }
 
-  const sessionId = new URL(req.url).searchParams.get('session_id') || ''
-  if (!SESSION_RE.test(sessionId) || sessionId.length > 200) {
-    return Response.json({ ok: false, reason: 'bad-session' }, { status: 400, headers: NO_STORE })
+  const params = new URL(req.url).searchParams
+
+  // The permanent way back in. The receipt links here with the order's own
+  // download token, so months later — on another device, in another browser —
+  // the order still opens without Stripe's one-time return parameters.
+  const permanent = params.get('token') || ''
+  if (permanent) {
+    if (!TOKEN_RE.test(permanent)) {
+      return Response.json({ ok: false, reason: 'bad-intent' }, { status: 400, headers: NO_STORE })
+    }
+    const record = await orderByToken(permanent)
+    if (!record) {
+      return Response.json({ ok: false, reason: 'not-found' }, { status: 404, headers: NO_STORE })
+    }
+    // A token only ever exists for an order, and files are only attached to
+    // one that was paid — so this door is always the confirmed view.
+    return Response.json(await present(record, { state: 'paid', paid: true }), { headers: NO_STORE })
+  }
+
+  const paymentId = params.get('payment_intent') || ''
+  const setupId = params.get('setup_intent') || ''
+  const secret = params.get('payment_intent_client_secret') || params.get('setup_intent_client_secret') || ''
+
+  const id = paymentId || setupId
+  const isSetup = !paymentId && Boolean(setupId)
+  const shapeOk = isSetup ? SETUP_RE.test(id) : PAYMENT_RE.test(id)
+  if (!id || !shapeOk || id.length > 200 || !secret || secret.length > 400) {
+    return Response.json({ ok: false, reason: 'bad-intent' }, { status: 400, headers: NO_STORE })
   }
 
   const stripe = stripeClient()
@@ -28,9 +69,9 @@ export default async (req) => {
     return Response.json({ ok: false, reason: 'not-configured' }, { status: 503, headers: NO_STORE })
   }
 
-  let session
+  let intent
   try {
-    session = await stripe.checkout.sessions.retrieve(sessionId, { expand: ['line_items'] })
+    intent = isSetup ? await stripe.setupIntents.retrieve(id) : await stripe.paymentIntents.retrieve(id)
   } catch (err) {
     const code = err?.statusCode === 404 || err?.code === 'resource_missing' ? 404 : 502
     if (code === 502) console.error('order: read failed —', err?.message || err)
@@ -40,41 +81,103 @@ export default async (req) => {
     )
   }
 
-  const paid = session.payment_status === 'paid' || session.payment_status === 'no_payment_required'
-  // `complete` but unpaid means an asynchronous method (a bank debit) is
-  // still clearing. It is neither a success to celebrate nor a failure to
-  // apologise for, and the page has a state for exactly that.
-  const state = paid ? 'paid' : session.status === 'complete' ? 'processing' : session.status === 'expired' ? 'expired' : 'open'
-
-  const items = []
-  for (const line of session.line_items?.data || []) {
-    const id = shelfIdForPrice(line.price)
-    const shelf = id ? SHELF[id] : null
-    items.push({
-      id,
-      name: shelf ? shelf.name : line.description || 'Item',
-      tier: shelf ? shelf.tier : '',
-      delivery: shelf ? shelf.delivery : '',
-      display: money(line.amount_total, session.currency),
-    })
+  // The one check that matters: this browser holds the secret Stripe issued
+  // for this intent. Without it an order id would be enough to read a
+  // stranger's email address, and it isn't.
+  if (intent.client_secret !== secret) {
+    console.warn('order: client secret mismatch for', id)
+    return Response.json({ ok: false, reason: 'not-found' }, { status: 404, headers: NO_STORE })
   }
 
-  const meta = session.metadata || {}
+  const state = stateOf(intent.status)
+  const meta = intent.metadata || {}
 
-  return Response.json(
-    {
-      ok: true,
-      state,
-      paid,
-      reference: session.client_reference_id || meta.reference || null,
-      email: session.customer_details?.email || session.customer_email || null,
-      name: session.customer_details?.name || meta.name || null,
-      joinCraft: meta.joinCraft !== 'no',
-      subscription: session.mode === 'subscription',
-      total: typeof session.amount_total === 'number' ? money(session.amount_total, session.currency) : null,
-      currency: session.currency || null,
-      items,
-    },
-    { headers: NO_STORE }
-  )
+  // Written at checkout, before the card was asked for — so it is here even
+  // when the webhook hasn't run yet, and `ensureOrder` never mints a second
+  // token for an order that already has one.
+  const record = await ensureOrder(id, {
+    reference: meta.reference || null,
+    email: intent.receipt_email || null,
+    name: meta.name || null,
+    handle: meta.handle || '',
+    joinCraft: meta.joinCraft !== 'no',
+    items: String(meta.cart || '').split(',').filter(Boolean),
+    currency: intent.currency || 'usd',
+    amount: typeof intent.amount === 'number' ? intent.amount : 0,
+    kind: isSetup ? 'membership' : 'one-time',
+  })
+
+  return Response.json(await present(record, { state, paid: state === 'paid', nothingDueToday: isSetup }), {
+    headers: NO_STORE,
+  })
+}
+
+// One order, as the confirmation page needs to read it. Both doors — Stripe's
+// return parameters and the receipt's permanent token — land here, so the
+// page renders identically whichever one the buyer came through.
+async function present(record, { state, paid, nothingDueToday = false }) {
+  const ids = Array.isArray(record.items) ? record.items : []
+  const shelves = await manifests(ids)
+
+  // Links are only handed out once the payment is real. Everything else about
+  // the order is readable while it clears; the files are not.
+  const token = paid ? record.token : null
+  const lineFor = (id) => (record.lines || []).find((l) => l.id === id)
+
+  const items = ids.map((productId) => {
+    const shelf = SHELF[productId]
+    const entry = shelves[productId] || { files: [], links: [] }
+    const line = lineFor(productId)
+    const downloads = []
+    if (token) {
+      for (const file of entry.files) {
+        downloads.push({
+          label: file.label || file.name,
+          size: readableSize(file.size),
+          href: `/api/download?token=${encodeURIComponent(token)}&item=${encodeURIComponent(productId)}&file=${encodeURIComponent(file.name)}`,
+        })
+      }
+      entry.links.forEach((link, i) => {
+        downloads.push({
+          label: link.label || 'Open',
+          size: '',
+          href: `/api/download?token=${encodeURIComponent(token)}&item=${encodeURIComponent(productId)}&link=${i}`,
+          external: true,
+        })
+      })
+    }
+    return {
+      id: productId,
+      name: shelf ? shelf.name : productId,
+      tier: shelf ? shelf.tier : '',
+      delivery: shelf ? shelf.delivery : '',
+      display: line ? money(line.amount, record.currency) : '',
+      // "Coming" is a real state: the product is bought and paid for, the
+      // files simply aren't uploaded yet. Saying so beats a dead button.
+      ready: deliverableCount(entry) > 0,
+      downloads,
+    }
+  })
+
+  return {
+    ok: true,
+    state,
+    paid,
+    kind: record.kind || 'one-time',
+    reference: record.reference || null,
+    email: record.email || null,
+    name: record.name || null,
+    joinCraft: record.joinCraft !== false,
+    total: typeof record.amount === 'number' ? money(record.amount, record.currency) : null,
+    currency: record.currency || null,
+    // A membership on a trial has genuinely taken nothing today, and the page
+    // has to be able to say that rather than print a total of nothing.
+    nothingDueToday: nothingDueToday || record.amount === 0,
+    // The permanent address for this order, for the page to offer as the way
+    // back in — the same one the receipt carries.
+    permalink: token ? `/shop/order/?token=${encodeURIComponent(token)}` : null,
+    items,
+    anyReady: items.some((i) => i.ready),
+    allReady: items.length > 0 && items.every((i) => i.ready),
+  }
 }

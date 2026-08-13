@@ -538,12 +538,13 @@
     })
   })
 
+
   // -------------------------------------------------------------- checkout
-  // Three steps, and the third one is a door: details, review, then Stripe.
-  // No card field exists on this site. The number, the wallet sheet, the
-  // 3-D Secure challenge and any promotion code all happen on Stripe's own
-  // page, which is the only reason this checkout can be honest about never
-  // touching card data.
+  // Three steps, and all three of them are here: details, review, payment.
+  // The payment fields belong to Stripe — they are an iframe, and the card
+  // number never enters this document — but they are drawn in the house's own
+  // type, colours and radii, inside our card, under our button. The buyer
+  // never sees another domain, and there is still no card field in this repo.
   var checkout = document.querySelector('[data-checkout-flow]')
   if (checkout) {
     var steps = checkout.querySelectorAll('[data-step]')
@@ -558,9 +559,6 @@
     var craftBox = checkout.querySelector('[name="joinCraft"]')
     if (craftBox && typeof saved.joinCraft === 'boolean') craftBox.checked = saved.joinCraft
 
-    // Coming back from Stripe without paying is a normal thing to do, and
-    // nothing was charged. Say so once, then take it out of the URL so a
-    // refresh doesn't keep repeating it.
     var params = new URLSearchParams(window.location.search)
     if (params.get('canceled')) {
       var canceledNote = checkout.querySelector('[data-canceled]')
@@ -632,19 +630,204 @@
       })
     }
 
-    var leaving = false
+    // ------------------------------------------------------ the pay panel
+    var payBtn = checkout.querySelector('[data-pay]')
+    var mountPoint = checkout.querySelector('[data-payment-element]')
+    var stripe = null
+    var elements = null
+    var paymentElement = null
+    var intent = null
+    var mountedFor = ''
+    var opening = false
+    var confirming = false
+
+    // What the payment was opened for. Change the cart, the email or the name
+    // and it no longer matches — the intent is torn down and a new one opened,
+    // so nobody can edit their order after the amount has been fixed.
+    function signature() {
+      return readCart().join(',') + '|' + field('email') + '|' + field('name')
+    }
+
+    function setPayState(state) {
+      checkout.querySelectorAll('[data-pay-state]').forEach(function (el) {
+        el.hidden = el.getAttribute('data-pay-state') !== state
+      })
+      if (payBtn) payBtn.disabled = state !== 'ready' || confirming
+    }
+
+    // The Payment Element is an iframe, so it can't inherit the page's CSS.
+    // Instead it's handed the same design tokens the stylesheet uses, read
+    // live off :root — change a token in site.css and the card field follows.
+    function appearance() {
+      var css = window.getComputedStyle(document.documentElement)
+      var token = function (name, fallback) {
+        return (css.getPropertyValue(name) || '').trim() || fallback
+      }
+      var seal = token('--seal', '#4E312C')
+      var sage = token('--sage', '#567363')
+      var border = token('--border', 'rgba(78, 49, 44, 0.14)')
+      var faint = token('--faint', 'rgba(78, 49, 44, 0.40)')
+      var muted = token('--muted', 'rgba(78, 49, 44, 0.55)')
+      var label = {
+        fontSize: '11px',
+        fontWeight: '700',
+        letterSpacing: '0.1em',
+        textTransform: 'uppercase',
+        color: faint,
+      }
+      return {
+        theme: 'flat',
+        variables: {
+          fontFamily: "'Raleway', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
+          fontSizeBase: '15px',
+          colorPrimary: sage,
+          colorBackground: token('--card', '#FFFFFF'),
+          colorText: seal,
+          colorTextSecondary: muted,
+          colorTextPlaceholder: faint,
+          colorDanger: '#A8443C',
+          borderRadius: '11px',
+          spacingUnit: '4px',
+          spacingGridRow: '18px',
+        },
+        rules: {
+          '.Input': {
+            border: '1.5px solid ' + border,
+            boxShadow: 'none',
+            padding: '13px 15px',
+            fontWeight: '400',
+          },
+          '.Input:focus': { border: '1.5px solid ' + sage, boxShadow: 'none', outline: 'none' },
+          '.Input--invalid': { border: '1.5px solid #A8443C', boxShadow: 'none' },
+          '.Label': label,
+          '.Label--floating': label,
+          '.Tab': { border: '1.5px solid ' + border, boxShadow: 'none', padding: '13px 16px' },
+          '.Tab:hover': { border: '1.5px solid ' + sage, color: seal },
+          '.Tab--selected': { border: '1.5px solid ' + sage, backgroundColor: token('--sage-tint', 'rgba(86,115,99,0.10)'), color: seal },
+          '.Tab--selected:focus': { boxShadow: 'none' },
+          '.TabLabel': { fontWeight: '600' },
+          '.Error': { fontSize: '13px' },
+          '.CheckboxInput': { borderRadius: '4px' },
+        },
+      }
+    }
 
     function fillPayStep() {
-      var total = cartTotal(readCart())
+      var total = intent ? { display: money(intent.dueToday, intent.currency), amount: intent.dueToday } : cartTotal(readCart())
       checkout.querySelectorAll('[data-pay-total]').forEach(function (el) {
         el.textContent = total ? total.display : DASH
       })
-      var pay = checkout.querySelector('[data-pay]')
-      // Never overwrite "Opening Stripe…" — a redraw mid-redirect would make
-      // the button look ready to press again.
-      if (pay && !leaving) {
-        pay.textContent = total ? 'Pay ' + total.display + ' securely' : 'Continue to secure payment'
+      // A membership that starts on a trial genuinely takes nothing today,
+      // and the panel has to be able to say so rather than ask for $0.
+      var free = Boolean(intent) && (intent.intentType === 'setup' || intent.dueToday === 0)
+      checkout.querySelectorAll('[data-pay-free]').forEach(function (el) { el.hidden = !free })
+      checkout.querySelectorAll('[data-pay-due]').forEach(function (el) { el.hidden = free })
+      if (payBtn && !confirming) {
+        payBtn.textContent = free
+          ? 'Confirm and start'
+          : total
+            ? 'Pay ' + total.display + ' securely'
+            : 'Pay securely'
       }
+    }
+
+    function teardown() {
+      if (paymentElement) {
+        try { paymentElement.unmount() } catch (e) { /* already gone */ }
+        try { paymentElement.destroy() } catch (e) { /* already gone */ }
+      }
+      paymentElement = null
+      elements = null
+      intent = null
+      mountedFor = ''
+    }
+
+    // Open a payment for what's in the cart right now, and mount Stripe's
+    // fields into our card. Called on arriving at step 3, and again if
+    // anything the amount depends on has changed since.
+    function openPayment() {
+      if (!mountPoint || opening || confirming) return
+      var sig = signature()
+      if (mountedFor === sig && paymentElement) {
+        fillPayStep()
+        setPayState('ready')
+        return
+      }
+      if (!readCart().length) {
+        setPayState('problem')
+        setError(3, 'Your cart is empty — add something before we take payment.')
+        return
+      }
+
+      teardown()
+      opening = true
+      setError(3, '')
+      setPayState('loading')
+
+      var details = session(DETAILS_KEY) || {}
+      fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: readCart(),
+          email: details.email || field('email'),
+          name: details.name || field('name'),
+          handle: details.handle || field('handle'),
+          joinCraft: details.joinCraft !== false,
+          agreed: true,
+        }),
+      })
+        .then(function (res) {
+          return res.json().catch(function () { return {} }).then(function (data) {
+            if (!res.ok || !data.clientSecret) throw new Error(data.error || '')
+            if (!window.Stripe) {
+              // Stripe.js is the one thing on this page we don't serve. If a
+              // network or a blocker ate it, say that rather than showing an
+              // empty box where the card field should be.
+              throw new Error(
+                "The secure payment field couldn't load — an ad blocker or a strict network will do that. Try again, or write to us and we'll send a payment link."
+              )
+            }
+
+            intent = data
+            stripe = window.Stripe(data.publishableKey)
+            elements = stripe.elements({
+              clientSecret: data.clientSecret,
+              appearance: appearance(),
+              // The house typeface, handed to the iframe so the card field is
+              // set in Raleway like everything around it.
+              fonts: [{ cssSrc: window.location.origin + '/assets/fonts/fonts.css' }],
+            })
+            paymentElement = elements.create('payment', {
+              layout: { type: 'tabs', defaultCollapsed: false },
+              // Name and email were asked for on step 1; asking twice is the
+              // sort of friction that loses a sale. They're passed straight
+              // through on confirm instead.
+              fields: { billingDetails: { name: 'never', email: 'never' } },
+            })
+            paymentElement.on('ready', function () {
+              setPayState('ready')
+            })
+            paymentElement.on('loaderror', function (e) {
+              setPayState('problem')
+              setError(3, (e && e.error && e.error.message) || "The payment field couldn't load. Give it a moment and try again.")
+            })
+            paymentElement.mount(mountPoint)
+            mountedFor = sig
+            fillPayStep()
+          })
+        })
+        .catch(function (err) {
+          setPayState('problem')
+          setError(
+            3,
+            (err && err.message) ||
+              "We couldn't open the payment form — nothing was charged. Give it a moment and try again."
+          )
+        })
+        .then(function () {
+          opening = false
+        })
     }
 
     checkout.querySelectorAll('[data-goto]').forEach(function (btn) {
@@ -661,79 +844,85 @@
         setError(current, '')
         if (current === 1) remember()
         if (next === 2) fillReview()
-        if (next === 3) fillPayStep()
         show(next)
+        if (next === 3) openPayment()
       })
     })
 
-    var payBtn = checkout.querySelector('[data-pay]')
     if (payBtn) {
-      var payLabel = payBtn.textContent
       payBtn.addEventListener('click', function () {
-        var cart = readCart()
-        if (!cart.length) {
-          setError(3, 'Your cart is empty — add something before we take payment.')
-          return
-        }
+        if (!stripe || !elements || !intent || confirming) return
         setError(3, '')
         remember()
         var details = session(DETAILS_KEY) || {}
 
-        payLabel = payBtn.textContent
-        leaving = true
+        confirming = true
         payBtn.disabled = true
-        payBtn.textContent = 'Opening Stripe…'
+        var was = payBtn.textContent
+        payBtn.textContent = 'Confirming…'
 
-        fetch('/api/checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            items: cart,
-            email: details.email || '',
-            name: details.name || '',
-            handle: details.handle || '',
-            joinCraft: details.joinCraft !== false,
-            agreed: true,
-          }),
-        })
-          .then(function (res) {
-            return res.json().catch(function () { return {} }).then(function (data) {
-              if (!res.ok || !data.url) throw new Error(data.error || '')
-              // The cart is deliberately left alone: this is a redirect, not
-              // a purchase, and someone who backs out of Stripe must find
-              // their cart exactly where they left it. /shop/order/ clears
-              // it once Stripe confirms the payment.
-              window.location.href = data.url
-            })
-          })
-          .catch(function (err) {
+        var confirmParams = {
+          // Stripe brings the buyer back here with the intent and its client
+          // secret on the URL; /shop/order/ verifies both before showing an
+          // order. Card, wallet and 3-D Secure all land in the same place.
+          return_url: intent.returnUrl,
+          payment_method_data: {
+            billing_details: { name: details.name || '', email: details.email || '' },
+          },
+        }
+
+        var confirmed =
+          intent.intentType === 'setup'
+            ? stripe.confirmSetup({ elements: elements, confirmParams: confirmParams })
+            : stripe.confirmPayment({ elements: elements, confirmParams: confirmParams })
+
+        confirmed
+          .then(function (result) {
+            // No error means the browser is already on its way to Stripe's
+            // challenge or straight back to /shop/order/ — nothing to do.
+            if (!result || !result.error) return
+            var e = result.error
             setError(
               3,
-              (err && err.message) ||
-                "We couldn't open the payment page — nothing was charged. Give it a moment and try again."
+              e.message ||
+                (e.type === 'card_error' || e.type === 'validation_error'
+                  ? 'Those details were declined. Try another card, or a different method.'
+                  : "That didn't go through, and nothing was charged. Give it a moment and try again.")
             )
-            leaving = false
+            confirming = false
             payBtn.disabled = false
-            payBtn.textContent = payLabel
+            payBtn.textContent = was
+          })
+          .catch(function () {
+            setError(3, "That didn't go through, and nothing was charged. Give it a moment and try again.")
+            confirming = false
+            payBtn.disabled = false
+            payBtn.textContent = was
           })
       })
     }
 
-    // Prices land after the first paint; redraw whichever panel is showing.
+    // Prices land after the first paint, and the cart can change from the
+    // drawer while step 3 is open — redraw, and re-open the payment if what
+    // it was opened for no longer matches.
     afterPrices = function () {
       if (current === 2) fillReview()
-      if (current === 3) fillPayStep()
+      if (current === 3) {
+        fillPayStep()
+        if (mountedFor && mountedFor !== signature()) openPayment()
+      }
     }
 
     show(1)
+    setPayState('loading')
     fillPayStep()
   }
 
   // -------------------------------------------------- order confirmation
-  // Read back from Stripe, never from this browser. The old version invented
-  // an order out of sessionStorage — a reference, a happy screen, and no way
-  // to tell a real payment from a refresh. Now the page says only what
-  // /api/order says, and "Payment confirmed" means Stripe confirmed it.
+  // Read back from Stripe, never from this browser. Two doors lead here: the
+  // parameters Stripe adds on the way back from a payment, and the permanent
+  // token in the receipt. Both are capabilities, both are checked server-side,
+  // and neither can be guessed — so "Payment confirmed" means it was.
   var order = document.querySelector('[data-order]')
   if (order) {
     var panels = {
@@ -751,21 +940,30 @@
       })
     }
 
-    var sessionId = new URLSearchParams(window.location.search).get('session_id')
+    var q = new URLSearchParams(window.location.search)
+    var query = ''
+    if (q.get('token')) {
+      query = 'token=' + encodeURIComponent(q.get('token'))
+    } else if (q.get('payment_intent') && q.get('payment_intent_client_secret')) {
+      query =
+        'payment_intent=' + encodeURIComponent(q.get('payment_intent')) +
+        '&payment_intent_client_secret=' + encodeURIComponent(q.get('payment_intent_client_secret'))
+    } else if (q.get('setup_intent') && q.get('setup_intent_client_secret')) {
+      query =
+        'setup_intent=' + encodeURIComponent(q.get('setup_intent')) +
+        '&setup_intent_client_secret=' + encodeURIComponent(q.get('setup_intent_client_secret'))
+    }
 
-    if (!sessionId) {
+    if (!query) {
       showPanel('missing')
     } else {
       showPanel('loading')
-      fetch('/api/order?session_id=' + encodeURIComponent(sessionId), {
-        headers: { Accept: 'application/json' },
-      })
+      fetch('/api/order?' + query, { headers: { Accept: 'application/json' } })
         .then(function (res) {
           return res.json().catch(function () { return {} }).then(function (data) {
-            if (res.status === 404) return showPanel('missing')
+            if (res.status === 404 || res.status === 400) return showPanel('missing')
             if (!res.ok || !data.ok) return showPanel('problem')
-
-            if (data.state === 'open' || data.state === 'expired') return showPanel('unfinished')
+            if (data.state === 'unfinished') return showPanel('unfinished')
 
             // Paid, or clearing. Either way the cart is spent — leaving it
             // full would invite a second purchase of the same thing.
@@ -778,10 +976,21 @@
               el.textContent = data.email || 'your email'
             })
             order.querySelectorAll('[data-order-total]').forEach(function (el) {
-              el.textContent = data.total || DASH
+              el.textContent = data.nothingDueToday ? 'nothing today' : data.total || DASH
             })
 
             if (!data.paid) return showPanel('pending')
+
+            // The headline changes with what actually happened: files in hand,
+            // or files still being finished.
+            order.querySelectorAll('[data-when-ready]').forEach(function (el) { el.hidden = !data.anyReady })
+            order.querySelectorAll('[data-when-waiting]').forEach(function (el) { el.hidden = Boolean(data.anyReady) })
+
+            var permalink = order.querySelector('[data-order-permalink]')
+            if (permalink && data.permalink) {
+              permalink.setAttribute('href', data.permalink)
+              permalink.hidden = false
+            }
 
             var craftCopy = order.querySelector('[data-craft-copy]')
             if (craftCopy) {
@@ -796,14 +1005,35 @@
               ;(data.items || []).forEach(function (item) {
                 var row = document.createElement('div')
                 row.className = 'file-row'
-                // Disabled until the files exist: the copy above this list
-                // already promises August 17, and a live-looking link that
-                // 404s would be the one thing this page can't afford.
-                row.innerHTML =
-                  '<div><b></b><i></i></div>' +
-                  '<button type="button" class="btn btn-secondary" disabled>Download</button>'
-                row.querySelector('b').textContent = item.name
-                row.querySelector('i').textContent = item.delivery || item.display || ''
+                var left = document.createElement('div')
+                var b = document.createElement('b')
+                b.textContent = item.name
+                var i = document.createElement('i')
+                i.textContent = item.delivery || ''
+                left.appendChild(b)
+                left.appendChild(i)
+                row.appendChild(left)
+
+                var actions = document.createElement('div')
+                actions.className = 'file-actions'
+                if (item.downloads && item.downloads.length) {
+                  item.downloads.forEach(function (dl) {
+                    var a = document.createElement('a')
+                    a.className = 'btn btn-secondary'
+                    a.setAttribute('href', dl.href)
+                    // A real link, so it can be right-clicked, opened in a new
+                    // tab, or resumed — everything a download ought to be.
+                    if (!dl.external) a.setAttribute('download', '')
+                    a.textContent = dl.size ? dl.label + ' · ' + dl.size : dl.label
+                    actions.appendChild(a)
+                  })
+                } else {
+                  var soon = document.createElement('span')
+                  soon.className = 'file-soon'
+                  soon.textContent = 'Being finished — we’ll email your link'
+                  actions.appendChild(soon)
+                }
+                row.appendChild(actions)
                 files.appendChild(row)
               })
             }

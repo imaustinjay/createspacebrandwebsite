@@ -3,7 +3,7 @@
 The public website for **createspace · community + talent**, ported from the
 Claude Design handoff (`Createspace_brand_website_design.zip`), plus the
 storefront from the second handoff (`Createspace_Storefront_standalone.html`).
-Twenty-seven real routes, two stylesheets, seven serverless functions. The workspace app
+Twenty-eight real routes, two stylesheets, nine serverless functions. The workspace app
 (createspacebrand.online) lives in its own repo — `createspace-workspace` —
 and deploys separately; the brand context this site is built from is
 `reference/PUBLIC_SITE_CONTEXT.md` over there.
@@ -17,14 +17,17 @@ and deploys separately; the brand context this site is built from is
   netlify/shared/         imported by the functions; never deployed as one
     catalog.mjs           the shelf, the Stripe client, and price → money
     mail.mjs              the house mailer (SMTP), shared by the webhook
+    storage.mjs           product files, their manifests, and orders (Blobs)
   netlify/functions/
     enquiry.mjs           brand enquiry → partnerships mailbox (SMTP)
     seasons.mjs           live door status ← workspace casting cycles (anon RLS)
     shop.mjs              every storefront form → the shop mailbox (SMTP)
     catalog.mjs           GET  /api/catalog — live shelf prices from Stripe
-    checkout.mjs          POST /api/checkout — cart → Stripe Checkout Session
+    checkout.mjs          POST /api/checkout — cart → a client secret, paid on-site
     order.mjs             GET  /api/order — one order read back from Stripe
-    stripe-webhook.mjs    POST /api/stripe-webhook — payment → inbox + buyer
+    stripe-webhook.mjs    POST /api/stripe-webhook — payment → files + inbox
+    download.mjs          GET  /api/download — a file, to a paid download token
+    products.mjs               /api/products — the stockroom (ADMIN_TOKEN)
   public/                 everything served, exactly as-is — no build step
     index.html            Home
     creators/index.html   For creators (Community division)
@@ -46,11 +49,13 @@ and deploys separately; the brand context this site is built from is
     shop/services/        Done-for-you services
     shop/faq/             FAQ
     shop/account/         Sign up / log in
-    shop/checkout/        Three-step checkout (noindex)
-    shop/order/           Order confirmation (noindex)
+    shop/checkout/        Three-step checkout — payment included (noindex)
+    shop/order/           Order confirmation + downloads (noindex)
+    shop/admin/           The stockroom — product files (noindex, unlinked)
     assets/site.css       tokens (verbatim from reference/PUBLIC_SITE_CONTEXT.md §3) + components
     assets/shop.css       storefront components, in those same tokens
     assets/shop.js        cart, drawer, live prices, countdown, FAQ, checkout, forms
+    assets/admin.js       the stockroom's upload/list/link behaviour
     assets/enquiry.js     form submit → /api/enquiry → confirmation state
     assets/seasons.js     fills the door-status slots from /api/seasons
     assets/collection.js  live cycle state + notify list, from /api/cohort-status
@@ -84,7 +89,9 @@ below). Every application flow itself lives on createspacebrand.online.
 | Variable | What it is |
 |---|---|
 | `STRIPE_SECRET_KEY` | The storefront's whole payment integration hangs off this one value (`sk_test_…` then `sk_live_…`). Unset, no price is shown anywhere and the pay button says so — see [Stripe — the checkout](#stripe--the-checkout). Server-side only; it must never appear in a page. |
-| `STRIPE_WEBHOOK_SECRET` | The signing secret of the webhook endpoint at `/api/stripe-webhook`. Without it, payments still succeed but nobody is told: no house notification, no buyer confirmation. |
+| `STRIPE_PUBLISHABLE_KEY` | The matching `pk_test_…` / `pk_live_…`. It is public by design — it is what lets Stripe's payment field render inside our checkout. Without it the checkout stays closed and says which key is missing in the function log. |
+| `STRIPE_WEBHOOK_SECRET` | The signing secret of the webhook endpoint at `/api/stripe-webhook`. Without it, payments still succeed but **nothing is delivered**: no files, no buyer email, no house notification. |
+| `ADMIN_TOKEN` | Opens `/shop/admin/`, where the product files are uploaded. 24+ random characters. Unset, the stockroom is shut rather than open — see [Digital delivery](#digital-delivery--the-stockroom). |
 | `STRIPE_PRICE_*` | Optional, one per product (`STRIPE_PRICE_START_SMALL`, …). Only needed if the prices don't carry lookup keys; an env var wins where both exist. |
 | `STRIPE_AUTOMATIC_TAX` | Optional, `true` to turn on Stripe Tax. Off by default — it needs Stripe Tax configured on the account first, and it makes a billing address required at checkout. |
 | `STRIPE_CRAFT_TRIAL_UNTIL` | Optional ISO date for the craft's subscription trial, so "nothing is charged before August 17" is enforced rather than promised. Ignored once it's in the past. |
@@ -243,11 +250,29 @@ announcement bar.
 
 ### Stripe — the checkout
 
-`/shop/checkout/` is live. The buyer's details and their agreement to the terms
-are taken here; **the payment itself happens on Stripe's own Checkout page**,
-and there is no card field anywhere in this repo. That single decision is what
-lets every claim on the site about card data be literally true, and it brings
-Apple Pay, Google Pay, Link, 3-D Secure and promotion codes along for free.
+`/shop/checkout/` is live, and **the whole of it happens on this site** — cart,
+details, review, payment, confirmation, files. Nobody is redirected to
+checkout.stripe.com and back.
+
+The payment fields are Stripe's [Payment Element][pe]: an iframe served by
+Stripe, mounted inside our own card on step 3. The card number is typed into
+their frame, not our page, so **there is no card field anywhere in this repo**
+and every claim the site makes about card data is literally true. What the
+buyer sees is ours: `shop.js` reads the design tokens off `:root` at runtime
+and hands them to Stripe's Appearance API, so the field is set in Raleway, in
+seal and sage, at the house's radii — change a token in `site.css` and the
+payment field follows. Card, Apple Pay, Google Pay and Link all appear there,
+decided by what the Stripe account has switched on rather than hardcoded here.
+
+[pe]: https://docs.stripe.com/payments/payment-element
+
+> **The one thing this trades away.** Stripe's hosted Checkout applies
+> promotion codes and Stripe Tax for you; a Payment Element flow doesn't, and
+> faking coupons by lowering the amount would silently break redemption limits.
+> Neither is wired, and the copy no longer claims either. If promotion codes
+> become a launch requirement, the honest way back is Stripe's
+> `ui_mode: 'custom'` Checkout Sessions, which keep Checkout's brain behind
+> this same on-site UI.
 
 **Stripe is the source of truth for price.** Nothing in this repo knows what
 anything costs. `/api/catalog` reads the live prices and the site fills its
@@ -257,14 +282,16 @@ it did name would be ignored — which is exactly why a cart kept in
 `localStorage` is safe. Change a price in the Stripe dashboard and the site
 follows within five minutes, with no deploy.
 
-#### The four endpoints
+#### The endpoints
 
 | Route | What it does |
 |---|---|
 | `GET /api/catalog` | Live shelf prices. Cached 5 minutes at the CDN; failures never cached. |
-| `POST /api/checkout` | Validates the cart and the details, creates a Checkout Session, returns its `url`. Rate-limited per IP. |
-| `GET /api/order?session_id=…` | One order read back from Stripe, for the confirmation page. Never cached. |
-| `POST /api/stripe-webhook` | Stripe's callback — signature-verified, deduplicated, and the only thing that fulfils. |
+| `POST /api/checkout` | Validates the cart and the details, opens a PaymentIntent (or a subscription), returns its client secret. Rate-limited per IP. |
+| `GET /api/order` | One order read back from Stripe — by Stripe's return parameters, or by the receipt's permanent token. Never cached. |
+| `POST /api/stripe-webhook` | Stripe's callback — signature-verified, deduplicated, and the only thing that delivers. |
+| `GET /api/download` | A file, to somebody holding a download token that names it. |
+| `/api/products` | The stockroom, behind `ADMIN_TOKEN`. See [Digital delivery](#digital-delivery--the-stockroom). |
 
 #### Setting it up
 
@@ -280,17 +307,25 @@ follows within five minutes, with no deploy.
      `STRIPE_PRICE_CREATOR_PLANNER`, `STRIPE_PRICE_CONTENT_SYSTEM`,
      `STRIPE_PRICE_STARTER_BUNDLE`, `STRIPE_PRICE_THE_CRAFT` to `price_…` ids.
      An env var wins over a lookup key where both exist.
-3. **Set `STRIPE_SECRET_KEY`** (`sk_test_…` first — test mode is a complete,
-   separate storefront and the right place to buy something end to end).
+3. **Set `STRIPE_SECRET_KEY` and `STRIPE_PUBLISHABLE_KEY`** (`sk_test_…` and
+   `pk_test_…` first — test mode is a complete, separate storefront and the
+   right place to buy something end to end). Both are needed: the secret key
+   opens the payment, the publishable key lets the field render. With only one
+   of them the checkout stays honestly closed and says which is missing in the
+   function log.
 4. **Add the webhook** in Stripe → Developers → Webhooks, pointing at
    `https://createspacebrand.com/api/stripe-webhook`, subscribed to
-   `checkout.session.completed`, `checkout.session.async_payment_succeeded`
-   and `checkout.session.async_payment_failed`. Put its signing secret in
-   `STRIPE_WEBHOOK_SECRET`.
+   `payment_intent.succeeded`, `payment_intent.payment_failed` and
+   `setup_intent.succeeded`. Put its signing secret in
+   `STRIPE_WEBHOOK_SECRET`. **Nothing is delivered without this** — the
+   webhook is what emails the files.
 5. **Turn on Stripe's own email receipts** (Settings → Customer emails →
-   *Successful payments*). The webhook writes the house's confirmation — what
-   was bought, when it unlocks, where to find it again — and leaves the tax
+   *Successful payments*). The webhook writes the house's own email — what was
+   bought, the download links, where to find them again — and leaves the tax
    receipt to Stripe.
+6. **Put the files in the stockroom** — see the next section. A product with
+   nothing uploaded still sells; the buyer is told plainly that the file is
+   being finished rather than handed a link that 404s.
 
 Verify with `curl https://createspacebrand.com/api/catalog`:
 
@@ -314,14 +349,23 @@ zero and never as free.
 - **The return page is not proof of payment.** `/shop/order/` shows only what
   `/api/order` reports; the webhook is what fulfils. A buyer who closes the tab
   still gets their order, and a refresh can't manufacture one.
-- **Nothing is charged twice.** Session creation is idempotent per order
-  reference, and webhook events are deduplicated by event id in Netlify Blobs.
-- **Unfinished is said plainly.** Cancelling at Stripe returns to the checkout
-  with the cart intact and "nothing was charged" on the page. A session that
-  expired says so instead of pretending to be an order.
+- **Nothing is charged twice, and nothing is delivered twice.** Intent creation
+  is idempotent per order reference; the order record carries a `delivered`
+  flag, so however many times Stripe replays an event, one email goes out.
+- **The order exists before the card is asked for.** `/api/checkout` writes it,
+  keyed by the payment intent. The webhook then has somewhere to deliver to the
+  instant the money lands, and the confirmation page has something to read even
+  if the webhook is slow — both converge on the same download token rather than
+  minting two.
+- **A decline is said in place.** The buyer stays on step 3 with their cart, the
+  message Stripe gave, and a button they can press again.
 - **A delayed payment is neither a success nor a failure.** Methods that clear
   over days land on their own state on the confirmation page, and the buyer is
   emailed when the money actually moves.
+- **A membership is a subscription, decided by Stripe.** A recurring price in
+  the cart switches the flow; one-time items ride along on the first invoice. A
+  trial confirms a SetupIntent instead — the card is filed, nothing is taken,
+  and the page says "due today: nothing" rather than asking for $0.
 
 #### Testing it without a Stripe account
 
@@ -331,15 +375,57 @@ of Stripe. Unset everywhere it's deployed; set it and no request reaches Stripe
 at all. With a real test key, `4242 4242 4242 4242` and any future expiry buys
 something for real in test mode.
 
+## Digital delivery — the stockroom
+
+Paying for a digital product delivers it. The webhook mints a download token,
+writes to the buyer with a link per file, and the confirmation page shows the
+same links as live buttons. Nothing is scheduled and nothing is manual.
+
+**Where the files live.** Netlify Blobs, in three stores: `product-files` holds
+the bytes, `product-shelf` holds one manifest per product, `orders` holds each
+order twice — once under the payment intent that paid for it, once under the
+download token that opens it (Blobs has no secondary index).
+
+**Putting them there.** `/shop/admin/` — noindex, linked from nowhere, and shut
+unless `ADMIN_TOKEN` is set to something at least 16 characters long. Paste the
+key, drop a file on a product, and it is on sale with delivery attached. The key
+is held in `sessionStorage`, so closing the tab closes the stockroom.
+
+**Two ways to deliver**, per product, mixed freely:
+
+| | For | Ceiling |
+|---|---|---|
+| An uploaded file | PDFs, presets, templates — anything a buyer should get from us | 40 MB per file on upload |
+| An external `https://` link | a 1.2 GB preset pack, a Notion or Canva template, anything already hosted | none |
+
+The upload ceiling is about the request body, not the download: files stream
+back out. Anything larger belongs behind a link, and the stockroom says so when
+you hit it. Links must be `https://` — they go in a receipt — and anything else
+is dropped rather than saved.
+
+**What the buyer gets, and when.** The token is minted only on a *succeeded*
+payment. It names exactly what that order bought: a valid token for one order
+can never reach another's files, and a product the order didn't buy is a 403.
+Links don't expire (the site promises that), but each order carries a download
+counter with a generous ceiling, so a link passed round a group chat is visible
+in the log rather than invisible.
+
+**A product with nothing uploaded still sells.** The buyer's email and the
+confirmation page both say the file is being finished and their link will go
+live — not a dead Download button — and the house inbox gets `FILES MISSING` in
+the subject line so somebody knows to go and upload it. Upload it and the same
+link starts working; no re-issue, no code change.
+
 ### Still to wire
 
 - **Accounts.** `/shop/account/` reserves the address for launch day rather
   than pretending to create an account. The password is validated in the
   browser and never leaves it — `shop.js` strips it from the payload and the
   function has no field for it.
-- **Downloads.** The confirmation lists what was bought with its Download
-  button disabled, because the files unlock on August 17 and a live-looking
-  link that 404s is the one thing that page can't afford.
+- ~~**Downloads**~~ Resolved: buying a product delivers it — see
+  [Digital delivery](#digital-delivery--the-stockroom). What's left is the
+  files themselves. Until they're uploaded, the confirmation and the receipt
+  both say the product is being finished rather than showing a link that 404s.
 - **Product photography.** Every product shot is a labelled striped frame, the
   same convention the rest of the site uses for imagery that doesn't exist yet.
 - ~~**The three role addresses** on Contact~~ Resolved: the Contact page
