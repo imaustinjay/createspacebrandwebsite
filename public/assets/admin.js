@@ -64,8 +64,16 @@
     panel.innerHTML = ''
 
     var rows = [
-      ['Stripe secret key', config.secretKey, config.mode ? config.mode === 'live' ? 'Live mode — real money' : 'Test mode' : 'Set STRIPE_SECRET_KEY in Netlify'],
-      ['Stripe publishable key', config.publishableKey, config.publishableKey ? 'The payment field can render' : 'Set STRIPE_PUBLISHABLE_KEY — without it the checkout stays shut'],
+      ['Stripe secret key', config.secretKey, config.mode ? config.mode === 'live' ? 'Live mode — real money' : 'Test mode — no real money moves' : 'Set STRIPE_SECRET_KEY in Netlify'],
+      [
+        'Stripe publishable key',
+        config.publishableKey && !config.keyMismatch,
+        config.keyMismatch
+          ? 'A ' + config.publishableMode + '-mode key beside a ' + config.mode + '-mode secret — they must match, and checkout is refusing to open until they do'
+          : config.publishableKey
+            ? 'The payment field can render'
+            : 'Set STRIPE_PUBLISHABLE_KEY — without it the checkout stays shut',
+      ],
       [
         'Prices',
         config.priced === config.of,

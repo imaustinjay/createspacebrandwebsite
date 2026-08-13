@@ -378,6 +378,38 @@ zero and never as free.
   trial confirms a SetupIntent instead — the card is filed, nothing is taken,
   and the page says "due today: nothing" rather than asking for $0.
 
+#### Going live
+
+Test and live are **two separate storefronts inside one Stripe account**. What
+does not carry across, and has to be done again in live mode:
+
+| | |
+|---|---|
+| The six products and their prices | Created in sandbox, they simply don't exist in live. Re-create them and set the same lookup keys. |
+| The webhook endpoint | A separate one, with its own signing secret. |
+| Email receipts | The *Successful payments* toggle is per-mode. |
+
+What changes in Netlify: `STRIPE_SECRET_KEY` → `sk_live_…`,
+`STRIPE_PUBLISHABLE_KEY` → `pk_live_…`, and the live signing secret **added
+to** `STRIPE_WEBHOOK_SECRET` alongside the sandbox one. Everything else —
+`ADMIN_TOKEN`, the mail variables, the uploaded files — is mode-agnostic and
+stays exactly as it is. Then redeploy: Netlify hands variables to functions at
+deploy time.
+
+**The slip this guards against.** Swapping two keys by hand is where a live
+secret ends up beside a leftover test publishable key. Stripe's two worlds
+don't talk: an intent opened with one cannot be confirmed by the other, and the
+failure lands on the buyer at the moment they press Pay, with a message about
+intents rather than about the mix-up. So `/api/checkout` compares the pair and
+**refuses to open a payment at all** when they disagree, and the wiring panel
+says which is which. A shop that is honestly shut beats one that takes someone
+to a payment field that cannot work.
+
+If Apple Pay doesn't appear on the live site, register the domain: Stripe →
+Settings → Payments → Payment methods → Apple Pay → add `createspacebrand.com`.
+Test mode doesn't need it, so this is the one difference that only shows up
+after the switch.
+
 #### Testing it without a Stripe account
 
 `STRIPE_API_HOST` / `STRIPE_API_PORT` / `STRIPE_API_PROTOCOL` point the SDK at

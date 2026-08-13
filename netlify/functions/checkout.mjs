@@ -23,7 +23,7 @@
 // buyer is asked for a card. The webhook doesn't need metadata archaeology
 // later; it looks the order up by the intent that paid for it.
 import { randomBytes } from 'node:crypto'
-import { SHELF, clean, resolvePrices, siteOrigin, stripeClient } from '../shared/catalog.mjs'
+import { SHELF, clean, keyMismatch, resolvePrices, siteOrigin, stripeClient } from '../shared/catalog.mjs'
 import { ensureOrder } from '../shared/storage.mjs'
 
 const MAX_ITEMS = 6
@@ -171,14 +171,22 @@ export default async (req, context) => {
   // ----------------------------------------------------------- the prices
   const stripe = stripeClient()
   const publishableKey = clean(process.env.STRIPE_PUBLISHABLE_KEY)
-  if (!stripe || !publishableKey) {
+  const mismatch = keyMismatch()
+  if (!stripe || !publishableKey || mismatch) {
     if (stripe && !publishableKey) {
       console.error('checkout: STRIPE_SECRET_KEY is set but STRIPE_PUBLISHABLE_KEY is missing — the payment form cannot load')
+    }
+    if (mismatch) {
+      // Fail here rather than at Pay. Opening an intent with one mode's key
+      // and handing the browser the other's produces a payment field that
+      // cannot possibly succeed, and an error that talks about intents
+      // instead of about the mix-up that caused it.
+      console.error('checkout: REFUSING TO OPEN A PAYMENT —', mismatch)
     }
     return Response.json(
       {
         error: "Checkout isn't connected yet — nothing was charged. Write to us and we'll tell you the moment it opens.",
-        reason: 'not-configured',
+        reason: mismatch ? 'key-mismatch' : 'not-configured',
       },
       { status: 503 }
     )

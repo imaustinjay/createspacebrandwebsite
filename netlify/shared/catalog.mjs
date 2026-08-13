@@ -80,6 +80,30 @@ export function envPriceId(id) {
   return clean(process.env['STRIPE_PRICE_' + id.toUpperCase().replace(/-/g, '_')])
 }
 
+// `test` / `live` / null, from a key's own prefix.
+export function keyMode(key) {
+  const k = clean(key)
+  if (k.startsWith('sk_live') || k.startsWith('pk_live')) return 'live'
+  if (k.startsWith('sk_test') || k.startsWith('pk_test')) return 'test'
+  return null
+}
+
+// Stripe's two worlds don't talk to each other: an intent opened with a live
+// secret key cannot be confirmed by a test publishable key, or the reverse.
+// Swapping four values by hand at go-live is exactly when one gets missed,
+// and the failure surfaces late — at the moment a buyer presses Pay — with a
+// message about the intent rather than about the keys.
+//
+// So the pair is checked before anything is opened. Returns null when they
+// agree (or when one is missing, which is a different fault, reported
+// elsewhere), and a sentence when they don't.
+export function keyMismatch() {
+  const secret = keyMode(process.env.STRIPE_SECRET_KEY)
+  const publishable = keyMode(process.env.STRIPE_PUBLISHABLE_KEY)
+  if (!secret || !publishable || secret === publishable) return null
+  return `STRIPE_SECRET_KEY is a ${secret}-mode key and STRIPE_PUBLISHABLE_KEY is a ${publishable}-mode key — they must be the same mode`
+}
+
 let client = null
 
 export function stripeClient() {

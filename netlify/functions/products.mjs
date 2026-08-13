@@ -13,7 +13,7 @@
 //
 // The upload is a raw body rather than multipart on purpose: no parser, no
 // dependency, and a browser can send a File straight down it.
-import { IDS, SHELF, clean, resolvePrices, stripeClient } from '../shared/catalog.mjs'
+import { IDS, SHELF, clean, keyMismatch, keyMode, resolvePrices, stripeClient } from '../shared/catalog.mjs'
 import { mailbox } from '../shared/mail.mjs'
 import {
   deliverableCount,
@@ -64,7 +64,11 @@ async function wiring() {
   return {
     secretKey: Boolean(secret),
     publishableKey: Boolean(clean(process.env.STRIPE_PUBLISHABLE_KEY)),
-    mode: secret.startsWith('sk_live') ? 'live' : secret.startsWith('sk_test') ? 'test' : null,
+    mode: keyMode(secret),
+    publishableMode: keyMode(process.env.STRIPE_PUBLISHABLE_KEY),
+    // A live secret paired with a test publishable key (or the reverse) is
+    // the classic go-live slip, and it fails at the worst possible moment.
+    keyMismatch: keyMismatch(),
     webhookSecret: hooks > 0,
     // More than one is normal and deliberate: test and live are separate
     // endpoints with separate secrets, and both can be held at once.
