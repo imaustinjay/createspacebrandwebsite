@@ -158,11 +158,17 @@
 .cart-body { flex: 1; overflow-y: auto; padding: 4px 28px 18px; }
 .cart-item {
   display: grid;
-  grid-template-columns: 60px 1fr;
+  grid-template-columns: 60px 1fr auto;
   gap: 16px;
   align-items: start;
   padding: 20px 0;
   border-bottom: 1px solid var(--hairline);
+}
+.cart-item-price {
+  font-size: 15.5px;
+  font-weight: 400;
+  white-space: nowrap;
+  color: var(--muted);
 }
 .cart-item-shot {
   aspect-ratio: 1;
@@ -504,6 +510,21 @@ a.prod-name:hover { color: var(--sage); }
   padding-top: 18px;
   margin-bottom: 20px;
 }
+/* Prices arrive from Stripe via /api/catalog, so every tag ships `hidden`
+   and shop.js reveals it only when there is a real amount to show. Nothing
+   in this repo knows what anything costs — see the note atop shop.js. */
+.prod-price {
+  margin: 0 0 16px;
+  font-size: 22px;
+  font-weight: 300;
+  color: var(--seal);
+}
+.pd-price {
+  margin: 20px 0 0;
+  font-size: 30px;
+  font-weight: 300;
+  color: var(--seal);
+}
 .prod-actions { display: flex; align-items: center; gap: 11px; }
 .prod-actions .btn:first-child { flex: 1; }
 .prod-member {
@@ -789,22 +810,39 @@ textarea::placeholder { color: var(--faint); }
   gap: 48px;
   align-items: start;
 }
-.pay-methods { display: flex; gap: 11px; flex-wrap: wrap; }
-.pay-methods button {
-  -webkit-appearance: none;
-  appearance: none;
+/* What Stripe's page will offer, stated rather than chosen: the method is
+   picked there, so these are a promise about that page and not a control. */
+.pay-chips {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pay-chips li {
   background: var(--card);
-  border: 1.5px solid var(--border);
-  border-radius: 11px;
-  padding: 13px 22px;
-  font-family: inherit;
-  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--seal);
-  cursor: pointer;
-  transition: border-color 0.2s var(--ease-ignite);
 }
-.pay-methods button[aria-pressed="true"] { border-color: var(--sage); }
+.pay-due {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+}
+.pay-due span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.pay-due b { font-size: 26px; font-weight: 300; }
 .secure-row {
   display: flex;
   align-items: center;
@@ -911,10 +949,10 @@ textarea::placeholder { color: var(--faint); }
   color: var(--muted);
 }
 
-/* The one thing the design could not know: Stripe isn't wired yet, so
-   the flow has to say so rather than imply a charge. Delete this block
-   and the markup that uses it on the day checkout goes live. */
-.preview-note {
+/* A standing note in the flow — currently the one shown to someone who came
+   back from Stripe without paying. It replaced .preview-note, which existed
+   only to say Stripe wasn't wired yet and went out with the wiring. */
+.note-line {
   display: flex;
   gap: 12px;
   align-items: flex-start;

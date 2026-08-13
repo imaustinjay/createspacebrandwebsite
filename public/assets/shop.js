@@ -1,10 +1,17 @@
-// The storefront's behaviour: the cart and its drawer, the Fall Drop
-// countdown, the FAQ accordion, the three-step checkout, and every form on
-// the new pages. One file, no build step, same as the rest of the site.
+// The storefront's behaviour: the cart and its drawer, the live prices, the
+// Fall Drop countdown, the FAQ accordion, the checkout handoff to Stripe, and
+// every form on the new pages. One file, no build step, same as the rest of
+// the site.
 //
 // Everything degrades: with JS off the pages still read and every link still
-// navigates — only the cart, the countdown and the form submissions need it,
-// and each of those says so in the markup it replaces.
+// navigates — only the cart, the prices, the countdown and the form
+// submissions need it, and each of those says so in the markup it replaces.
+//
+// One rule this file follows without exception: **it never names a price.**
+// Amounts arrive from /api/catalog, which reads them from Stripe, and the
+// checkout sends product ids to /api/checkout, which resolves the amounts
+// again server-side. A tampered cart can only ever buy things at their real
+// price, so the cart is safe to keep in localStorage.
 (function () {
   'use strict'
 
@@ -13,6 +20,7 @@
   // ---------------------------------------------------------------- catalog
   // The shelf, mirrored from the design's product data. The cart stores ids
   // only, so this is what turns an id back into a line the visitor can read.
+  // Price is deliberately absent — see the note above.
   var CATALOG = {
     'start-small': {
       name: 'start small',
@@ -53,9 +61,9 @@
   }
 
   var CART_KEY = 'cs.cart'
-  var ORDER_KEY = 'cs.order'
   var DETAILS_KEY = 'cs.checkout'
   var EMAIL_RE = /.+@.+\..+/
+  var DASH = '—'
 
   // Private browsing (and a full quota) make storage throw on write rather
   // than on read, so every access is guarded and simply falls back to a
@@ -110,6 +118,83 @@
     return null
   }
 
+  // ----------------------------------------------------------- live prices
+  // null while unread, {} once we know there is nothing to show. The
+  // difference matters: an unread price and a missing price both render as an
+  // em-dash, and neither is ever rendered as zero.
+  var PRICES = null
+
+  // Set by the checkout so a late catalog still reaches a panel that was
+  // already on screen — a slow network must not leave the pay button
+  // permanently reading "—".
+  var afterPrices = null
+
+  // Currencies Stripe holds without a minor unit. Mirrors the server's list
+  // in netlify/shared/catalog.mjs — the two format money identically so a
+  // price reads the same on the page, in the summary and in the receipt.
+  var ZERO_DECIMAL = ['bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw', 'mga', 'pyg', 'rwf', 'ugx', 'vnd', 'vuv', 'xaf', 'xof', 'xpf']
+
+  function money(amount, currency) {
+    if (typeof amount !== 'number' || !isFinite(amount)) return DASH
+    var code = String(currency || 'usd').toLowerCase()
+    var value = ZERO_DECIMAL.indexOf(code) >= 0 ? amount : amount / 100
+    var whole = value % 1 === 0
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: code.toUpperCase(),
+        minimumFractionDigits: whole ? 0 : 2,
+        maximumFractionDigits: 2,
+      }).format(value)
+    } catch (e) {
+      return value.toFixed(whole ? 0 : 2) + ' ' + code.toUpperCase()
+    }
+  }
+
+  function everyWord(recurring) {
+    if (!recurring) return ''
+    return recurring.count > 1 ? ' / ' + recurring.count + ' ' + recurring.interval + 's' : ' / ' + recurring.interval
+  }
+
+  function priceLabel(id) {
+    var p = PRICES && PRICES[id]
+    if (!p) return DASH
+    return p.display + everyWord(p.recurring)
+  }
+
+  // The total, or null when it can't be known. A cart with one unpriced item
+  // has no total — showing the sum of the rest would be a smaller, wrong
+  // number, and a wrong number here is the worst thing on the page.
+  function cartTotal(cart) {
+    if (!PRICES || !cart.length) return null
+    var sum = 0
+    var currency = null
+    var recurring = false
+    for (var i = 0; i < cart.length; i++) {
+      var p = PRICES[cart[i]]
+      if (!p) return null
+      if (currency && p.currency !== currency) return null
+      currency = p.currency
+      recurring = recurring || Boolean(p.recurring)
+      sum += p.amount
+    }
+    return { amount: sum, currency: currency, display: money(sum, currency), recurring: recurring }
+  }
+
+  function loadCatalog() {
+    if (!window.fetch) { PRICES = {}; return }
+    fetch('/api/catalog', { headers: { Accept: 'application/json' } })
+      .then(function (res) { return res.json() })
+      .then(function (data) {
+        PRICES = data && data.ok && data.products ? data.products : {}
+      })
+      .catch(function () {
+        // Unreachable is not free: the em-dashes simply stay.
+        PRICES = {}
+      })
+      .then(function () { render() })
+  }
+
   // ------------------------------------------------------------ the drawer
   var drawer = document.querySelector('.cart-drawer')
   var scrim = document.querySelector('.cart-scrim')
@@ -157,9 +242,11 @@
       '<div class="cart-item-name"></div>' +
       '<div class="cart-item-tier"></div>' +
       '<button type="button" class="cart-remove">Remove</button>' +
-      '</div>'
+      '</div>' +
+      '<div class="cart-item-price"></div>'
     row.querySelector('.cart-item-name').textContent = p.name
     row.querySelector('.cart-item-tier').textContent = p.tier
+    row.querySelector('.cart-item-price').textContent = priceLabel(id)
     row.querySelector('.cart-remove').addEventListener('click', function () {
       removeFromCart(id)
     })
@@ -168,6 +255,7 @@
 
   function render() {
     var cart = readCart()
+    var total = cartTotal(cart)
 
     // The count in the header, on every page.
     document.querySelectorAll('.cart-count').forEach(function (el) {
@@ -179,6 +267,23 @@
       }
     })
 
+    // Every price tag on the page — product cards, product pages, the craft.
+    // A tag ships hidden and is only ever revealed by a real amount, so an
+    // unread catalog shows no price rather than an empty one, and a product
+    // Stripe has no price for simply doesn't claim to have one.
+    if (PRICES) {
+      document.querySelectorAll('[data-price]').forEach(function (el) {
+        var p = PRICES[el.getAttribute('data-price')]
+        if (!p) return
+        el.textContent = priceLabel(el.getAttribute('data-price'))
+        el.hidden = false
+      })
+      // And its opposite: copy that only holds while a price is unset.
+      document.querySelectorAll('[data-no-price]').forEach(function (el) {
+        if (PRICES[el.getAttribute('data-no-price')]) el.hidden = true
+      })
+    }
+
     // The drawer's own list.
     var body = drawer && drawer.querySelector('.cart-body')
     if (body) {
@@ -189,6 +294,9 @@
     }
     var checkoutBtn = drawer && drawer.querySelector('[data-checkout]')
     if (checkoutBtn) checkoutBtn.hidden = cart.length === 0
+    document.querySelectorAll('.cart-total span').forEach(function (el) {
+      el.textContent = total ? total.display : DASH
+    })
 
     // The checkout's order summary, when we're on that page.
     var summary = document.querySelector('[data-summary]')
@@ -200,14 +308,20 @@
         var row = document.createElement('div')
         row.className = 'summary-line'
         row.setAttribute('data-line', '')
-        row.innerHTML = '<div><b></b><i></i></div><span>&mdash;</span>'
+        row.innerHTML = '<div><b></b><i></i></div><span></span>'
         row.querySelector('b').textContent = p.name
         row.querySelector('i').textContent = p.tier
+        row.querySelector('span').textContent = priceLabel(id)
         summary.insertBefore(row, mark)
       })
       var none = summary.querySelector('[data-summary-empty]')
       if (none) none.hidden = cart.length > 0
+      summary.querySelectorAll('[data-summary-subtotal], [data-summary-total]').forEach(function (el) {
+        el.textContent = total ? total.display : DASH
+      })
     }
+
+    if (afterPrices) afterPrices()
   }
 
   // ------------------------------------------------------------- the wiring
@@ -238,6 +352,12 @@
   })
 
   render()
+
+  // Prices are only worth a round trip on a page that shows one, or that
+  // carries a cart with something in it.
+  if (document.querySelector('[data-price], [data-summary], [data-checkout-flow]') || readCart().length) {
+    loadCatalog()
+  }
 
   // ------------------------------------------------------------- countdown
   // One ticking clock feeds the bar's compact reading and the drop's cells.
@@ -282,44 +402,26 @@
   // ---------------------------------------------------------- account tabs
   var tabs = document.querySelector('.tabs')
   if (tabs) {
-    var form = document.querySelector('[data-form="account"]')
+    var accountForm = document.querySelector('[data-form="account"]')
     tabs.querySelectorAll('button').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var mode = btn.getAttribute('data-mode')
         tabs.querySelectorAll('button').forEach(function (b) {
           b.setAttribute('aria-selected', String(b === btn))
         })
-        if (!form) return
-        form.setAttribute('data-mode', mode)
+        if (!accountForm) return
+        accountForm.setAttribute('data-mode', mode)
         // The create-only fields leave the form entirely when logging in,
         // so their values can't be validated or sent by mistake.
-        form.querySelectorAll('[data-create-only]').forEach(function (el) {
+        accountForm.querySelectorAll('[data-create-only]').forEach(function (el) {
           el.hidden = mode !== 'create'
           el.querySelectorAll('input').forEach(function (i) { i.disabled = mode !== 'create' })
         })
-        var cta = form.querySelector('[data-cta]')
+        var cta = accountForm.querySelector('[data-cta]')
         if (cta) cta.textContent = mode === 'create' ? 'Create my account' : 'Log in'
       })
     })
   }
-
-  // ------------------------------------------------------------ input masks
-  function fmtCard(v) {
-    return v.replace(/\D/g, '').slice(0, 16).replace(/(.{4})/g, '$1 ').trim()
-  }
-  function fmtExp(v) {
-    var d = v.replace(/\D/g, '').slice(0, 4)
-    return d.length > 2 ? d.slice(0, 2) + ' / ' + d.slice(2) : d
-  }
-  document.querySelectorAll('[data-fmt]').forEach(function (input) {
-    var kind = input.getAttribute('data-fmt')
-    input.addEventListener('input', function () {
-      var before = input.value
-      if (kind === 'card') input.value = fmtCard(before)
-      else if (kind === 'exp') input.value = fmtExp(before)
-      else if (kind === 'digits') input.value = before.replace(/\D/g, '').slice(0, 4)
-    })
-  })
 
   // ----------------------------------------------------------------- forms
   // Each form carries its own copy: data-msg on a field is the sentence the
@@ -437,11 +539,15 @@
   })
 
   // -------------------------------------------------------------- checkout
+  // Three steps, and the third one is a door: details, review, then Stripe.
+  // No card field exists on this site. The number, the wallet sheet, the
+  // 3-D Secure challenge and any promotion code all happen on Stripe's own
+  // page, which is the only reason this checkout can be honest about never
+  // touching card data.
   var checkout = document.querySelector('[data-checkout-flow]')
   if (checkout) {
     var steps = checkout.querySelectorAll('[data-step]')
     var chips = checkout.querySelectorAll('.steps > div')
-    var method = 'card'
     var current = 1
 
     var saved = session(DETAILS_KEY) || {}
@@ -451,6 +557,22 @@
     })
     var craftBox = checkout.querySelector('[name="joinCraft"]')
     if (craftBox && typeof saved.joinCraft === 'boolean') craftBox.checked = saved.joinCraft
+
+    // Coming back from Stripe without paying is a normal thing to do, and
+    // nothing was charged. Say so once, then take it out of the URL so a
+    // refresh doesn't keep repeating it.
+    var params = new URLSearchParams(window.location.search)
+    if (params.get('canceled')) {
+      var canceledNote = checkout.querySelector('[data-canceled]')
+      if (canceledNote) canceledNote.hidden = false
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState({}, '', window.location.pathname)
+      }
+    }
+
+    var field = function (name) {
+      return ((checkout.querySelector('[name="' + name + '"]') || {}).value || '').trim()
+    }
 
     function show(n) {
       current = n
@@ -465,20 +587,15 @@
     }
 
     function problem(n) {
-      var email = (checkout.querySelector('[name="email"]') || {}).value || ''
-      var name = (checkout.querySelector('[name="name"]') || {}).value || ''
       if (n === 1) {
-        if (!EMAIL_RE.test(email.trim())) return 'We need a working email — that’s where the files go.'
-        if (!name.trim()) return 'Add a name for the receipt.'
+        if (!EMAIL_RE.test(field('email'))) return 'We need a working email — that’s where the files go.'
+        if (!field('name')) return 'Add a name for the receipt.'
+        if (!readCart().length) return 'Your cart is empty — add something before we take payment.'
         return null
       }
-      if (n === 2 && method === 'card') {
-        var card = (checkout.querySelector('[name="card"]') || {}).value || ''
-        var exp = (checkout.querySelector('[name="exp"]') || {}).value || ''
-        var cvc = (checkout.querySelector('[name="cvc"]') || {}).value || ''
-        if (card.replace(/\D/g, '').length < 15) return 'That card number looks incomplete.'
-        if (exp.replace(/\D/g, '').length < 4) return 'Add the expiry date.'
-        if (cvc.length < 3) return 'Add the CVC from the back of the card.'
+      if (n === 2) {
+        var agreed = checkout.querySelector('[name="agreed"]')
+        if (agreed && !agreed.checked) return 'Please accept the terms before we take payment.'
       }
       return null
     }
@@ -492,32 +609,42 @@
 
     function remember() {
       session(DETAILS_KEY, {
-        email: ((checkout.querySelector('[name="email"]') || {}).value || '').trim(),
-        name: ((checkout.querySelector('[name="name"]') || {}).value || '').trim(),
-        handle: ((checkout.querySelector('[name="handle"]') || {}).value || '').trim(),
+        email: field('email'),
+        name: field('name'),
+        handle: field('handle'),
         joinCraft: craftBox ? craftBox.checked : true,
       })
     }
 
     function fillReview() {
-      var details = session(DETAILS_KEY) || {}
-      var last = ((checkout.querySelector('[name="card"]') || {}).value || '').replace(/\D/g, '').slice(-4)
+      var cart = readCart()
+      var total = cartTotal(cart)
+      var count = cart.length === 1 ? '1 item' : cart.length + ' items'
       var labels = {
-        email: details.email || '—',
-        name: details.name || '—',
-        method:
-          method === 'card'
-            ? 'Card •••• ' + (last || '—')
-            : method === 'wallet'
-              ? 'Apple / Google Pay'
-              : 'Stripe Link',
-        craft: details.joinCraft ? 'Joining the craft at launch' : 'Not joining yet',
+        email: field('email') || DASH,
+        name: field('name') || DASH,
+        order: cart.length ? count + (total ? ' · ' + total.display : '') : 'Nothing in the cart',
+        craft: craftBox && craftBox.checked ? 'Joining the craft at launch' : 'Not joining yet',
       }
       checkout.querySelectorAll('[data-review]').forEach(function (el) {
-        el.textContent = labels[el.getAttribute('data-review')]
+        var key = el.getAttribute('data-review')
+        if (labels[key] !== undefined) el.textContent = labels[key]
+      })
+    }
+
+    var leaving = false
+
+    function fillPayStep() {
+      var total = cartTotal(readCart())
+      checkout.querySelectorAll('[data-pay-total]').forEach(function (el) {
+        el.textContent = total ? total.display : DASH
       })
       var pay = checkout.querySelector('[data-pay]')
-      if (pay) pay.textContent = details.joinCraft ? 'Pay securely & join the craft' : 'Pay securely'
+      // Never overwrite "Opening Stripe…" — a redraw mid-redirect would make
+      // the button look ready to press again.
+      if (pay && !leaving) {
+        pay.textContent = total ? 'Pay ' + total.display + ' securely' : 'Continue to secure payment'
+      }
     }
 
     checkout.querySelectorAll('[data-goto]').forEach(function (btn) {
@@ -533,103 +660,160 @@
         }
         setError(current, '')
         if (current === 1) remember()
-        if (next === 3) fillReview()
+        if (next === 2) fillReview()
+        if (next === 3) fillPayStep()
         show(next)
-      })
-    })
-
-    checkout.querySelectorAll('[data-method]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        method = btn.getAttribute('data-method')
-        checkout.querySelectorAll('[data-method]').forEach(function (b) {
-          b.setAttribute('aria-pressed', String(b === btn))
-        })
-        checkout.querySelectorAll('[data-method-panel]').forEach(function (panel) {
-          panel.hidden = panel.getAttribute('data-method-panel') !== method
-        })
-        setError(2, '')
-        var to = checkout.querySelector('[data-link-email]')
-        if (to) {
-          var email = ((checkout.querySelector('[name="email"]') || {}).value || '').trim()
-          to.textContent = email || 'your email'
-        }
       })
     })
 
     var payBtn = checkout.querySelector('[data-pay]')
     if (payBtn) {
+      var payLabel = payBtn.textContent
       payBtn.addEventListener('click', function () {
-        var agreed = checkout.querySelector('[name="agreed"]')
-        if (agreed && !agreed.checked) {
-          setError(3, 'Please accept the terms before we take payment.')
+        var cart = readCart()
+        if (!cart.length) {
+          setError(3, 'Your cart is empty — add something before we take payment.')
           return
         }
         setError(3, '')
+        remember()
         var details = session(DETAILS_KEY) || {}
-        session(ORDER_KEY, {
-          id: 'CS-2026-' + String(1000 + Math.floor(Math.random() * 8999)),
-          email: details.email || '',
-          joinCraft: details.joinCraft !== false,
-          items: readCart(),
+
+        payLabel = payBtn.textContent
+        leaving = true
+        payBtn.disabled = true
+        payBtn.textContent = 'Opening Stripe…'
+
+        fetch('/api/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: cart,
+            email: details.email || '',
+            name: details.name || '',
+            handle: details.handle || '',
+            joinCraft: details.joinCraft !== false,
+            agreed: true,
+          }),
         })
-        // The cart is spent; the order is what carries forward. Card details
-        // were never stored anywhere and go out of scope with this page.
-        writeCart([])
-        window.location.href = '/shop/order/'
+          .then(function (res) {
+            return res.json().catch(function () { return {} }).then(function (data) {
+              if (!res.ok || !data.url) throw new Error(data.error || '')
+              // The cart is deliberately left alone: this is a redirect, not
+              // a purchase, and someone who backs out of Stripe must find
+              // their cart exactly where they left it. /shop/order/ clears
+              // it once Stripe confirms the payment.
+              window.location.href = data.url
+            })
+          })
+          .catch(function (err) {
+            setError(
+              3,
+              (err && err.message) ||
+                "We couldn't open the payment page — nothing was charged. Give it a moment and try again."
+            )
+            leaving = false
+            payBtn.disabled = false
+            payBtn.textContent = payLabel
+          })
       })
     }
 
+    // Prices land after the first paint; redraw whichever panel is showing.
+    afterPrices = function () {
+      if (current === 2) fillReview()
+      if (current === 3) fillPayStep()
+    }
+
     show(1)
+    fillPayStep()
   }
 
   // -------------------------------------------------- order confirmation
+  // Read back from Stripe, never from this browser. The old version invented
+  // an order out of sessionStorage — a reference, a happy screen, and no way
+  // to tell a real payment from a refresh. Now the page says only what
+  // /api/order says, and "Payment confirmed" means Stripe confirmed it.
   var order = document.querySelector('[data-order]')
   if (order) {
-    var placed = session(ORDER_KEY)
-    var missing = order.querySelector('[data-order-missing]')
-    var found = order.querySelector('[data-order-found]')
+    var panels = {
+      loading: order.querySelector('[data-order-loading]'),
+      missing: order.querySelector('[data-order-missing]'),
+      found: order.querySelector('[data-order-found]'),
+      pending: order.querySelector('[data-order-pending]'),
+      unfinished: order.querySelector('[data-order-unfinished]'),
+      problem: order.querySelector('[data-order-problem]'),
+    }
 
-    if (!placed) {
-      // Someone arrived here directly, or on another device. Say so plainly
-      // rather than inventing an order.
-      if (missing) missing.hidden = false
-      if (found) found.hidden = true
+    var showPanel = function (which) {
+      Object.keys(panels).forEach(function (key) {
+        if (panels[key]) panels[key].hidden = key !== which
+      })
+    }
+
+    var sessionId = new URLSearchParams(window.location.search).get('session_id')
+
+    if (!sessionId) {
+      showPanel('missing')
     } else {
-      if (missing) missing.hidden = true
-      if (found) found.hidden = false
-      order.querySelectorAll('[data-order-id]').forEach(function (el) {
-        el.textContent = placed.id
+      showPanel('loading')
+      fetch('/api/order?session_id=' + encodeURIComponent(sessionId), {
+        headers: { Accept: 'application/json' },
       })
-      order.querySelectorAll('[data-order-email]').forEach(function (el) {
-        el.textContent = placed.email || 'your email'
-      })
-      var craftCopy = order.querySelector('[data-craft-copy]')
-      if (craftCopy) {
-        craftCopy.textContent = placed.joinCraft
-          ? 'You opted in — your seat is reserved and you’ll be let in on August 17 when the doors open. Nothing more to pay until then.'
-          : 'You skipped the membership, and that’s fine. The door stays open; your invitation is in your receipt.'
-      }
-      var files = order.querySelector('[data-files]')
-      if (files) {
-        // An empty cart at the desk still buys the Bundle's story — the
-        // design falls back to it so the page is never a blank shelf.
-        var ids = placed.items && placed.items.length ? placed.items : ['starter-bundle']
-        ids.forEach(function (id) {
-          var p = CATALOG[id]
-          if (!p) return
-          var row = document.createElement('div')
-          row.className = 'file-row'
-          // Disabled until the files exist: the copy above this list already
-          // promises August 17, and a live-looking link that 404s would be
-          // the one thing this page can't afford.
-          row.innerHTML =
-            '<div><b></b><i></i></div>' +
-            '<button type="button" class="btn btn-secondary" disabled>Download</button>'
-          row.querySelector('b').textContent = p.name
-          row.querySelector('i').textContent = p.delivery
-          files.appendChild(row)
+        .then(function (res) {
+          return res.json().catch(function () { return {} }).then(function (data) {
+            if (res.status === 404) return showPanel('missing')
+            if (!res.ok || !data.ok) return showPanel('problem')
+
+            if (data.state === 'open' || data.state === 'expired') return showPanel('unfinished')
+
+            // Paid, or clearing. Either way the cart is spent — leaving it
+            // full would invite a second purchase of the same thing.
+            writeCart([])
+
+            order.querySelectorAll('[data-order-id]').forEach(function (el) {
+              el.textContent = data.reference || DASH
+            })
+            order.querySelectorAll('[data-order-email]').forEach(function (el) {
+              el.textContent = data.email || 'your email'
+            })
+            order.querySelectorAll('[data-order-total]').forEach(function (el) {
+              el.textContent = data.total || DASH
+            })
+
+            if (!data.paid) return showPanel('pending')
+
+            var craftCopy = order.querySelector('[data-craft-copy]')
+            if (craftCopy) {
+              craftCopy.textContent = data.joinCraft
+                ? 'You opted in — your seat is reserved and you’ll be let in on August 17 when the doors open. Nothing more to pay until then.'
+                : 'You skipped the membership, and that’s fine. The door stays open; your invitation is in your receipt.'
+            }
+
+            var files = order.querySelector('[data-files]')
+            if (files) {
+              files.innerHTML = ''
+              ;(data.items || []).forEach(function (item) {
+                var row = document.createElement('div')
+                row.className = 'file-row'
+                // Disabled until the files exist: the copy above this list
+                // already promises August 17, and a live-looking link that
+                // 404s would be the one thing this page can't afford.
+                row.innerHTML =
+                  '<div><b></b><i></i></div>' +
+                  '<button type="button" class="btn btn-secondary" disabled>Download</button>'
+                row.querySelector('b').textContent = item.name
+                row.querySelector('i').textContent = item.delivery || item.display || ''
+                files.appendChild(row)
+              })
+            }
+
+            showPanel('found')
+          })
         })
-      }
+        .catch(function () {
+          showPanel('problem')
+        })
     }
   }
 })()

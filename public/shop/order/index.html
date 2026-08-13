@@ -21,10 +21,10 @@
   <link rel="preload" href="/assets/fonts/lora-italic-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="/assets/fonts/fonts.css?v=2" />
   <link rel="stylesheet" href="/assets/site.css?v=4" />
-  <link rel="stylesheet" href="/assets/shop.css?v=3" />
+  <link rel="stylesheet" href="/assets/shop.css?v=4" />
   <script src="/assets/reveal.js?v=2" defer></script>
   <script src="/assets/motion.js?v=2" defer></script>
-  <script src="/assets/shop.js?v=1" defer></script>
+  <script src="/assets/shop.js?v=2" defer></script>
 </head>
 <body data-drop-date="2026-09-14T09:00:00-04:00">
 <a class="skip" href="#main">Skip to content</a>
@@ -85,13 +85,55 @@
 </header>
 
 <main id="main" class="shell" data-order style="max-width: 900px; padding-top: clamp(48px, 6vw, 80px); padding-bottom: clamp(60px, 8vw, 110px);">
-  <div data-order-missing>
+  <div data-order-loading>
+    <span class="eyebrow eyebrow-wide">One moment</span>
+    <h1 class="t-sec36" style="margin: 20px 0 0; max-width: 20ch;">Confirming your order <span class="emph-sage">with Stripe.</span></h1>
+    <p class="lede" style="margin: 20px 0 0; max-width: 44ch;">This takes a second. Your payment is already done — we're just reading it back so this page can tell you the truth about it.</p>
+    <noscript>
+      <p class="lede" style="margin: 20px 0 0; max-width: 44ch;">This page needs JavaScript to read your order back from Stripe. Your receipt has everything it would have shown, and <a href="/contact/">a person will answer</a> if anything looks wrong.</p>
+    </noscript>
+  </div>
+
+  <div data-order-missing hidden>
     <span class="eyebrow eyebrow-wide">No order here</span>
-    <h1 class="t-sec36" style="margin: 20px 0 0; max-width: 20ch;">Nothing to show in <span class="emph-sage">this browser.</span></h1>
-    <p class="lede" style="margin: 20px 0 0; max-width: 48ch;">Order confirmations live on the device that placed them. If you've bought something, your receipt has the permanent link — and if you're mid-decision, the shelf is where you left it.</p>
+    <h1 class="t-sec36" style="margin: 20px 0 0; max-width: 20ch;">Nothing to show at <span class="emph-sage">this address.</span></h1>
+    <p class="lede" style="margin: 20px 0 0; max-width: 48ch;">This page shows one order, and only when it's opened from the link that came with it. If you've bought something, your receipt has that link — and if you're mid-decision, the shelf is where you left it.</p>
     <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 30px;">
       <a class="btn btn-primary btn-lg" href="/shop/products/">Browse products</a>
       <a class="btn btn-secondary btn-lg" href="/contact/">Ask about an order</a>
+    </div>
+  </div>
+
+  <div data-order-unfinished hidden>
+    <span class="eyebrow eyebrow-wide">Not finished</span>
+    <h1 class="t-sec36" style="margin: 20px 0 0; max-width: 20ch;">That payment wasn't <span class="emph-sage">completed.</span></h1>
+    <p class="lede" style="margin: 20px 0 0; max-width: 48ch;"><strong>Nothing was charged.</strong> The payment page was closed before it finished, or it sat open long enough to expire. Your cart is untouched — start it again whenever you're ready.</p>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 30px;">
+      <a class="btn btn-primary btn-lg" href="/shop/checkout/">Back to checkout</a>
+      <a class="btn btn-secondary btn-lg" href="/contact/">Ask about an order</a>
+    </div>
+  </div>
+
+  <div data-order-problem hidden>
+    <span class="eyebrow eyebrow-wide">Couldn't check</span>
+    <h1 class="t-sec36" style="margin: 20px 0 0; max-width: 20ch;">We couldn't reach Stripe <span class="emph-sage">to confirm this.</span></h1>
+    <p class="lede" style="margin: 20px 0 0; max-width: 48ch;">This is us, not your payment — whatever happened at Stripe still happened, and your receipt is the record of it. Refresh in a moment, or write to us and a person will look it up.</p>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 30px;">
+      <a class="btn btn-primary btn-lg" href="/contact/?about=order">Ask about an order</a>
+      <a class="btn btn-secondary btn-lg" href="/shop/products/">Back to the shop</a>
+    </div>
+  </div>
+
+  <div data-order-pending hidden>
+    <div class="dot-row" style="margin-bottom: 24px;">
+      <span class="dot dot-dusk"></span>
+      <span class="eyebrow eyebrow-wide">Payment clearing · <span data-order-id>&mdash;</span></span>
+    </div>
+    <h1 class="t-sec36" style="margin: 0; max-width: 20ch;">Your payment is <span class="emph-sage">on its way.</span></h1>
+    <p class="lede" style="margin: 22px 0 0; max-width: 36em;">The method you chose settles over a few days rather than instantly — that's normal, and there's nothing more for you to do. We'll email <span data-order-email>your email</span> the moment it clears, and your order is held at <span data-order-total>&mdash;</span> until then.</p>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 30px;">
+      <a class="btn btn-secondary btn-lg" href="/shop/products/">Keep shopping</a>
+      <a class="btn btn-secondary btn-lg" href="/contact/?about=order">Ask about an order</a>
     </div>
   </div>
 
@@ -101,9 +143,7 @@
       <span class="eyebrow eyebrow-wide">Payment confirmed · <span data-order-id>&mdash;</span></span>
     </div>
     <h1 class="t-hero" style="margin: 0; max-width: 18ch;">It's yours. And you're <span class="emph-sage">not alone in it.</span></h1>
-    <p class="lede" style="margin: 22px 0 0; max-width: 36em;">A receipt is on its way to <span data-order-email>your email</span>. Your files unlock on August 17 — the links below go live the moment they do, and they're yours permanently.</p>
-
-    <p class="preview-note" style="margin: 26px 0 0; max-width: 44em;"><span><strong>Preview order.</strong> Stripe isn't connected yet, so no payment was taken and no receipt has been sent — this is what the confirmation will look like on the day the shop opens.</span></p>
+    <p class="lede" style="margin: 22px 0 0; max-width: 36em;">A receipt for <span data-order-total>&mdash;</span> is on its way to <span data-order-email>your email</span>. Your files unlock on August 17 — the links below go live the moment they do, and they're yours permanently.</p>
 
     <div class="files-card" style="margin-top: 34px;">
       <span class="shop-eyebrow">Your files</span>
@@ -182,7 +222,7 @@
   </div>
   <div class="cart-foot">
     <div class="cart-total"><b>Total</b><span>&mdash;</span></div>
-    <p class="fine-12" style="margin: 0 0 18px;">Resolved from Stripe at checkout.</p>
+    <p class="fine-12" style="margin: 0 0 18px;">Live prices, read from Stripe. Tax and any promotion code are applied at payment.</p>
     <button class="btn btn-primary" type="button" data-checkout style="width: 100%;" hidden>Secure checkout</button>
     <p class="cart-seal">Stripe · PCI-DSS Level 1 · 3-D Secure</p>
   </div>

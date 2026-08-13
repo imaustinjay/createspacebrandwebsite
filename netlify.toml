@@ -40,6 +40,37 @@
   to = "/.netlify/functions/seasons"
   status = 200
 
+# The storefront's prices, read live from Stripe (cached 5 minutes at the CDN).
+# Every price on the site is an em-dash until this answers, which is why a
+# missing Stripe key shows no price rather than a wrong one.
+[[redirects]]
+  from = "/api/catalog"
+  to = "/.netlify/functions/catalog"
+  status = 200
+
+# Cart in, Stripe Checkout Session out. Amounts are resolved server-side from
+# the price ids — the browser never names a price.
+[[redirects]]
+  from = "/api/checkout"
+  to = "/.netlify/functions/checkout"
+  status = 200
+
+# One order read back from Stripe, for the confirmation page.
+[[redirects]]
+  from = "/api/order"
+  to = "/.netlify/functions/order"
+  status = 200
+
+# Stripe's own callback — the side of the checkout that can be trusted, and
+# therefore the side that fulfils. A rewrite (status 200) so the raw body
+# arrives byte-for-byte: the signature is computed over it, and a redirect
+# would break verification. This is the URL to register in the Stripe
+# dashboard; /.netlify/functions/stripe-webhook works too.
+[[redirects]]
+  from = "/api/stripe-webhook"
+  to = "/.netlify/functions/stripe-webhook"
+  status = 200
+
 # The Collection Program's live state, proxied straight through to the
 # workspace app, which owns the cycles, the seats and the notify list. A proxy
 # (status 200), not a redirect: a 301 would drop the POST body the notify form

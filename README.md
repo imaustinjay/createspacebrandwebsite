@@ -3,7 +3,7 @@
 The public website for **createspace · community + talent**, ported from the
 Claude Design handoff (`Createspace_brand_website_design.zip`), plus the
 storefront from the second handoff (`Createspace_Storefront_standalone.html`).
-Twenty-seven real routes, two stylesheets, three serverless functions. The workspace app
+Twenty-seven real routes, two stylesheets, seven serverless functions. The workspace app
 (createspacebrand.online) lives in its own repo — `createspace-workspace` —
 and deploys separately; the brand context this site is built from is
 `reference/PUBLIC_SITE_CONTEXT.md` over there.
@@ -13,11 +13,18 @@ and deploys separately; the brand context this site is built from is
 ```
 /
   netlify.toml            deploy config — publish dir, functions, redirects
-  package.json            deps for the enquiry function only
+  package.json            deps for the serverless functions (mail + Stripe)
+  netlify/shared/         imported by the functions; never deployed as one
+    catalog.mjs           the shelf, the Stripe client, and price → money
+    mail.mjs              the house mailer (SMTP), shared by the webhook
   netlify/functions/
     enquiry.mjs           brand enquiry → partnerships mailbox (SMTP)
     seasons.mjs           live door status ← workspace casting cycles (anon RLS)
     shop.mjs              every storefront form → the shop mailbox (SMTP)
+    catalog.mjs           GET  /api/catalog — live shelf prices from Stripe
+    checkout.mjs          POST /api/checkout — cart → Stripe Checkout Session
+    order.mjs             GET  /api/order — one order read back from Stripe
+    stripe-webhook.mjs    POST /api/stripe-webhook — payment → inbox + buyer
   public/                 everything served, exactly as-is — no build step
     index.html            Home
     creators/index.html   For creators (Community division)
@@ -43,7 +50,7 @@ and deploys separately; the brand context this site is built from is
     shop/order/           Order confirmation (noindex)
     assets/site.css       tokens (verbatim from reference/PUBLIC_SITE_CONTEXT.md §3) + components
     assets/shop.css       storefront components, in those same tokens
-    assets/shop.js        cart, drawer, countdown, FAQ, checkout, forms
+    assets/shop.js        cart, drawer, live prices, countdown, FAQ, checkout, forms
     assets/enquiry.js     form submit → /api/enquiry → confirmation state
     assets/seasons.js     fills the door-status slots from /api/seasons
     assets/collection.js  live cycle state + notify list, from /api/cohort-status
@@ -72,10 +79,15 @@ The workspace keeps its own repo, Netlify site and env; the two share nothing
 but a read-only view of which application seasons are open (see Supabase,
 below). Every application flow itself lives on createspacebrand.online.
 
-## Environment variables (the enquiry form)
+## Environment variables
 
 | Variable | What it is |
 |---|---|
+| `STRIPE_SECRET_KEY` | The storefront's whole payment integration hangs off this one value (`sk_test_…` then `sk_live_…`). Unset, no price is shown anywhere and the pay button says so — see [Stripe — the checkout](#stripe--the-checkout). Server-side only; it must never appear in a page. |
+| `STRIPE_WEBHOOK_SECRET` | The signing secret of the webhook endpoint at `/api/stripe-webhook`. Without it, payments still succeed but nobody is told: no house notification, no buyer confirmation. |
+| `STRIPE_PRICE_*` | Optional, one per product (`STRIPE_PRICE_START_SMALL`, …). Only needed if the prices don't carry lookup keys; an env var wins where both exist. |
+| `STRIPE_AUTOMATIC_TAX` | Optional, `true` to turn on Stripe Tax. Off by default — it needs Stripe Tax configured on the account first, and it makes a billing address required at checkout. |
+| `STRIPE_CRAFT_TRIAL_UNTIL` | Optional ISO date for the craft's subscription trial, so "nothing is charged before August 17" is enforced rather than promised. Ignored once it's in the past. |
 | `PARTNERSHIPS_EMAIL` | Where brand enquiries land. Optional override — unset, they go to the house inbox, `hello@createspacebrand.com`. Server-side only — deliberately never printed in the client bundle, per the handoff, so it can't be scraped. |
 | `SHOP_EMAIL` | Where the storefront's forms land (contact, careers and workshop alerts, internship applications, the Fall Drop list, account reservations, and the Collection Program notify list when the workspace endpoint can't be reached). Optional override — falls back to `PARTNERSHIPS_EMAIL`, then to `hello@createspacebrand.com`. Server-side only, same as above. |
 | `MAIL_USER` / `MAIL_PASSWORD` | SMTP login for the sending mailbox (falls back to `TITAN_EMAIL` / `TITAN_PASSWORD`, same convention as the workspace's `shared/mailCore.mjs`). |
@@ -93,10 +105,13 @@ storefront's forms behave identically: an unconfigured desk reads as an honest
 failure the visitor can retry, never as a confirmation for a message that went
 nowhere.
 
-Abuse guards on both functions: a honeypot field, a minimum-fill-time check
+Abuse guards on both mail functions: a honeypot field, a minimum-fill-time check
 (instant submissions are quietly discarded), and a per-IP hourly limit —
 5 for the brand enquiry, 8 for the shop desk (durable via Netlify Blobs,
-in-memory fallback locally).
+in-memory fallback locally). `/api/checkout` carries the same per-IP limit at
+20/hour: a person can legitimately reach the payment page several times in an
+hour, and being locked out mid-purchase is the most expensive error it could
+make.
 
 ## Supabase — the live season doors
 
@@ -156,8 +171,10 @@ nothing: the default is already the correct answer.
 ### The connection to the internal space
 
 Everything past the application lives in the workspace at
-createspacebrand.online. Nothing about money touches this site — no card
-details, no payment, no Stripe key.
+createspacebrand.online. **No money for a Collection seat moves through this
+site** — the storefront's Stripe wiring is a separate integration that knows
+nothing about the program, and a seat is still claimed and paid for in the
+workspace. No card details touch this site under either.
 
 | Step | Where it happens |
 |---|---|
@@ -196,9 +213,11 @@ connected, HTML or a 404 means the workspace hasn't shipped it yet.
 
 The cohort's payment is the workspace's job and already exists there —
 `cohort-checkout.mjs`, a Stripe Checkout session, a webhook that confirms the
-seat and mints the portal invitation. Wiring Stripe **on this site** is a
-separate piece of work for the storefront (`/shop/checkout/`), and it doesn't
-touch `/collection/` at all.
+seat and mints the portal invitation. **That is a different Stripe integration
+from this site's.** The storefront's (`/shop/checkout/`, documented under
+[The shop](#stripe--the-checkout)) shares no code, no session and no webhook
+with it, and does not touch `/collection/` at all: a Collection seat is still
+claimed in the workspace, and the two prices on that page are still prose.
 
 ## The shop
 
@@ -222,14 +241,98 @@ is a house component in `site.css`, so it renders identically on pages that
 never load `shop.css`; the storefront adds only the cart control and the
 announcement bar.
 
+### Stripe — the checkout
+
+`/shop/checkout/` is live. The buyer's details and their agreement to the terms
+are taken here; **the payment itself happens on Stripe's own Checkout page**,
+and there is no card field anywhere in this repo. That single decision is what
+lets every claim on the site about card data be literally true, and it brings
+Apple Pay, Google Pay, Link, 3-D Secure and promotion codes along for free.
+
+**Stripe is the source of truth for price.** Nothing in this repo knows what
+anything costs. `/api/catalog` reads the live prices and the site fills its
+em-dashes in from that; `/api/checkout` resolves the amounts again, server-side,
+from the product ids the cart sent. The browser never names a price and a price
+it did name would be ignored — which is exactly why a cart kept in
+`localStorage` is safe. Change a price in the Stripe dashboard and the site
+follows within five minutes, with no deploy.
+
+#### The four endpoints
+
+| Route | What it does |
+|---|---|
+| `GET /api/catalog` | Live shelf prices. Cached 5 minutes at the CDN; failures never cached. |
+| `POST /api/checkout` | Validates the cart and the details, creates a Checkout Session, returns its `url`. Rate-limited per IP. |
+| `GET /api/order?session_id=…` | One order read back from Stripe, for the confirmation page. Never cached. |
+| `POST /api/stripe-webhook` | Stripe's callback — signature-verified, deduplicated, and the only thing that fulfils. |
+
+#### Setting it up
+
+1. **Create the six products in Stripe**, one price each: `start-small`,
+   `aesthetic-kit`, `creator-planner`, `content-system`, `starter-bundle`,
+   `the-craft`. Make `the-craft` a **recurring** price — checkout switches
+   itself to subscription mode when any line item recurs, and carries the
+   one-time items onto the first invoice.
+2. **Point the shelf at those prices**, either way round:
+   - set each price's **lookup key** in Stripe to the id above — no env vars
+     needed at all; or
+   - set `STRIPE_PRICE_START_SMALL`, `STRIPE_PRICE_AESTHETIC_KIT`,
+     `STRIPE_PRICE_CREATOR_PLANNER`, `STRIPE_PRICE_CONTENT_SYSTEM`,
+     `STRIPE_PRICE_STARTER_BUNDLE`, `STRIPE_PRICE_THE_CRAFT` to `price_…` ids.
+     An env var wins over a lookup key where both exist.
+3. **Set `STRIPE_SECRET_KEY`** (`sk_test_…` first — test mode is a complete,
+   separate storefront and the right place to buy something end to end).
+4. **Add the webhook** in Stripe → Developers → Webhooks, pointing at
+   `https://createspacebrand.com/api/stripe-webhook`, subscribed to
+   `checkout.session.completed`, `checkout.session.async_payment_succeeded`
+   and `checkout.session.async_payment_failed`. Put its signing secret in
+   `STRIPE_WEBHOOK_SECRET`.
+5. **Turn on Stripe's own email receipts** (Settings → Customer emails →
+   *Successful payments*). The webhook writes the house's confirmation — what
+   was bought, when it unlocks, where to find it again — and leaves the tax
+   receipt to Stripe.
+
+Verify with `curl https://createspacebrand.com/api/catalog`:
+
+| Response | Meaning |
+|---|---|
+| `{"ok":true,"resolved":6,…}` | Connected, whole shelf priced. |
+| `{"ok":true,"resolved":4,…}` | Connected; two products have no price yet and show none. |
+| `{"ok":false,"reason":"not-configured"}` | `STRIPE_SECRET_KEY` missing, or not scoped to Functions. |
+| `{"ok":false,"reason":"no-prices"}` | The key works but no price resolved — wrong ids, or no lookup keys set. |
+
+Until then the site is honest rather than broken: no price is shown anywhere,
+"Add to cart" still works, and the pay button answers *"checkout isn't
+connected yet — nothing was charged."* An unresolved price is never rendered as
+zero and never as free.
+
+#### The rules this checkout keeps
+
+- **The browser is never trusted with money.** Ids in, amounts resolved
+  server-side, `line_items` built from Stripe's own price objects. There is no
+  code path that accepts an amount from a client.
+- **The return page is not proof of payment.** `/shop/order/` shows only what
+  `/api/order` reports; the webhook is what fulfils. A buyer who closes the tab
+  still gets their order, and a refresh can't manufacture one.
+- **Nothing is charged twice.** Session creation is idempotent per order
+  reference, and webhook events are deduplicated by event id in Netlify Blobs.
+- **Unfinished is said plainly.** Cancelling at Stripe returns to the checkout
+  with the cart intact and "nothing was charged" on the page. A session that
+  expired says so instead of pretending to be an order.
+- **A delayed payment is neither a success nor a failure.** Methods that clear
+  over days land on their own state on the confirmation page, and the buyer is
+  emailed when the money actually moves.
+
+#### Testing it without a Stripe account
+
+`STRIPE_API_HOST` / `STRIPE_API_PORT` / `STRIPE_API_PROTOCOL` point the SDK at
+[`stripe-mock`](https://github.com/stripe/stripe-mock) (or any stand-in) instead
+of Stripe. Unset everywhere it's deployed; set it and no request reaches Stripe
+at all. With a real test key, `4242 4242 4242 4242` and any future expiry buys
+something for real in test mode.
+
 ### Still to wire
 
-- **Stripe.** There is no payment integration yet, so `/shop/checkout/` is a
-  working front end with nothing behind it: no session, no charge, no receipt.
-  Every price in the handoff is an em-dash for the same reason. The checkout
-  and the confirmation each carry a `.preview-note` saying so plainly, and card
-  details are never stored, never persisted and never sent anywhere. **Delete
-  those two notes in the same change that wires Stripe** — and not before.
 - **Accounts.** `/shop/account/` reserves the address for launch day rather
   than pretending to create an account. The password is validated in the
   browser and never leaves it — `shop.js` strips it from the payload and the
