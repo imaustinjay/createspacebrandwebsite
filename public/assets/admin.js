@@ -48,6 +48,15 @@
     })
   }
 
+  // Bytes as a person reads them, for the picker's running commentary.
+  function size(bytes) {
+    var units = ['B', 'KB', 'MB', 'GB']
+    var value = Number(bytes) || 0
+    var i = 0
+    while (value >= 1024 && i < units.length - 1) { value /= 1024; i++ }
+    return (value >= 10 || i === 0 ? Math.round(value) : value.toFixed(1)) + ' ' + units[i]
+  }
+
   function el(tag, className, text) {
     var node = document.createElement(tag)
     if (className) node.className = className
@@ -278,45 +287,161 @@
       })
 
       // --------------------------------------------------------- upload
+      // One file goes up as itself. Several — or a whole folder — are zipped
+      // here first, because a product is often a folder and a buyer handed
+      // twelve download buttons has been given a chore, not a product.
       var picker = el('div')
-      picker.style.cssText = 'display: flex; gap: 11px; flex-wrap: wrap; align-items: center; margin-top: 16px; padding-top: 18px; border-top: 1px solid var(--hairline);'
+      picker.style.cssText = 'margin-top: 16px; padding-top: 18px; border-top: 1px solid var(--hairline);'
+
+      var chosen = []
+      var row = el('div')
+      row.style.cssText = 'display: flex; gap: 11px; flex-wrap: wrap; align-items: center;'
+
       var input = document.createElement('input')
       input.type = 'file'
+      input.multiple = true
       input.style.cssText = 'font: inherit; font-size: 13px; max-width: 100%;'
-      var progress = el('span', 'fine-12')
-      progress.style.margin = '0'
+
+      // webkitdirectory is how every browser does folder picking — a
+      // non-standard name that Chrome, Safari, Edge and Firefox all honour.
+      // It stays hidden behind a button of ours, because the raw control
+      // renders as "no files selected" even when a folder is chosen.
+      var folderInput = document.createElement('input')
+      folderInput.type = 'file'
+      folderInput.setAttribute('webkitdirectory', '')
+      folderInput.setAttribute('directory', '')
+      folderInput.hidden = true
+
+      var folderBtn = el('button', 'btn btn-secondary', 'Choose a folder')
+      folderBtn.type = 'button'
+      folderBtn.addEventListener('click', function () { folderInput.click() })
+
       var upload = el('button', 'btn btn-primary', 'Upload')
       upload.type = 'button'
+
+      var progress = el('p', 'fine-12')
+      progress.setAttribute('data-progress', '')
+      progress.style.cssText = 'margin: 11px 0 0;'
+
+      function totalOf(files) {
+        var n = 0
+        for (var i = 0; i < files.length; i++) n += files[i].size
+        return n
+      }
+
+      // What the archive will be called: the folder's own name when a folder
+      // was picked, the product's id otherwise.
+      function archiveName(files) {
+        var path = files[0] && (files[0].webkitRelativePath || '')
+        var top = path.split('/')[0]
+        return (top || product.id) + '.zip'
+      }
+
+      function describe() {
+        if (!chosen.length) {
+          progress.textContent = ''
+          return
+        }
+        if (chosen.length === 1) {
+          progress.textContent = chosen[0].name + ' · ' + size(chosen[0].size)
+          return
+        }
+        progress.textContent =
+          chosen.length + ' files · ' + size(totalOf(chosen)) + ' → uploaded as one download, ' + archiveName(chosen)
+      }
+
+      input.addEventListener('change', function () {
+        chosen = Array.prototype.slice.call(input.files || [])
+        describe()
+      })
+      folderInput.addEventListener('change', function () {
+        chosen = Array.prototype.slice.call(folderInput.files || [])
+        // A folder pick supersedes a file pick, and vice versa — never a
+        // silent mixture of the two.
+        input.value = ''
+        describe()
+      })
+
       upload.addEventListener('click', function () {
-        var file = input.files && input.files[0]
-        if (!file) {
-          progress.textContent = 'Choose a file first.'
+        if (!chosen.length) {
+          progress.textContent = 'Choose a file or a folder first.'
           return
         }
         upload.disabled = true
-        progress.textContent = 'Uploading ' + file.name + '…'
-        // The body is the file itself — no multipart, no parser, no
-        // dependency. The name and label ride on the query string.
-        api(
-          '?item=' + encodeURIComponent(product.id) +
-            '&name=' + encodeURIComponent(file.name) +
-            '&label=' + encodeURIComponent(file.name.replace(/\.[a-z0-9]+$/i, '')),
-          {
-            method: 'POST',
-            headers: { 'Content-Type': file.type || 'application/octet-stream' },
-            body: file,
-          }
-        )
-          .then(function () {
-            load({ item: product.id, message: 'Uploaded ' + file.name + '.' })
+        folderBtn.disabled = true
+
+        var send = function (blob, name, type) {
+          progress.textContent = 'Uploading ' + name + ' · ' + size(blob.size) + '…'
+          return api(
+            '?item=' + encodeURIComponent(product.id) +
+              '&name=' + encodeURIComponent(name) +
+              '&label=' + encodeURIComponent(name.replace(/\.[a-z0-9]+$/i, '')),
+            { method: 'POST', headers: { 'Content-Type': type || 'application/octet-stream' }, body: blob }
+          ).then(function () {
+            load({ item: product.id, message: 'Uploaded ' + name + '.' })
           })
-          .catch(function (err) {
-            upload.disabled = false
-            progress.textContent = err.message
-          })
+        }
+
+        var work
+        if (chosen.length === 1) {
+          // Zipping one file would only make it harder to open.
+          work = send(chosen[0], chosen[0].name, chosen[0].type)
+        } else if (!window.csZip) {
+          work = Promise.reject(new Error('The zip builder didn’t load — reload the page and try again.'))
+        } else {
+          var name = archiveName(chosen)
+          progress.textContent = 'Reading ' + chosen.length + ' files…'
+          work = Promise.all(
+            chosen.map(function (file) {
+              return file.arrayBuffer().then(
+                function (buffer) {
+                  return {
+                    // The path inside the folder, so unzipping rebuilds it.
+                    name: file.webkitRelativePath || file.name,
+                    bytes: new Uint8Array(buffer),
+                    modified: file.lastModified,
+                  }
+                },
+                function (err) {
+                  // A file that's in iCloud or OneDrive but not actually on
+                  // this disk reads as NotReadableError. The fix is a Finder
+                  // one, not a retry, so say which file and what to do —
+                  // "The requested file could not be read" helps nobody.
+                  var which = file.webkitRelativePath || file.name
+                  if (err && err.name === 'NotReadableError') {
+                    throw new Error(
+                      '“' + which + '” isn’t downloaded to this computer — it lives in iCloud or OneDrive. ' +
+                        'Download it locally (right-click → Download Now) and try again.'
+                    )
+                  }
+                  throw new Error('Couldn’t read “' + which + '”: ' + ((err && err.message) || 'unknown error'))
+                }
+              )
+            })
+          )
+            .then(function (entries) {
+              return window.csZip.zip(entries, function (done, all) {
+                progress.textContent = 'Zipping ' + done + ' of ' + all + '…'
+              })
+            })
+            .then(function (archive) {
+              return send(new Blob([archive], { type: 'application/zip' }), name, 'application/zip')
+            })
+        }
+
+        work.catch(function (err) {
+          upload.disabled = false
+          folderBtn.disabled = false
+          progress.textContent = err.message
+        })
       })
-      picker.appendChild(input)
-      picker.appendChild(upload)
+
+      row.appendChild(input)
+      row.appendChild(folderBtn)
+      row.appendChild(upload)
+      picker.appendChild(row)
+      picker.appendChild(folderInput)
+      picker.appendChild(progress)
       picker.appendChild(progress)
       card.appendChild(picker)
 

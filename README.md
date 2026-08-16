@@ -56,6 +56,7 @@ and deploys separately; the brand context this site is built from is
     assets/shop.css       storefront components, in those same tokens
     assets/shop.js        cart, drawer, live prices, countdown, FAQ, checkout, forms
     assets/admin.js       the stockroom's upload/list/link behaviour
+    assets/zip.js         a ZIP writer, so a folder uploads as one download
     assets/enquiry.js     form submit → /api/enquiry → confirmation state
     assets/seasons.js     fills the door-status slots from /api/seasons
     assets/collection.js  live cycle state + notify list, from /api/cohort-status
@@ -459,8 +460,27 @@ until the next one — set it, then Deploys → Trigger deploy.
 
 | | For | Ceiling |
 |---|---|---|
-| An uploaded file | PDFs, presets, templates — anything a buyer should get from us | 40 MB per file on upload |
+| An uploaded file | PDFs, presets, templates — anything a buyer should get from us | 40 MB per upload |
 | An external `https://` link | a 1.2 GB preset pack, a Notion or Canva template, anything already hosted | none |
+
+**A product that is a folder becomes one download.** Pick several files, or
+*Choose a folder*, and the stockroom zips them **in the browser** before
+uploading — one archive, one download button, folder structure intact. A buyer
+handed twelve download buttons has been given a chore; this is the fix. One
+file on its own is uploaded as itself rather than needlessly wrapped.
+
+The zip writer is `public/assets/zip.js`, about a hundred lines, written by
+hand for the same reason the fonts are self-hosted: no CDN, no build step, no
+dependency. It is the original PKZIP format that every operating system opens
+natively, with DEFLATE via the platform's own `CompressionStream` where that
+exists and stored entries where it doesn't — or where compressing made the file
+bigger, which is the usual outcome for the JPEGs, DNGs and PDFs it will mostly
+be given. Entry names are stripped of leading slashes and `..` segments,
+because they become paths on a stranger's disk.
+
+Zipping happens on the machine that has the files, so the 40 MB ceiling applies
+to the finished archive rather than to the folder — and the picker shows the
+total before you commit to it. Anything larger still belongs behind a link.
 
 The upload ceiling is about the request body, not the download: files stream
 back out. Anything larger belongs behind a link, and the stockroom says so when
