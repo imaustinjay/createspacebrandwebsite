@@ -73,14 +73,19 @@ async function paymentDetails(stripe, intent) {
  *
  * Returns { delivered, reason, filesSent, retry } — `retry: true` means the
  * caller should hand the work back to Stripe rather than swallow it.
+ *
+ * `force` is the stockroom's "send it again": a person has asked for this
+ * copy deliberately, so the once-only guards are the wrong answer. Everything
+ * else about the send is identical, which is the point — what lands in the
+ * buyer's inbox is the same email, not a hand-written apology.
  */
-export async function deliverOrder({ order, intent, stripe, origin, trialOnly = false, via = 'webhook' }) {
+export async function deliverOrder({ order, intent, stripe, origin, trialOnly = false, via = 'webhook', force = false }) {
   if (!order || !order.items?.length) return { delivered: false, reason: 'no-order' }
-  if (order.delivered) return { delivered: false, reason: 'already' }
+  if (order.delivered && !force) return { delivered: false, reason: 'already' }
 
   // One of the two doors wins; the other walks away rather than sending a
   // second copy of the same receipt.
-  const claimed = await claimDelivery(order.intentId, via)
+  const claimed = force || (await claimDelivery(order.intentId, via))
   if (!claimed) return { delivered: false, reason: 'in-flight' }
 
   try {

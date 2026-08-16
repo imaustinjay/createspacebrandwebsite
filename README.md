@@ -293,9 +293,10 @@ follows within five minutes, with no deploy.
 | `GET /api/catalog` | Live shelf prices. Cached 5 minutes at the CDN; failures never cached. |
 | `POST /api/checkout` | Validates the cart and the details, opens a PaymentIntent (or a subscription), returns its client secret. Rate-limited per IP. |
 | `GET /api/order` | One order read back from Stripe — by Stripe's return parameters, or by the receipt's permanent token. Never cached. |
-| `POST /api/stripe-webhook` | Stripe's callback — signature-verified, deduplicated, and the only thing that delivers. |
+| `POST /api/stripe-webhook` | Stripe's callback — signature-verified, deduplicated, and the usual door onto delivery. |
 | `GET /api/download` | A file, to somebody holding a download token that names it. |
 | `/api/products` | The stockroom, behind `ADMIN_TOKEN`. See [Digital delivery](#digital-delivery--the-stockroom). |
+| `POST /api/products?resend=` | Sends one order's receipt again. Same token, same door. |
 
 #### Setting it up
 
@@ -480,6 +481,27 @@ minutes so a crashed attempt can't wedge an order shut.
 The house inbox copy names which door delivered it, so a webhook that has
 quietly stopped working shows up as every order arriving "by order-page"
 rather than as silence.
+
+### The ledger, and sending one again
+
+That signal used to live only in an email and a function log. `/shop/admin/`
+now carries an **Orders** panel — the last 25 orders, newest first, each one
+saying what happened to its receipt:
+
+| It says | It means |
+|---|---|
+| Receipt sent · *by webhook* | Normal. The wiring is right. |
+| Receipt sent · *by the confirmation page* | The webhook never arrived. The buyer got their email anyway — go and fix the endpoint. |
+| Receipt sent · *by hand from here* | Somebody pressed the button below. |
+| Paid — nothing sent | The payment is real and no mailbox was configured when it cleared. |
+| Not sent yet | Paid moments ago, or never delivered at all. |
+
+Every row has a **Send it again** button (`POST /api/products?resend=<intent>`,
+behind the same `ADMIN_TOKEN`). It sends the real receipt — same template, same
+download links, same reference — not an apology typed out by hand. A receipt
+lost to a typo'd address, a spam folder, or a mailbox that wasn't configured
+yet is one press to fix, and the header counts how many are outstanding so the
+question doesn't have to be asked.
 
 ## Digital delivery — the stockroom
 

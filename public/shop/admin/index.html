@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="/assets/site.css?v=4" />
   <link rel="stylesheet" href="/assets/shop.css?v=5" />
   <script src="/assets/zip.js?v=1" defer></script>
-  <script src="/assets/admin.js?v=7" defer></script>
+  <script src="/assets/admin.js?v=8" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -76,6 +76,11 @@
 
   <section data-room hidden style="margin-top: 34px;">
     <div class="card" data-wiring style="--pad: 24px 26px; margin-bottom: 22px;"></div>
+
+    <!-- The ledger. A receipt that never sent looks identical to one that did
+         from every other angle — the payment clears, the page says thank you,
+         Stripe shows the money. This is the one place it says otherwise. -->
+    <div class="card" data-orders style="--pad: 24px 26px; margin-bottom: 22px;"></div>
 
     <div class="note-line" style="margin-bottom: 28px;"><span><strong>These files are what people buy.</strong> Anything uploaded here is served only to someone holding a download token from a paid order — never publicly, never from a guessable URL. Files over the upload ceiling belong behind a link instead.</span></div>
     <div data-products></div>

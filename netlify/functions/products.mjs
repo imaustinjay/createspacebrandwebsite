@@ -8,19 +8,23 @@
 //
 //   GET    /api/products                       what is in stock, per product
 //   POST   /api/products?item=&name=&label=    upload — the body IS the file
+//   POST   /api/products?resend=pi_…           send that order's receipt again
 //   PUT    /api/products?item=                 set the external links (JSON)
 //   DELETE /api/products?item=&name=           remove one file
 //
 // The upload is a raw body rather than multipart on purpose: no parser, no
 // dependency, and a browser can send a File straight down it.
-import { IDS, SHELF, clean, keyMismatch, keyMode, resolvePrices, stripeClient } from '../shared/catalog.mjs'
+import { IDS, SHELF, clean, keyMismatch, keyMode, resolvePrices, siteOrigin, stripeClient } from '../shared/catalog.mjs'
+import { deliverOrder } from '../shared/deliver.mjs'
 import { mailbox } from '../shared/mail.mjs'
 import {
   deliverableCount,
   manifest,
   manifests,
+  orderByIntent,
   putFile,
   readableSize,
+  recentOrders,
   removeFile,
   safeName,
   setLinks,
@@ -111,6 +115,36 @@ async function wiring() {
   }
 }
 
+// The ledger: what has been bought, and what happened to it afterwards.
+//
+// One line per order, with the part that matters most on the end — whether
+// the receipt was actually sent, and by which of the two doors. `by webhook`
+// means Stripe called us and the wiring is right; `by order-page` means the
+// webhook never arrived and the confirmation page had to cover for it. That
+// difference is the whole diagnosis, and it should be readable at a glance
+// rather than dug out of a function log in another dashboard.
+async function ledger() {
+  const orders = await recentOrders(25)
+  return orders.map((o) => ({
+    intentId: o.intentId,
+    reference: o.reference || null,
+    email: o.email || null,
+    name: o.name || null,
+    createdAt: o.createdAt || null,
+    amount: typeof o.amount === 'number' ? o.amount : null,
+    currency: o.currency || 'usd',
+    kind: o.kind || 'one-time',
+    items: (Array.isArray(o.items) ? o.items : []).map((id) => (SHELF[id] ? SHELF[id].name : id)),
+    delivered: Boolean(o.delivered),
+    deliveredAt: o.deliveredAt || null,
+    // false when the mailbox wasn't configured — the one case where an order
+    // is marked delivered and yet nobody was told anything.
+    notified: o.notified !== false,
+    filesSent: Boolean(o.filesSent),
+    via: o.via || null,
+  }))
+}
+
 // A constant-time-ish compare, so a wrong token can't be narrowed down by
 // timing it. Node's timingSafeEqual needs equal lengths, hence the guard.
 function sameToken(a, b) {
@@ -137,6 +171,66 @@ export default async (req) => {
   const params = new URL(req.url).searchParams
   const item = params.get('item') || ''
 
+  // --------------------------------------------------------- send it again
+  // A receipt that didn't arrive is not a rare event — a mailbox that wasn't
+  // configured yet, a spam folder, a buyer who typed one letter wrong. Every
+  // one of those is fixable, and none of them should mean the owner writing
+  // the email out by hand. This sends the real one, again.
+  //
+  // Ahead of the read, so that asking for it with the wrong verb is answered
+  // as the mistake it is rather than quietly handed the product list.
+  const resend = params.get('resend') || ''
+  if (resend) {
+    if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 })
+
+    const order = await orderByIntent(resend)
+    if (!order) {
+      return Response.json({ error: 'No order with that id.' }, { status: 404, headers: NO_STORE })
+    }
+    if (!order.email) {
+      return Response.json({ error: 'That order has no email address on it.' }, { status: 400, headers: NO_STORE })
+    }
+
+    const stripe = stripeClient()
+    let intent = null
+    // Only for the card line and Stripe's hosted copy — a receipt without
+    // them is still a receipt, so a miss here doesn't stop the send.
+    if (stripe && /^pi_/.test(resend)) {
+      try {
+        intent = await stripe.paymentIntents.retrieve(resend)
+      } catch (err) {
+        console.warn('products: could not re-read the intent for a resend —', err?.message || err)
+      }
+    }
+
+    const result = await deliverOrder({
+      order,
+      intent,
+      stripe,
+      origin: siteOrigin(req),
+      trialOnly: order.kind === 'membership' && !order.amount,
+      via: 'stockroom',
+      force: true,
+    })
+
+    if (!result.delivered) {
+      const message =
+        result.reason === 'send-failed'
+          ? 'The mailbox refused it. Check MAIL_USER and MAIL_PASSWORD, then try again.'
+          : 'That order could not be sent again.'
+      return Response.json({ error: message, reason: result.reason }, { status: 502, headers: NO_STORE })
+    }
+    if (result.reason === 'no-mailbox') {
+      return Response.json(
+        { error: 'No mailbox is configured, so nothing was sent. Set MAIL_USER and MAIL_PASSWORD, redeploy, then try again.', reason: 'no-mailbox' },
+        { status: 503, headers: NO_STORE }
+      )
+    }
+
+    console.log('products: receipt re-sent', { reference: order.reference, to: order.email })
+    return Response.json({ ok: true, sent: order.email, orders: await ledger() }, { headers: NO_STORE })
+  }
+
   // ------------------------------------------------------------- read it
   if (req.method === 'GET') {
     const shelves = await manifests(IDS)
@@ -149,7 +243,7 @@ export default async (req) => {
       ready: deliverableCount(shelves[id]) > 0,
     }))
     return Response.json(
-      { ok: true, products, maxUpload: MAX_UPLOAD, config: await wiring() },
+      { ok: true, products, maxUpload: MAX_UPLOAD, config: await wiring(), orders: await ledger() },
       { headers: NO_STORE }
     )
   }

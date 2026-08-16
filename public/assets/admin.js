@@ -226,6 +226,143 @@
     })
   }
 
+  // ------------------------------------------------------------- the orders
+  // What has been bought, and — the part worth having — what happened to it
+  // afterwards. A receipt that quietly never sent is the shop's worst failure
+  // because it looks exactly like success from every other angle: the payment
+  // clears, the page says thank you, the dashboard shows the money. The only
+  // place the truth was written down was a function log. Now it's here.
+  function when(iso) {
+    if (!iso) return ''
+    var d = new Date(iso)
+    if (isNaN(d.getTime())) return ''
+    try {
+      return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    } catch (e) {
+      return d.toISOString().slice(0, 16).replace('T', ' ')
+    }
+  }
+
+  // Where a receipt came from is the diagnosis. `webhook` means Stripe called
+  // us and the wiring is right. `order-page` means it didn't, and the
+  // confirmation page had to cover — the buyer got their email either way,
+  // but the webhook still needs fixing.
+  function deliveryState(order) {
+    if (!order.delivered) return { ok: false, label: 'Not sent yet', note: 'Open the order page, or send it here' }
+    if (order.notified === false) {
+      return { ok: false, label: 'Paid — nothing sent', note: 'No mailbox was configured when this was paid for' }
+    }
+    var note =
+      order.via === 'webhook'
+        ? 'By webhook — the wiring is working'
+        : order.via === 'order-page'
+          ? 'By the confirmation page — the webhook never arrived'
+          : order.via === 'stockroom'
+            ? 'Sent by hand from here'
+            : 'Sent'
+    if (!order.filesSent) note += ' · no files were attached to it'
+    return { ok: true, label: 'Receipt sent ' + when(order.deliveredAt), note: note }
+  }
+
+  function renderOrders(orders) {
+    var panel = room.querySelector('[data-orders]')
+    if (!panel) return
+    panel.innerHTML = ''
+
+    var head = el('div')
+    head.style.cssText = 'display: flex; justify-content: space-between; align-items: baseline; gap: 20px; flex-wrap: wrap; margin-bottom: 4px;'
+    head.appendChild(el('span', 'shop-eyebrow', 'Orders'))
+    var missed = orders.filter(function (o) { return !o.delivered || o.notified === false }).length
+    if (missed) {
+      var warn = el('span', 'shop-eyebrow', missed + (missed === 1 ? ' receipt not sent' : ' receipts not sent'))
+      warn.style.color = 'var(--dusk)'
+      head.appendChild(warn)
+    }
+    panel.appendChild(head)
+
+    if (!orders.length) {
+      panel.appendChild(el('p', 'fine-12', 'Nothing has been bought yet. When something is, it appears here — with whether its receipt actually went out.'))
+      return
+    }
+
+    var intro = el('p', 'fine-12', 'What was bought, and whether the receipt reached them. Anything that didn’t send can be sent from here.')
+    intro.style.cssText = 'margin: 0 0 6px;'
+    panel.appendChild(intro)
+
+    orders.forEach(function (order) {
+      var state = deliveryState(order)
+      var row = el('div')
+      row.setAttribute('data-order', order.intentId)
+      row.style.cssText = 'padding: 14px 0; border-top: 1px solid var(--hairline);'
+
+      var top = el('div')
+      top.style.cssText = 'display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap;'
+      var who = el('div')
+      var ref = el('b', null, order.reference || order.intentId)
+      ref.style.cssText = 'display: block; font-size: 14.5px; font-weight: 500;'
+      who.appendChild(ref)
+      var line = [order.name, order.email].filter(Boolean).join(' · ')
+      var sub = el('span', 'fine-12', line + (line && order.createdAt ? ' · ' : '') + when(order.createdAt))
+      sub.style.cssText = 'display: block; margin-top: 2px;'
+      who.appendChild(sub)
+      top.appendChild(who)
+
+      var right = el('div')
+      right.style.cssText = 'text-align: right;'
+      var total = el('b', null, order.amount === null ? '' : money(order.amount, order.currency))
+      total.style.cssText = 'display: block; font-size: 14.5px; font-weight: 500;'
+      right.appendChild(total)
+      var chip = el('span', 'fine-12', state.label)
+      chip.style.cssText = 'display: block; margin-top: 2px; color: ' + (state.ok ? 'var(--sage)' : 'var(--dusk)')
+      right.appendChild(chip)
+      top.appendChild(right)
+      row.appendChild(top)
+
+      var items = el('p', 'fine-12', (order.items || []).join(', ') || '—')
+      items.style.cssText = 'margin: 8px 0 0;'
+      row.appendChild(items)
+
+      var note = el('p', 'fine-12', state.note)
+      note.style.cssText = 'margin: 2px 0 0; color: ' + (state.ok ? 'var(--faint)' : 'var(--dusk)')
+      row.appendChild(note)
+
+      var actions = el('div')
+      actions.style.cssText = 'display: flex; gap: 11px; align-items: center; flex-wrap: wrap; margin-top: 10px;'
+      var again = el('button', 'btn btn-secondary', state.ok ? 'Send it again' : 'Send the receipt')
+      again.type = 'button'
+      again.style.cssText = 'padding: 8px 16px; font-size: 13px;'
+      if (!order.email) {
+        again.disabled = true
+        again.title = 'No email address on this order'
+      }
+      var said = el('span', 'fine-12')
+      said.setAttribute('data-said', '')
+
+      again.addEventListener('click', function () {
+        again.disabled = true
+        said.style.color = ''
+        said.textContent = 'Sending…'
+        api('?resend=' + encodeURIComponent(order.intentId), { method: 'POST' })
+          .then(function (data) {
+            said.textContent = 'Sent to ' + data.sent
+            // The row it was sent from now says something different, so
+            // redraw the whole ledger rather than patch one line of it.
+            if (data.orders) window.setTimeout(function () { renderOrders(data.orders) }, 1400)
+          })
+          .catch(function (err) {
+            again.disabled = false
+            said.style.color = 'var(--dusk)'
+            said.textContent = err.message
+          })
+      })
+
+      actions.appendChild(again)
+      actions.appendChild(said)
+      row.appendChild(actions)
+      panel.appendChild(row)
+    })
+  }
+
   // Saving reloads the shelf, which rebuilds these cards — so the "Saved."
   // that was just written would vanish in the same tick. The message is
   // carried through the reload instead and printed by whichever card it
@@ -510,6 +647,7 @@
         gate.hidden = true
         stock.hidden = false
         renderWiring(data.config)
+        renderOrders(data.orders || [])
         render(data.products || [], flash)
       })
       .catch(function (err) {
