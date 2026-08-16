@@ -111,11 +111,16 @@ export function receiptEmail({
   stripeReceiptUrl,
   joinCraft,
   trialOnly,
+  free,
   anyReady,
   supportEmail,
 }) {
   const support = supportEmail || 'hello@createspacebrand.com'
-  const paidLine = trialOnly ? 'Nothing charged today' : total
+  // Three ways this line can read, and only one of them is a sum. A receipt
+  // for something free should say so in words — "$0" reads like a billing
+  // error even when it isn't.
+  const totalLabel = free ? 'Yours' : 'Total paid'
+  const paidLine = free ? 'Free' : trialOnly ? 'Nothing charged today' : total
   const paymentLine = [paidAt, cardLine(card)].filter(Boolean).join(' · ')
 
   const craftLine = joinCraft
@@ -196,7 +201,7 @@ export function receiptEmail({
       ${lines.map((line, i) => itemRow(line, i === lines.length - 1)).join('')}
       <tr><td style="padding:16px 22px;border-top:2px solid ${HAIRLINE};background:${IVORY};border-radius:0 0 16px 16px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-          <td style="font-family:${SANS};font-size:15px;font-weight:700;color:${SEAL};">Total paid</td>
+          <td style="font-family:${SANS};font-size:15px;font-weight:700;color:${SEAL};">${esc(totalLabel)}</td>
           <td align="right" style="font-family:${SANS};font-size:20px;color:${SEAL};white-space:nowrap;">${esc(
             paidLine
           )}</td>

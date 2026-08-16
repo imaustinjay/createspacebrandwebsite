@@ -46,7 +46,9 @@ export async function orderLines(order, origin) {
       id,
       name: shelf.name,
       delivery: shelf.delivery,
-      display: priced ? money(priced.amount, order.currency) : '',
+      // A line that cost nothing says so in words. "$0" on a receipt reads
+      // like something went wrong with the billing even when it didn't.
+      display: priced ? (priced.amount === 0 ? 'Free' : money(priced.amount, order.currency)) : '',
       ready: deliverableCount(entry) > 0,
       links,
     }
@@ -89,11 +91,15 @@ export async function deliverOrder({ order, intent, stripe, origin, trialOnly = 
   if (!claimed) return { delivered: false, reason: 'in-flight' }
 
   try {
-    const total = money(order.amount, order.currency)
+    // Free orders never touched a card, so there is no charge to read and
+    // nothing for Stripe to have a hosted receipt of.
+    const free = order.kind === 'free'
+    const total = free ? 'Free' : money(order.amount, order.currency)
     const lines = await orderLines(order, origin)
     const anyReady = lines.some((l) => l.ready)
     const orderUrl = `${origin}/shop/order/?token=${encodeURIComponent(order.token)}`
-    const { card, receiptUrl } = trialOnly ? { card: null, receiptUrl: '' } : await paymentDetails(stripe, intent)
+    const { card, receiptUrl } =
+      trialOnly || free ? { card: null, receiptUrl: '' } : await paymentDetails(stripe, intent)
 
     const box = mailbox()
     if (!box) {
@@ -116,9 +122,9 @@ export async function deliverOrder({ order, intent, stripe, origin, trialOnly = 
       ['Email', order.email || '—'],
       ['Handle', order.handle || '—'],
       ['Items', lines.map((l) => `${l.name}${l.display ? ` (${l.display})` : ''}${l.ready ? '' : '  ← no files uploaded'}`).join('\n')],
-      ['Total', trialOnly ? 'Nothing today — trial' : total],
+      ['Total', free ? 'Free' : trialOnly ? 'Nothing today — trial' : total],
       ['Paid with', cardLine(card) || '—'],
-      ['Type', order.kind === 'membership' ? 'Membership (recurring)' : 'One-time'],
+      ['Type', free ? 'Free — a lead, not a sale' : order.kind === 'membership' ? 'Membership (recurring)' : 'One-time'],
       ['the craft', order.joinCraft ? 'Yes — add them when the doors open' : 'Not joining'],
       ['Files', anyReady ? 'Sent' : 'None uploaded — upload them, then re-send'],
       ['Delivered by', via],
@@ -149,6 +155,7 @@ export async function deliverOrder({ order, intent, stripe, origin, trialOnly = 
           stripeReceiptUrl: receiptUrl,
           joinCraft: order.joinCraft,
           trialOnly,
+          free,
           anyReady,
           supportEmail: box.to,
         }),

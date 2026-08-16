@@ -40,6 +40,19 @@ export const SHELF = {
     delivery: 'Notion workspace + PDF + Sheets calendar',
     href: '/shop/products/content-system/',
   },
+  'creator-audit': {
+    name: 'the Creator Audit',
+    tier: 'Free · Start here',
+    delivery: 'PDF scoring sheet + your result',
+    href: '/shop/products/creator-audit/',
+    // Free, and free here means genuinely nothing to pay rather than a price
+    // of zero somewhere in Stripe. Stripe will not open a PaymentIntent for
+    // nothing — its floor is 50¢ — so a cart holding only this skips Stripe
+    // altogether. Marking it here rather than in the dashboard also means
+    // there is no sixth product to create, no lookup key to set, and no way
+    // for a misconfiguration to accidentally charge for it.
+    free: true,
+  },
   'starter-bundle': {
     name: 'the Creator Starter Bundle',
     tier: 'The Bundle',
@@ -188,13 +201,37 @@ export function recurringSuffix(recurring) {
 // Resolve every shelf id we can, and don't let one bad id take the rest with
 // it: a typo'd env var costs that product its price, not the whole storefront.
 // Returns a plain object keyed by shelf id; missing ids simply aren't there.
+export const FREE_IDS = IDS.filter((id) => SHELF[id].free)
+export const isFree = (id) => Boolean(SHELF[id] && SHELF[id].free)
+
+// A free product's price, without asking Stripe for it. Shaped exactly like a
+// resolved one so nothing downstream has to know the difference — the cart
+// totals it, the summary prints it, the receipt lines it up.
+function freePrice(id) {
+  return {
+    id,
+    priceId: null,
+    amount: 0,
+    currency: 'usd',
+    display: 'Free',
+    recurring: null,
+    name: SHELF[id].name,
+  }
+}
+
 export async function resolvePrices(stripe) {
   const out = {}
+
+  // Free products resolve with or without Stripe — they are the one thing on
+  // the shelf that still works when the keys are missing entirely.
+  for (const id of FREE_IDS) out[id] = freePrice(id)
+
   if (!stripe) return out
 
   const explicit = []
   const byLookup = []
   for (const id of IDS) {
+    if (isFree(id)) continue
     const priceId = envPriceId(id)
     if (priceId) explicit.push({ id, priceId })
     else byLookup.push(id)

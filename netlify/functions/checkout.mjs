@@ -23,7 +23,8 @@
 // buyer is asked for a card. The webhook doesn't need metadata archaeology
 // later; it looks the order up by the intent that paid for it.
 import { randomBytes } from 'node:crypto'
-import { SHELF, clean, keyMismatch, resolvePrices, siteOrigin, stripeClient } from '../shared/catalog.mjs'
+import { SHELF, clean, isFree, keyMismatch, resolvePrices, siteOrigin, stripeClient } from '../shared/catalog.mjs'
+import { deliverOrder } from '../shared/deliver.mjs'
 import { ensureOrder } from '../shared/storage.mjs'
 
 const MAX_ITEMS = 6
@@ -165,6 +166,69 @@ export default async (req, context) => {
     return Response.json(
       { error: "That's a few attempts in quick succession — give it a little while, or write to us and we'll take it from here." },
       { status: 429 }
+    )
+  }
+
+  // -------------------------------------------------------- nothing to pay
+  // A cart holding only free products never reaches Stripe. It cannot: the
+  // smallest PaymentIntent Stripe will open is 50¢, so "charge nothing" is
+  // not a payment with a zero on it — it is the absence of one.
+  //
+  // Everything after this point is the same machinery a paid order uses. The
+  // order is written, delivered and readable by its token exactly as if money
+  // had moved; the only difference is that no card was ever asked for.
+  if (items.every(isFree)) {
+    const orderRef = reference()
+    // Keyed like any other order, but by an id that could never collide with
+    // a Stripe intent — `free_` is not a prefix Stripe issues.
+    const intentId = 'free_' + randomBytes(16).toString('hex')
+
+    const order = await ensureOrder(intentId, {
+      reference: orderRef,
+      email,
+      name,
+      handle,
+      joinCraft,
+      items,
+      lines: items.map((id) => ({ id, amount: 0, recurring: false })),
+      currency: 'usd',
+      amount: 0,
+      kind: 'free',
+    })
+
+    // Delivered here and now. There is no webhook to wait for and no payment
+    // to confirm, so the second door this shop normally keeps open would have
+    // nothing to open onto.
+    const sent = await deliverOrder({
+      order,
+      intent: null,
+      stripe: null,
+      origin: siteOrigin(req),
+      via: 'free',
+    })
+
+    console.log('checkout: free order', {
+      reference: orderRef,
+      intent: intentId,
+      items: items.join(','),
+      delivered: sent.delivered,
+      reason: sent.reason || '',
+    })
+
+    return Response.json(
+      {
+        ok: true,
+        free: true,
+        // No client secret, because there is no payment to confirm. The
+        // browser goes straight to the order page on this token.
+        clientSecret: null,
+        reference: orderRef,
+        currency: 'usd',
+        subtotal: 0,
+        dueToday: 0,
+        orderUrl: `${siteOrigin(req)}/shop/order/?token=${encodeURIComponent(order.token)}`,
+      },
+      { headers: { 'Cache-Control': 'no-store' } }
     )
   }
 

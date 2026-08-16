@@ -14,7 +14,7 @@
 //
 // The upload is a raw body rather than multipart on purpose: no parser, no
 // dependency, and a browser can send a File straight down it.
-import { IDS, SHELF, clean, keyMismatch, keyMode, resolvePrices, siteOrigin, stripeClient } from '../shared/catalog.mjs'
+import { IDS, SHELF, clean, isFree, keyMismatch, keyMode, resolvePrices, siteOrigin, stripeClient } from '../shared/catalog.mjs'
 import { deliverOrder } from '../shared/deliver.mjs'
 import { mailbox } from '../shared/mail.mjs'
 import {
@@ -55,11 +55,17 @@ function unauthorised() {
 async function wiring() {
   const secret = clean(process.env.STRIPE_SECRET_KEY)
   const stripe = stripeClient()
+  // Free products need nothing from Stripe, so counting them here would say
+  // "1 of 7 priced" about an account holding nothing at all — a number that
+  // implies Stripe did something it didn't. This panel is about the wiring,
+  // and a free product has none.
+  const needsStripe = IDS.filter((id) => !isFree(id))
   let priced = 0
   let found = null
   if (stripe) {
     try {
-      priced = Object.keys(await resolvePrices(stripe)).length
+      const resolved = await resolvePrices(stripe)
+      priced = needsStripe.filter((id) => resolved[id]).length
     } catch (err) {
       console.error('products: price check failed —', err?.message || err)
       priced = -1 // reachable difference between "none priced" and "couldn't ask"
@@ -71,7 +77,7 @@ async function wiring() {
     // resolve, go and look at what the account actually has, and show it.
     // Nothing here is secret — a price id is public by nature, and this is
     // behind the admin token regardless.
-    if (priced < IDS.length) {
+    if (priced < needsStripe.length) {
       try {
         const list = await stripe.prices.list({ active: true, limit: 30, expand: ['data.product'] })
         found = list.data.map((price) => ({
@@ -105,13 +111,15 @@ async function wiring() {
     webhookSecrets: hooks,
     mail: Boolean(mailbox()),
     priced,
-    of: IDS.length,
+    of: needsStripe.length,
     // What the account holds, when the shelf didn't fully resolve. null when
     // there was nothing to diagnose or Stripe couldn't be asked.
     found,
     // The ids the shelf is looking for, so the panel can name them exactly
-    // rather than making the reader go and find them in a README.
-    wanted: IDS,
+    // rather than making the reader go and find them in a README. Free ones
+    // are left out: there is no lookup key to set for something that costs
+    // nothing, and listing it would send someone hunting for one.
+    wanted: needsStripe,
   }
 }
 

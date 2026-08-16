@@ -592,6 +592,37 @@ link starts working; no re-issue, no code change.
   form on the site delivers to `hello@createspacebrand.com` unless an env
   var says otherwise (see the environment table above).
 
+## The free product
+
+`the Creator Audit` costs nothing, and "nothing" is not a price of zero —
+**Stripe will not open a PaymentIntent below 50¢**, so a cart holding only free
+things must never reach Stripe at all.
+
+It's marked in one place, `SHELF` in `netlify/shared/catalog.mjs`:
+
+```js
+'creator-audit': { …, free: true }
+```
+
+Everything follows from that flag:
+
+| | What happens |
+|---|---|
+| `/api/catalog` | `resolvePrices` synthesises `{ amount: 0, display: 'Free' }` without asking Stripe. There is **no sixth Stripe product to create and no lookup key to set.** |
+| `/api/checkout` | A cart where every item is free skips the Stripe guard entirely, writes the order, delivers it, and returns `{ free: true, orderUrl }` instead of a client secret. |
+| The browser | Goes straight to the order page. No card field is ever mounted. |
+| A **mixed** cart | Free + paid goes down the ordinary Stripe path; the free line simply contributes `0`. |
+| The receipt | Says `Yours — Free`, not `Total paid — $0`, and the house copy calls it *"a lead, not a sale"*. |
+| The wiring panel | **Doesn't count it.** It reads "0 of 6 priced" for an empty Stripe account, not "1 of 7" — a free product has no wiring to check. |
+
+Because it never needs Stripe, it is the one thing on the shelf that still
+works with **no Stripe keys set at all** — while a paid product in the same
+state honestly refuses. There's a test for exactly that.
+
+Its files go in the stockroom like everything else, and its order is a real
+order: a download token, a permanent link, a row in the ledger, and a
+**Send it again** button.
+
 ## Product art
 
 Every product's photography is composed square, 1600×1600, and lives in the

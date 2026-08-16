@@ -589,6 +589,41 @@ a.prod-name:hover { color: var(--sage); }
   display: grid;
   grid-template-columns: 0.9fr 1.1fr;
 }
+
+/* The free product's band. Copy first, art second — the reverse of the
+   bundle above it, so two full-width bands running down the same page don't
+   read as the same block twice. */
+.free-split {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  overflow: hidden;
+}
+.free-shot {
+  position: relative;
+  display: block;
+  border-left: 1px solid var(--hairline);
+  background-image: repeating-linear-gradient(135deg, #F7F3E8 0 11px, #FFFDF8 11px 22px);
+  min-height: 300px;
+}
+.free-shot .shot-art img { transition: transform 0.5s var(--ease-spring); }
+@media (hover: hover) {
+  .free-shot:hover .shot-art img { transform: scale(1.02); }
+}
+/* Sage rather than the sale colours — free is a different kind of offer and
+   should not look like a discount on a paid one. */
+.tag-free {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--sage-tint);
+  color: var(--sage);
+  padding: 7px 15px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
 .bundle-shot {
   position: relative;
   border-right: 1px solid var(--hairline);
@@ -1153,7 +1188,9 @@ textarea::placeholder { color: var(--faint); }
 /* ---------- Responsive ---------- */
 @media (max-width: 1080px) {
   .shop-hero, .drop-grid, .pd-grid, .checkout-grid,
-  .band-sage-split, .bundle-split { grid-template-columns: 1fr; }
+  .band-sage-split, .bundle-split, .free-split { grid-template-columns: 1fr; }
+  /* Stacked, the art belongs above the copy it illustrates. */
+  .free-shot { grid-row: 1; border-left: none; border-bottom: 1px solid var(--hairline); min-height: 240px; }
   .shop-hero { gap: 44px; }
   .drop-grid { gap: 40px; }
   .pd-grid { gap: 40px; }

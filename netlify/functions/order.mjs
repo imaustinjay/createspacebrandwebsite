@@ -178,7 +178,8 @@ async function present(record, { state, paid, nothingDueToday = false }) {
       name: shelf ? shelf.name : productId,
       tier: shelf ? shelf.tier : '',
       delivery: shelf ? shelf.delivery : '',
-      display: line ? money(line.amount, record.currency) : '',
+      // Matches the receipt: nothing is "Free", not "$0".
+      display: line ? (line.amount === 0 ? 'Free' : money(line.amount, record.currency)) : '',
       // "Coming" is a real state: the product is bought and paid for, the
       // files simply aren't uploaded yet. Saying so beats a dead button.
       ready: deliverableCount(entry) > 0,
@@ -191,6 +192,9 @@ async function present(record, { state, paid, nothingDueToday = false }) {
     state,
     paid,
     kind: record.kind || 'one-time',
+    // Free is a kind of order, not a total of zero. The page says "free"
+    // rather than "$0", which reads like a billing error even when it isn't.
+    free: record.kind === 'free',
     reference: record.reference || null,
     email: record.email || null,
     name: record.name || null,

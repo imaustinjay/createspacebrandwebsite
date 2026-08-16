@@ -50,6 +50,18 @@
       href: '/shop/products/content-system/',
       art: '01-cover',
     },
+    'creator-audit': {
+      name: 'the Creator Audit',
+      tier: 'Free · Start here',
+      delivery: 'PDF scoring sheet + your result',
+      href: '/shop/products/creator-audit/',
+      art: '01-cover',
+      // Mirrors SHELF in netlify/shared/catalog.mjs. The price still comes
+      // from /api/catalog like everything else — this only changes the words
+      // on the buttons, because "Add to cart" is the wrong thing to say
+      // about something that costs nothing.
+      free: true,
+    },
     'starter-bundle': {
       name: 'the Creator Starter Bundle',
       tier: 'The Bundle',
@@ -96,6 +108,10 @@
       /* held in memory for this page instead */
     }
     render()
+  }
+
+  function isFreeItem(id) {
+    return Boolean(CATALOG[id] && CATALOG[id].free)
   }
 
   function addToCart(id) {
@@ -724,6 +740,14 @@
         if (labels[key] !== undefined) el.textContent = labels[key]
       })
 
+      // "Continue to payment" is the wrong sentence when there is nothing to
+      // pay. Nothing else about the step changes — the terms still need
+      // agreeing to, and the next press still writes a real order.
+      var onward = checkout.querySelector('[data-step="2"] [data-goto="3"]')
+      if (onward) {
+        onward.textContent = cart.length && cart.every(isFreeItem) ? 'Get it — free' : 'Continue to payment'
+      }
+
       // The covers, in cart order. Hidden entirely when nothing in the cart
       // has art, rather than left as a row of empty squares.
       var shots = checkout.querySelector('[data-review-shots]')
@@ -889,6 +913,14 @@
       })
         .then(function (res) {
           return res.json().catch(function () { return {} }).then(function (data) {
+            // Nothing to pay: the server has already written the order and
+            // sent it. There is no card field to mount and no confirmation to
+            // wait for, so go straight to the downloads.
+            if (res.ok && data.free && data.orderUrl) {
+              writeCart([])
+              window.location.href = data.orderUrl
+              return
+            }
             if (!res.ok || !data.clientSecret) throw new Error(data.error || '')
             if (!window.Stripe) {
               // Stripe.js is the one thing on this page we don't serve. If a
@@ -1086,7 +1118,7 @@
               el.textContent = data.email || 'your email'
             })
             order.querySelectorAll('[data-order-total]').forEach(function (el) {
-              el.textContent = data.nothingDueToday ? 'nothing today' : data.total || DASH
+              el.textContent = data.free ? 'free' : data.nothingDueToday ? 'nothing today' : data.total || DASH
             })
 
             if (!data.paid) return showPanel('pending')
