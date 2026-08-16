@@ -11,7 +11,8 @@
 // The client secret is the capability, and it is checked: knowing an intent
 // id is not enough to read somebody's order. Stripe puts both on the return
 // URL, so the buyer has them and nobody else does.
-import { SHELF, money, stripeClient } from '../shared/catalog.mjs'
+import { SHELF, money, siteOrigin, stripeClient } from '../shared/catalog.mjs'
+import { deliverOrder } from '../shared/deliver.mjs'
 import { deliverableCount, ensureOrder, manifests, orderByToken, readableSize } from '../shared/storage.mjs'
 
 const NO_STORE = { 'Cache-Control': 'no-store' }
@@ -106,6 +107,32 @@ export default async (req) => {
     amount: typeof intent.amount === 'number' ? intent.amount : 0,
     kind: isSetup ? 'membership' : 'one-time',
   })
+
+  // The second door onto delivery.
+  //
+  // The webhook is the right way for a receipt to get sent, and normally it
+  // has already done so by the time this page loads. But a webhook is the
+  // piece most likely to be misconfigured on a launch day — wrong signing
+  // secret, wrong URL, an unsubscribed event — and when it is, the payment
+  // still succeeds and this page still works, so the only visible symptom is
+  // a buyer who quietly never receives anything.
+  //
+  // So if an order is paid and still undelivered when its owner opens it,
+  // deliver it here. `claimDelivery` makes sure only one door ever does.
+  if (state === 'paid' && !record.delivered) {
+    console.warn('order: paid but undelivered — sending from the confirmation page', {
+      reference: record.reference,
+      intent: id,
+    })
+    await deliverOrder({
+      order: record,
+      intent,
+      stripe,
+      origin: siteOrigin(req),
+      trialOnly: isSetup,
+      via: 'order-page',
+    })
+  }
 
   return Response.json(await present(record, { state, paid: state === 'paid', nothingDueToday: isSetup }), {
     headers: NO_STORE,

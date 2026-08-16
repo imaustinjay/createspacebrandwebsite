@@ -14,10 +14,9 @@
 //     mailbox that was never configured.
 //   · Deliver exactly once. Every order is keyed by its payment intent and
 //     carries a `delivered` flag, so a replayed event re-sends nothing.
-import { SHELF, clean, money, siteOrigin, stripeClient } from '../shared/catalog.mjs'
-import { mailbox, sendMail, table } from '../shared/mail.mjs'
-import { cardLine, receiptDate, receiptEmail } from '../shared/receipt.mjs'
-import { deliverableCount, ensureOrder, manifests, markDelivered, readableSize } from '../shared/storage.mjs'
+import { clean, siteOrigin, stripeClient } from '../shared/catalog.mjs'
+import { deliverOrder } from '../shared/deliver.mjs'
+import { ensureOrder } from '../shared/storage.mjs'
 
 const HANDLED = new Set([
   'payment_intent.succeeded',
@@ -133,137 +132,20 @@ export default async (req) => {
     return Response.json({ received: true, handled: false, reason: 'no-order' })
   }
 
-  const shelves = await manifests(order.items)
-  const origin = siteOrigin(req)
-  const total = money(order.amount, order.currency)
-  const trialOnly = event.type === 'setup_intent.succeeded'
-
-  // What each product actually delivers, right now. A product with nothing
-  // uploaded yet is not an error — it's a line that says "unlocks when it's
-  // ready" instead of a link that 404s.
-  const lines = order.items.map((id) => {
-    const shelf = SHELF[id] || { name: id, delivery: '' }
-    const entry = shelves[id] || { files: [], links: [] }
-    const line = (order.lines || []).find((l) => l.id === id)
-    const links = [
-      ...entry.files.map((f) => ({
-        label: f.label || f.name,
-        size: readableSize(f.size),
-        href: `${origin}/api/download?token=${encodeURIComponent(order.token)}&item=${encodeURIComponent(id)}&file=${encodeURIComponent(f.name)}`,
-      })),
-      ...entry.links.map((l, i) => ({
-        label: l.label || 'Open',
-        size: '',
-        href: `${origin}/api/download?token=${encodeURIComponent(order.token)}&item=${encodeURIComponent(id)}&link=${i}`,
-      })),
-    ]
-    return {
-      id,
-      name: shelf.name,
-      delivery: shelf.delivery,
-      display: line ? money(line.amount, order.currency) : '',
-      ready: deliverableCount(entry) > 0,
-      links,
-    }
+  const outcome = await deliverOrder({
+    order,
+    intent,
+    stripe,
+    origin: siteOrigin(req),
+    trialOnly: event.type === 'setup_intent.succeeded',
+    via: 'webhook',
   })
 
-  const anyReady = lines.some((l) => l.ready)
-  const orderUrl = `${origin}/shop/order/?token=${encodeURIComponent(order.token)}`
-
-  // What the receipt calls the payment: "Visa •••• 4242", and Stripe's own
-  // hosted receipt as a footnote for anyone who wants the processor's copy.
-  // Neither is worth failing a delivery over, so a miss here is just a miss.
-  let paidWith = null
-  let stripeReceiptUrl = ''
-  if (!trialOnly && intent.latest_charge) {
-    try {
-      const charge = await stripe.charges.retrieve(
-        typeof intent.latest_charge === 'string' ? intent.latest_charge : intent.latest_charge.id
-      )
-      paidWith = charge.payment_method_details?.card || null
-      stripeReceiptUrl = charge.receipt_url || ''
-    } catch (err) {
-      console.warn('stripe-webhook: could not read the charge for the receipt —', err?.message || err)
-    }
-  }
-
-  const box = mailbox()
-  if (!box) {
-    // The payment is real and is in the Stripe dashboard either way — but
-    // nobody hears about it and nobody gets their files, so say so loudly.
-    // Not a 5xx: no number of retries will configure SMTP.
-    console.error('stripe-webhook: PAID BUT UNDELIVERED — no mailbox configured', {
-      reference: order.reference,
-      email: order.email,
-      total,
-    })
-    await markDelivered(intent.id, { notified: false })
-    return Response.json({ received: true, handled: true, notified: false })
-  }
-
-  // ------------------------------------------------------- the house inbox
-  const rows = [
-    ['Reference', order.reference || '—'],
-    ['Name', order.name || '—'],
-    ['Email', order.email || '—'],
-    ['Handle', order.handle || '—'],
-    ['Items', lines.map((l) => `${l.name}${l.display ? ` (${l.display})` : ''}${l.ready ? '' : '  ← no files uploaded'}`).join('\n')],
-    ['Total', trialOnly ? 'Nothing today — trial' : total],
-    ['Paid with', cardLine(paidWith) || '—'],
-    ['Type', order.kind === 'membership' ? 'Membership (recurring)' : 'One-time'],
-    ['the craft', order.joinCraft ? 'Yes — add them when the doors open' : 'Not joining'],
-    ['Delivered', anyReady ? 'Files sent' : 'Nothing to send yet — upload them and re-send'],
-    ['Stripe intent', intent.id],
-  ]
-
-  const internal = await sendMail({
-    to: box.to,
-    replyTo: order.email ? (order.name ? { name: order.name, address: order.email } : order.email) : undefined,
-    subject: `Order ${order.reference || intent.id} — ${trialOnly ? 'trial started' : total}${anyReady ? '' : ' — FILES MISSING'}`,
-    text: rows.map(([k, v]) => `${k}: ${v}`).join('\n'),
-    html: table(rows, `Order ${order.reference || intent.id}`),
-  })
-
-  // ---------------------------------------------------------- the customer
-  // The house's own receipt, replacing Stripe's — see netlify/shared/receipt.mjs
-  // for why. It carries the files and the proof of purchase together, because
-  // the person hunting for one is usually the person who wanted the other an
-  // hour earlier.
-  let confirmation = { ok: true }
-  if (order.email) {
-    confirmation = await sendMail({
-      to: order.email,
-      ...receiptEmail({
-        reference: order.reference || intent.id,
-        firstName: (order.name || '').trim().split(/\s+/)[0] || 'there',
-        lines,
-        total,
-        paidAt: receiptDate(intent.created, clean(process.env.SHOP_TIMEZONE)),
-        card: paidWith,
-        orderUrl,
-        stripeReceiptUrl,
-        joinCraft: order.joinCraft,
-        trialOnly,
-        anyReady,
-        supportEmail: box.to,
-      }),
-    })
-  }
-
-  if (internal.reason === 'send-failed' || confirmation.reason === 'send-failed') {
-    // Transient: let Stripe bring it back. Nothing is marked delivered, so
+  if (outcome.retry) {
+    // Transient — let Stripe bring it back. Nothing is marked delivered, so
     // the retry sends properly rather than being swallowed as a duplicate.
-    console.error('stripe-webhook: delivery failed, asking Stripe to retry', { reference: order.reference })
     return Response.json({ error: 'Delivery failed' }, { status: 500 })
   }
 
-  await markDelivered(intent.id, { notified: true, filesSent: anyReady })
-  console.log('stripe-webhook: delivered', {
-    reference: order.reference,
-    total,
-    items: lines.length,
-    files: anyReady,
-    intent: intent.id,
-  })
-  return Response.json({ received: true, handled: true, filesSent: anyReady })
+  return Response.json({ received: true, handled: true, filesSent: Boolean(outcome.filesSent) })
 }

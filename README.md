@@ -17,6 +17,7 @@ and deploys separately; the brand context this site is built from is
   netlify/shared/         imported by the functions; never deployed as one
     catalog.mjs           the shelf, the Stripe client, and price → money
     mail.mjs              the house mailer (SMTP), shared by the webhook
+    deliver.mjs           one delivery, reachable from two doors
     receipt.mjs           the buyer's receipt — the house's own, not Stripe's
     storage.mjs           product files, their manifests, and orders (Blobs)
   netlify/functions/
@@ -453,6 +454,32 @@ wordmark — the closest thing to it that every mail client already has.
 `SHOP_TIMEZONE` (an IANA name like `America/Los_Angeles`) sets the zone the
 paid-at time is printed in. It defaults to UTC rather than guessing, because a
 receipt with the wrong hour on it is a receipt somebody queries.
+
+### Two doors onto delivery
+
+The webhook is the right way for a receipt to get sent. It is also the piece
+most likely to be misconfigured on a launch day — a wrong signing secret, an
+endpoint pointing at the wrong URL, an unsubscribed event — and when it is, the
+failure is invisible: the payment succeeds, the confirmation page works, the
+files download, and the buyer simply never receives anything.
+
+So `netlify/shared/deliver.mjs` is reachable from two places:
+
+| Door | When |
+|---|---|
+| `/api/stripe-webhook` | Normally. It wins by a second or two. |
+| `/api/order` | When a buyer opens their confirmation and the order is paid but still undelivered. |
+
+`claimDelivery` in `storage.mjs` is the lease that lets exactly one of them do
+the work — a claim rather than a lock, since Blobs has no compare-and-set. A
+genuinely simultaneous pair could in principle both win; the window is
+milliseconds and the cost is one duplicate receipt, which is a far smaller
+failure than the one this exists to prevent. The claim expires after three
+minutes so a crashed attempt can't wedge an order shut.
+
+The house inbox copy names which door delivered it, so a webhook that has
+quietly stopped working shows up as every order arriving "by order-page"
+rather than as silence.
 
 ## Digital delivery — the stockroom
 
