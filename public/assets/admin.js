@@ -55,6 +55,92 @@
     return node
   }
 
+  // "0 of 6 priced" names the symptom. This names the cause, because the two
+  // possible ones need opposite fixes: an empty account needs products made,
+  // and an account full of unlabelled prices needs lookup keys set. Telling
+  // them apart from the outside is impossible, so ask Stripe and show it.
+  function priceHelp(config) {
+    var wrap = el('div')
+    wrap.style.cssText = 'margin: 12px 0 4px; padding: 14px 16px; background: var(--dusk-tint); border-radius: 11px;'
+    var say = function (text, bold) {
+      var p = el('p', 'fine-12', text)
+      p.style.cssText = 'margin: 0 0 8px;' + (bold ? ' font-weight: 700;' : '')
+      wrap.appendChild(p)
+      return p
+    }
+
+    if (!config.found) {
+      say('Stripe couldn’t be asked what prices it holds — check the function log.')
+      return wrap
+    }
+
+    // Anything already carrying a shelf lookup key is working; what's
+    // interesting is the rest.
+    var loose = config.found.filter(function (p) { return !p.claimed })
+
+    if (!config.found.length) {
+      say('Your live Stripe account has no active prices at all.', true)
+      say(
+        'Products made in sandbox do not exist in live mode — they have to be created again here. ' +
+          'Make six products, one price each, and give each price a lookup key from this list:'
+      )
+      var ids = el('p', 'fine-12', config.wanted.join(' · '))
+      ids.style.cssText = 'margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;'
+      wrap.appendChild(ids)
+      return wrap
+    }
+
+    say(
+      loose.length + (loose.length === 1 ? ' price exists' : ' prices exist') +
+        ' in your Stripe account that this shelf can’t claim:',
+      true
+    )
+
+    var table = el('div')
+    table.style.cssText = 'display: grid; gap: 7px; margin: 10px 0 12px;'
+    loose.forEach(function (price) {
+      var row = el('div')
+      row.style.cssText = 'display: flex; gap: 10px; flex-wrap: wrap; align-items: baseline; font-size: 12px;'
+      var label = el('b', null, price.name)
+      label.style.cssText = 'font-weight: 600;'
+      row.appendChild(label)
+      if (price.amount !== null) {
+        row.appendChild(el('span', null, money(price.amount, price.currency) + (price.recurring ? ' / recurring' : '')))
+      }
+      var id = el('code', null, price.id)
+      id.style.cssText = 'font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted);'
+      row.appendChild(id)
+      row.appendChild(el('span', null, price.lookupKey ? 'lookup key: ' + price.lookupKey : 'no lookup key'))
+      table.appendChild(row)
+    })
+    wrap.appendChild(table)
+
+    say(
+      'Either set each price’s lookup key to one of ' + config.wanted.join(', ') +
+        ' — or paste the price ids into Netlify as STRIPE_PRICE_START_SMALL, STRIPE_PRICE_AESTHETIC_KIT, ' +
+        'STRIPE_PRICE_CREATOR_PLANNER, STRIPE_PRICE_CONTENT_SYSTEM, STRIPE_PRICE_STARTER_BUNDLE, ' +
+        'STRIPE_PRICE_THE_CRAFT, and redeploy.'
+    )
+    return wrap
+  }
+
+  // House money formatting, so a diagnosed price reads the way a shelf price
+  // does. Mirrors the server's, minus the currencies this panel won't meet.
+  var ZERO_DECIMAL = ['bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw', 'mga', 'pyg', 'rwf', 'ugx', 'vnd', 'vuv', 'xaf', 'xof', 'xpf']
+  function money(amount, currency) {
+    var code = String(currency || 'usd').toLowerCase()
+    var value = ZERO_DECIMAL.indexOf(code) >= 0 ? amount : amount / 100
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: code.toUpperCase(),
+        minimumFractionDigits: value % 1 === 0 ? 0 : 2,
+      }).format(value)
+    } catch (e) {
+      return value + ' ' + code.toUpperCase()
+    }
+  }
+
   // ------------------------------------------------------------- the wiring
   // Setting the shop up means pasting values into a dashboard this page can't
   // see. Rather than find out whether they took by risking a purchase, ask.
@@ -124,6 +210,8 @@
       text.appendChild(state)
       text.appendChild(name)
       text.appendChild(note)
+      // The diagnosis belongs under the row it explains, not above its label.
+      if (row[0] === 'Prices' && !row[1]) text.appendChild(priceHelp(config))
       line.appendChild(text)
       panel.appendChild(line)
     })

@@ -52,12 +52,38 @@ async function wiring() {
   const secret = clean(process.env.STRIPE_SECRET_KEY)
   const stripe = stripeClient()
   let priced = 0
+  let found = null
   if (stripe) {
     try {
       priced = Object.keys(await resolvePrices(stripe)).length
     } catch (err) {
       console.error('products: price check failed —', err?.message || err)
       priced = -1 // reachable difference between "none priced" and "couldn't ask"
+    }
+
+    // "0 of 6 priced" is a true statement and a useless one: it can't tell
+    // you whether the account is empty or whether six perfectly good prices
+    // are sitting there without lookup keys. So when the shelf doesn't fully
+    // resolve, go and look at what the account actually has, and show it.
+    // Nothing here is secret — a price id is public by nature, and this is
+    // behind the admin token regardless.
+    if (priced < IDS.length) {
+      try {
+        const list = await stripe.prices.list({ active: true, limit: 30, expand: ['data.product'] })
+        found = list.data.map((price) => ({
+          id: price.id,
+          lookupKey: price.lookup_key || null,
+          // Whether this one is already claimed by a shelf id, so the panel
+          // can show what's left over rather than what's already working.
+          claimed: Boolean(price.lookup_key && SHELF[price.lookup_key]),
+          name: (price.product && typeof price.product === 'object' && price.product.name) || 'Unnamed product',
+          amount: typeof price.unit_amount === 'number' ? price.unit_amount : null,
+          currency: price.currency,
+          recurring: Boolean(price.recurring),
+        }))
+      } catch (err) {
+        console.error('products: could not list the account’s prices —', err?.message || err)
+      }
     }
   }
   const hooks = clean(process.env.STRIPE_WEBHOOK_SECRET).split(/[\s,]+/).filter(Boolean).length
@@ -76,6 +102,12 @@ async function wiring() {
     mail: Boolean(mailbox()),
     priced,
     of: IDS.length,
+    // What the account holds, when the shelf didn't fully resolve. null when
+    // there was nothing to diagnose or Stripe couldn't be asked.
+    found,
+    // The ids the shelf is looking for, so the panel can name them exactly
+    // rather than making the reader go and find them in a README.
+    wanted: IDS,
   }
 }
 
