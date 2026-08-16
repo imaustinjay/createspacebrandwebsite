@@ -592,6 +592,51 @@ link starts working; no re-issue, no code change.
   form on the site delivers to `hello@createspacebrand.com` unless an env
   var says otherwise (see the environment table above).
 
+## Product art
+
+Every product's photography is composed square, 1600×1600, and lives in the
+repo — not in the stockroom. The stockroom is for the things people *buy*:
+token-gated, served through a function, deliberately not public. Art is the
+opposite, so it goes on the CDN with the rest of the assets.
+
+    product-art/<shelf-id>/01-cover.png     the sources — NOT published
+    product-art/<shelf-id>/02-….png         Netlify publishes `public/` only
+    public/assets/products/<shelf-id>/      what the pages actually serve
+
+**The sources are deliberately outside `public/`.** They are 7.2 MB of PNG and
+no page ever wants them; keeping them in the repo means a crop can be redone
+without asking for the files again.
+
+**Renditions**, per source — 1.17 MB for the whole set:
+
+| File | For |
+|---|---|
+| `<stem>-1200.webp` | the detail hero, on a retina screen |
+| `<stem>-600.webp` | cards, thumbs, everything else |
+| `<stem>-600.jpg` | the fallback in `<picture>`, for anything that can't read WebP |
+| `<stem>-thumb.webp` / `.jpg` | covers only — a 300px crop for the small frames |
+
+The `-thumb` cut exists because the art is a composed slide: a caption panel
+on the left, the product on the right. At the 58px of a cart line the caption
+is half the square and legible to nobody, so those frames show the product
+itself. Anything larger keeps the whole composition.
+
+**Regenerating them.** There is no ImageMagick in this repo and no build step —
+but Playwright's Chromium decodes PNG, scales on a canvas and encodes WebP and
+JPEG, so a browser is the pipeline. The script lives in the session scratchpad
+rather than the repo, because it runs once per art drop rather than per deploy.
+Re-run it after replacing anything in `product-art/`, then bump the fingerprints.
+
+**A product with no art is a supported state**, not a bug. `the craft` has none,
+and its frames keep the striped placeholder — the same "not shot yet" ground
+that sits under every image while it loads. Nothing renders as a broken picture.
+
+**Prices are baked into the covers** (`THE STARTER · $19`) and into
+`starter-bundle/02-value.png` in full. The storefront reads its prices from
+Stripe, so these are a second source of truth that cannot be edited from here:
+**re-export the art whenever a price changes in Stripe**, or the card and the
+line beneath it will disagree.
+
 ## Caching — read before changing an asset
 
 Everything under `/assets` (except fonts) is served `max-age=0,

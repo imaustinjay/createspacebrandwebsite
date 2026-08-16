@@ -27,30 +27,35 @@
       tier: 'Digital product',
       delivery: 'PDF guide + 30-day tracker',
       href: '/shop/products/start-small/',
+      art: '01-cover',
     },
     'aesthetic-kit': {
       name: 'the Aesthetic Kit',
       tier: 'Digital product · Flagship',
       delivery: 'DNG + Lightroom presets, Canva template links, PDF guide',
       href: '/shop/products/aesthetic-kit/',
+      art: '01-cover',
     },
     'creator-planner': {
       name: 'the Creator Planner 2026',
       tier: 'Digital product',
       delivery: 'Printable PDF + Notion + Google Sheets',
       href: '/shop/products/creator-planner/',
+      art: '01-cover',
     },
     'content-system': {
       name: 'the Content System',
       tier: 'Digital product',
       delivery: 'Notion workspace + PDF + Sheets calendar',
       href: '/shop/products/content-system/',
+      art: '01-cover',
     },
     'starter-bundle': {
       name: 'the Creator Starter Bundle',
       tier: 'The Bundle',
       delivery: 'All four products, delivered together',
       href: '/shop/products/starter-bundle/',
+      art: '01-all-four',
     },
     'the-craft': {
       name: 'the craft — membership',
@@ -232,6 +237,36 @@
   }
 
   // --------------------------------------------------------------- render
+  // A product's cover, small — for the cart, the review step and the
+  // confirmation. Returns null for anything with no art, so the striped square
+  // stays put rather than becoming a broken image.
+  //
+  // Alt is deliberately empty: every one of these sits directly beside the
+  // product's name in text, and a screen reader announcing the cover as well
+  // would just say the same thing twice.
+  function coverArt(id) {
+    var p = CATALOG[id]
+    if (!p || !p.art) return null
+    // The cropped cut, not the full slide. These frames are 58–76px, and at
+    // that size the slide's caption panel is half the square and legible to
+    // nobody — so the small surfaces show the product itself.
+    var base = '/assets/products/' + id + '/' + p.art + '-thumb'
+    var picture = document.createElement('picture')
+    var webp = document.createElement('source')
+    webp.type = 'image/webp'
+    webp.srcset = base + '.webp'
+    var img = document.createElement('img')
+    img.src = base + '.jpg'
+    img.alt = ''
+    img.width = 300
+    img.height = 300
+    img.loading = 'lazy'
+    img.decoding = 'async'
+    picture.appendChild(webp)
+    picture.appendChild(img)
+    return picture
+  }
+
   function lineFor(id) {
     var p = CATALOG[id]
     var row = document.createElement('div')
@@ -244,6 +279,8 @@
       '<button type="button" class="cart-remove">Remove</button>' +
       '</div>' +
       '<div class="cart-item-price"></div>'
+    var shot = coverArt(id)
+    if (shot) row.querySelector('.cart-item-shot').appendChild(shot)
     row.querySelector('.cart-item-name').textContent = p.name
     row.querySelector('.cart-item-tier').textContent = p.tier
     row.querySelector('.cart-item-price').textContent = priceLabel(id)
@@ -396,6 +433,64 @@
         if (!d.open) return
         panels.forEach(function (other) { if (other !== d) other.open = false })
       })
+    })
+  }
+
+  // --------------------------------------------------------- the gallery
+  // Three shots per product: the cover, and two looks inside it. The big
+  // frame already holds the cover from the HTML, so this only ever swaps
+  // what's in it — with no JavaScript the page still shows the cover and the
+  // thumbs are simply three more pictures of the product.
+  //
+  // The swap is a source swap rather than a re-render, so the browser reuses
+  // whatever it already decoded and a second visit to a thumb is instant.
+  var strip = document.querySelector('[data-gallery]')
+  var frame = document.querySelector('[data-gallery-frame]')
+  if (strip && frame) {
+    var buttons = Array.prototype.slice.call(strip.querySelectorAll('button[data-shot]'))
+    var big = frame.querySelector('picture')
+
+    buttons.forEach(function (button) {
+      // Pull what to show straight off the thumb's own <picture>, so the
+      // markup stays the single source of truth for every path and size.
+      var thumb = button.querySelector('picture')
+      var thumbSource = thumb && thumb.querySelector('source')
+      var thumbImg = thumb && thumb.querySelector('img')
+      if (!thumbSource || !thumbImg || !big) return
+
+      button.addEventListener('click', function () {
+        var bigSource = big.querySelector('source')
+        var bigImg = big.querySelector('img')
+        if (!bigSource || !bigImg) return
+
+        bigSource.srcset = thumbSource.srcset
+        bigImg.src = thumbImg.src
+        // The thumbs carry no alt — they are decorative repeats of what the
+        // big frame shows. Its description comes from the button's label.
+        bigImg.alt = (button.getAttribute('aria-label') || '').replace(/^Show:\s*/, '')
+        // A newly-swapped image is above the fold by definition.
+        bigImg.loading = 'eager'
+
+        buttons.forEach(function (other) {
+          other.setAttribute('aria-current', other === button ? 'true' : 'false')
+        })
+      })
+    })
+
+    // Arrow keys move along the strip, the way a set of related controls
+    // should. Home and End jump to the ends of it.
+    strip.addEventListener('keydown', function (event) {
+      var at = buttons.indexOf(document.activeElement)
+      if (at < 0) return
+      var to = -1
+      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') to = (at + 1) % buttons.length
+      else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') to = (at - 1 + buttons.length) % buttons.length
+      else if (event.key === 'Home') to = 0
+      else if (event.key === 'End') to = buttons.length - 1
+      if (to < 0) return
+      event.preventDefault()
+      buttons[to].focus()
+      buttons[to].click()
     })
   }
 
@@ -628,6 +723,21 @@
         var key = el.getAttribute('data-review')
         if (labels[key] !== undefined) el.textContent = labels[key]
       })
+
+      // The covers, in cart order. Hidden entirely when nothing in the cart
+      // has art, rather than left as a row of empty squares.
+      var shots = checkout.querySelector('[data-review-shots]')
+      if (shots) {
+        shots.innerHTML = ''
+        cart.forEach(function (id) {
+          var art = coverArt(id)
+          if (!art) return
+          var frame = document.createElement('div')
+          frame.appendChild(art)
+          shots.appendChild(frame)
+        })
+        shots.hidden = shots.children.length === 0
+      }
     }
 
     // ------------------------------------------------------ the pay panel
@@ -1005,6 +1115,15 @@
               ;(data.items || []).forEach(function (item) {
                 var row = document.createElement('div')
                 row.className = 'file-row'
+                // The cover, so the thing just bought is recognisable as the
+                // thing that was on the shelf a minute ago. The frame goes in
+                // either way — striped when there's no art — so every row sits
+                // on the same three columns.
+                var frame = document.createElement('div')
+                frame.className = 'file-shot'
+                var shot = coverArt(item.id)
+                if (shot) frame.appendChild(shot)
+                row.appendChild(frame)
                 var left = document.createElement('div')
                 var b = document.createElement('b')
                 b.textContent = item.name

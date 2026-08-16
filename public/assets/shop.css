@@ -171,10 +171,33 @@
   color: var(--muted);
 }
 .cart-item-shot {
+  position: relative;
   aspect-ratio: 1;
   border-radius: 9px;
   border: 1px solid var(--hairline);
   background-image: repeating-linear-gradient(135deg, #F7F3E8 0 6px, #FFFDF8 6px 12px);
+  overflow: hidden;
+}
+.cart-item-shot picture,
+.file-shot picture,
+.review-shots picture { display: block; width: 100%; height: 100%; }
+.cart-item-shot img,
+.file-shot img,
+.review-shots img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* The covers above the review summary — a strip, wrapping on a phone. */
+.review-shots {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 20px;
+}
+.review-shots > div {
+  width: 76px;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  border: 1px solid var(--hairline);
+  overflow: hidden;
 }
 .cart-item-name { font-size: 15.5px; font-weight: 500; line-height: 1.35; }
 .cart-item-tier {
@@ -459,9 +482,13 @@
 @media (hover: hover) {
   .prod-card:hover { transform: translateY(-2px); border-color: var(--border-strong); }
 }
+/* The art is composed square, so the frame is square. The stripes stay as the
+   ground beneath it: a product with no image yet reads as deliberately unshot
+   rather than as a broken picture, and one whose image is still loading has
+   something house-coloured underneath instead of a white hole. */
 .prod-shot {
   position: relative;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 1;
   border-bottom: 1px solid var(--hairline);
   background-image: repeating-linear-gradient(135deg, #F7F3E8 0 11px, #FFFDF8 11px 22px);
   display: flex;
@@ -469,6 +496,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 16px;
+  overflow: hidden;
 }
 .prod-shot span {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -476,6 +504,27 @@
   line-height: 1.5;
   color: var(--faint);
   text-align: left;
+}
+/* ---------- Product art ---------- */
+/* One rule for every frame that holds a picture. `object-fit: cover` is the
+   safety net rather than the plan — the renditions are already square, so it
+   only ever engages if a future image isn't. */
+.shot-art {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.shot-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* A card lifts on hover; the art moves a hair with it rather than sitting
+   still inside a moving frame. */
+.prod-shot .shot-art img { transition: transform 0.5s var(--ease-spring); }
+@media (hover: hover) {
+  .prod-card:hover .prod-shot .shot-art img { transform: scale(1.02); }
 }
 .prod-flag {
   flex: none;
@@ -541,12 +590,14 @@ a.prod-name:hover { color: var(--sage); }
   grid-template-columns: 0.9fr 1.1fr;
 }
 .bundle-shot {
+  position: relative;
   border-right: 1px solid var(--hairline);
   background-image: repeating-linear-gradient(135deg, #F7F3E8 0 11px, #FFFDF8 11px 22px);
   display: flex;
   align-items: flex-end;
   padding: 22px;
   min-height: 300px;
+  overflow: hidden;
 }
 .bundle-shot span {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -575,13 +626,15 @@ a.prod-name:hover { color: var(--sage); }
   align-items: start;
 }
 .pd-shot {
-  aspect-ratio: 4 / 3;
+  position: relative;
+  aspect-ratio: 1;
   border: 1px solid var(--hairline);
   border-radius: 18px;
   background-image: repeating-linear-gradient(135deg, #F7F3E8 0 11px, #FFFDF8 11px 22px);
   display: flex;
   align-items: flex-end;
   padding: 20px;
+  overflow: hidden;
 }
 .pd-shot span {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -589,12 +642,29 @@ a.prod-name:hover { color: var(--sage); }
   color: var(--faint);
 }
 .pd-thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
-.pd-thumbs > div {
+.pd-thumbs > div,
+.pd-thumbs > button {
+  position: relative;
   aspect-ratio: 1;
   border: 1px solid var(--hairline);
   border-radius: 12px;
   background-image: repeating-linear-gradient(135deg, #F7F3E8 0 9px, #FFFDF8 9px 18px);
+  overflow: hidden;
+  padding: 0;
+  cursor: pointer;
+  background-color: transparent;
+  transition: border-color 0.2s var(--ease-ignite), transform 0.2s var(--ease-spring);
 }
+/* Which shot the big frame is currently showing. A ring rather than a tint,
+   so it reads on art of any colour. */
+.pd-thumbs > button[aria-current="true"] {
+  border-color: var(--seal);
+  box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--seal);
+}
+@media (hover: hover) {
+  .pd-thumbs > button:hover { transform: translateY(-2px); border-color: var(--border-strong); }
+}
+.pd-thumbs > button:focus-visible { outline: 2px solid var(--seal); outline-offset: 3px; }
 .pd-name {
   font-family: 'Lora', Georgia, 'Times New Roman', serif;
   font-style: italic;
@@ -998,11 +1068,22 @@ textarea::placeholder { color: var(--faint); }
 .files-card > .shop-eyebrow { padding: 22px 28px 4px; }
 .file-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: auto 1fr auto;
   gap: 20px;
   align-items: center;
   padding: 20px 28px;
   border-top: 1px solid var(--hairline);
+}
+/* Always present, so every row keeps the same three columns whether or not
+   its product has a cover. Striped when it hasn't — the same "not shot yet"
+   state the shelf uses, rather than a hole. */
+.file-shot {
+  width: 58px;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  border: 1px solid var(--hairline);
+  background-image: repeating-linear-gradient(135deg, #F7F3E8 0 6px, #FFFDF8 6px 12px);
+  overflow: hidden;
 }
 /* A product can deliver more than one thing — a preset pack and its guide,
    a Notion link beside a PDF — so the right-hand side is a stack, not a
@@ -1110,7 +1191,11 @@ textarea::placeholder { color: var(--faint); }
 
   /* Download buttons drop under the product they belong to rather than
      fighting its name for the row. */
-  .file-row { grid-template-columns: 1fr; gap: 14px; }
+  /* The cover keeps its own column on a phone; the name and its buttons
+     stack in the second rather than squeezing beside it. */
+  .file-row { grid-template-columns: auto 1fr; gap: 14px 16px; }
+  .file-shot { width: 48px; grid-row: span 2; align-self: start; }
+  .file-actions { grid-column: 2; }
   .file-actions { justify-content: flex-start; }
   .file-soon { text-align: left; max-width: none; }
 }

@@ -21,11 +21,11 @@
   <link rel="preload" href="/assets/fonts/lora-italic-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="/assets/fonts/fonts.css?v=2" />
   <link rel="stylesheet" href="/assets/site.css?v=4" />
-  <link rel="stylesheet" href="/assets/shop.css?v=5" />
+  <link rel="stylesheet" href="/assets/shop.css?v=6" />
   <script src="/assets/reveal.js?v=2" defer></script>
   <script src="/assets/motion.js?v=2" defer></script>
   <script src="https://js.stripe.com/v3/"></script>
-  <script src="/assets/shop.js?v=3" defer></script>
+  <script src="/assets/shop.js?v=4" defer></script>
 </head>
 <body data-drop-date="2026-09-14T09:00:00-04:00">
 <a class="skip" href="#main">Skip to content</a>
@@ -135,6 +135,10 @@
       <section data-step="2" hidden>
         <h1 class="t-sec34" style="margin: 0 0 10px;">One last <span class="emph-sage">look.</span></h1>
         <p class="body-15" style="margin: 0 0 28px;">Nothing is charged until you confirm on the next step.</p>
+        <!-- The covers of what's being bought, filled in by shop.js. A list of
+             names is accurate; seeing the things themselves at the moment of
+             paying is what actually reassures. -->
+        <div class="review-shots" data-review-shots hidden></div>
         <dl class="review-card" style="margin: 0;">
           <div><dt>Deliver to</dt><dd data-review="email">&mdash;</dd></div>
           <div><dt>Name</dt><dd data-review="name">&mdash;</dd></div>
