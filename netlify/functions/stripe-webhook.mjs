@@ -15,7 +15,8 @@
 //   · Deliver exactly once. Every order is keyed by its payment intent and
 //     carries a `delivered` flag, so a replayed event re-sends nothing.
 import { SHELF, clean, money, siteOrigin, stripeClient } from '../shared/catalog.mjs'
-import { esc, mailbox, sendMail, table } from '../shared/mail.mjs'
+import { mailbox, sendMail, table } from '../shared/mail.mjs'
+import { cardLine, receiptDate, receiptEmail } from '../shared/receipt.mjs'
 import { deliverableCount, ensureOrder, manifests, markDelivered, readableSize } from '../shared/storage.mjs'
 
 const HANDLED = new Set([
@@ -169,6 +170,23 @@ export default async (req) => {
   const anyReady = lines.some((l) => l.ready)
   const orderUrl = `${origin}/shop/order/?token=${encodeURIComponent(order.token)}`
 
+  // What the receipt calls the payment: "Visa •••• 4242", and Stripe's own
+  // hosted receipt as a footnote for anyone who wants the processor's copy.
+  // Neither is worth failing a delivery over, so a miss here is just a miss.
+  let paidWith = null
+  let stripeReceiptUrl = ''
+  if (!trialOnly && intent.latest_charge) {
+    try {
+      const charge = await stripe.charges.retrieve(
+        typeof intent.latest_charge === 'string' ? intent.latest_charge : intent.latest_charge.id
+      )
+      paidWith = charge.payment_method_details?.card || null
+      stripeReceiptUrl = charge.receipt_url || ''
+    } catch (err) {
+      console.warn('stripe-webhook: could not read the charge for the receipt —', err?.message || err)
+    }
+  }
+
   const box = mailbox()
   if (!box) {
     // The payment is real and is in the Stripe dashboard either way — but
@@ -191,6 +209,7 @@ export default async (req) => {
     ['Handle', order.handle || '—'],
     ['Items', lines.map((l) => `${l.name}${l.display ? ` (${l.display})` : ''}${l.ready ? '' : '  ← no files uploaded'}`).join('\n')],
     ['Total', trialOnly ? 'Nothing today — trial' : total],
+    ['Paid with', cardLine(paidWith) || '—'],
     ['Type', order.kind === 'membership' ? 'Membership (recurring)' : 'One-time'],
     ['the craft', order.joinCraft ? 'Yes — add them when the doors open' : 'Not joining'],
     ['Delivered', anyReady ? 'Files sent' : 'Nothing to send yet — upload them and re-send'],
@@ -206,84 +225,28 @@ export default async (req) => {
   })
 
   // ---------------------------------------------------------- the customer
-  // The whole point of the automation: the files arrive with the receipt,
-  // not on a date in a calendar.
+  // The house's own receipt, replacing Stripe's — see netlify/shared/receipt.mjs
+  // for why. It carries the files and the proof of purchase together, because
+  // the person hunting for one is usually the person who wanted the other an
+  // hour earlier.
   let confirmation = { ok: true }
   if (order.email) {
-    const firstName = (order.name || '').trim().split(/\s+/)[0] || 'there'
-    const textLines = lines.map((l) =>
-      l.ready
-        ? `${l.name}\n${l.links.map((k) => `  ${k.label}${k.size ? ` (${k.size})` : ''}: ${k.href}`).join('\n')}`
-        : `${l.name}\n  Being finished — your link goes live the moment it's ready, and we'll write again.`
-    )
-
     confirmation = await sendMail({
       to: order.email,
-      subject: anyReady ? `Your downloads — ${order.reference || 'createspace'}` : `Your order — ${order.reference || 'createspace'}`,
-      text: [
-        `${firstName} — it's yours.`,
-        '',
-        textLines.join('\n\n'),
-        '',
-        trialOnly ? 'Nothing was charged today.' : `Total: ${total}`,
-        `Reference: ${order.reference || intent.id}`,
-        '',
-        `Your order lives here, permanently: ${orderUrl}`,
-        '',
-        order.joinCraft
-          ? "You asked to be let into the craft — your seat is held, and you'll be let in the week the doors open."
-          : 'The craft is there whenever you want it — no rush.',
-        '',
-        'Reply to this email and a person, not a queue, will answer.',
-        '',
-        'createspace · community + talent',
-      ].join('\n'),
-      html: `
-        <div style="font-family: Arial, sans-serif; color: #4E312C; background: #FFFFF0; padding: 32px;">
-          <p style="font-size: 11px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; color: #567363; margin: 0 0 18px;">Order ${esc(
-            order.reference || intent.id
-          )} &middot; createspacebrand.com</p>
-          <p style="font-size: 22px; margin: 0 0 8px;">${esc(firstName)} — it's yours.</p>
-          <p style="font-size: 14px; line-height: 1.7; margin: 0 0 22px; max-width: 560px; color: rgba(78,49,44,0.7);">${
-            anyReady
-              ? 'Everything you bought is below. The links are yours permanently — save this email.'
-              : "Everything you bought is below. We'll write again the moment the files are ready to download."
-          }</p>
-          ${lines
-            .map(
-              (l) => `<table style="border-collapse: collapse; background: #FFFFFF; border: 1px solid rgba(78,49,44,0.14); border-radius: 12px; width: 100%; max-width: 560px; margin: 0 0 14px;">
-            <tr><td style="padding: 16px 18px 6px;">
-              <span style="font-size: 17px;">${esc(l.name)}</span>
-              ${l.display ? `<span style="float: right; font-size: 15px; color: rgba(78,49,44,0.55);">${esc(l.display)}</span>` : ''}
-              <br /><span style="font-size: 12px; color: rgba(78,49,44,0.55);">${esc(l.delivery)}</span>
-            </td></tr>
-            <tr><td style="padding: 4px 18px 18px;">
-              ${
-                l.ready
-                  ? l.links
-                      .map(
-                        (k) => `<a href="${esc(k.href)}" style="display: inline-block; background: #567363; color: #FFFFF0; text-decoration: none; padding: 10px 18px; border-radius: 999px; font-size: 13px; margin: 6px 6px 0 0;">${esc(
-                          k.label
-                        )}${k.size ? ` &middot; ${esc(k.size)}` : ''}</a>`
-                      )
-                      .join('')
-                  : `<span style="font-size: 13px; color: rgba(78,49,44,0.55);">Being finished — your link goes live the moment it's ready, and we'll write again.</span>`
-              }
-            </td></tr>
-          </table>`
-            )
-            .join('')}
-          <p style="font-size: 15px; margin: 18px 0 0;"><strong>${
-            trialOnly ? 'Nothing was charged today.' : `Total: ${esc(total)}`
-          }</strong></p>
-          <p style="font-size: 14px; line-height: 1.7; margin: 12px 0 0; max-width: 560px;">${
-            order.joinCraft
-              ? "You asked to be let into <em>the craft</em> — your seat is held, and you'll be let in the week the doors open."
-              : '<em>the craft</em> is there whenever you want it — no rush.'
-          }</p>
-          <p style="margin: 24px 0 0;"><a href="${esc(orderUrl)}" style="display: inline-block; background: #4E312C; color: #FFFFF0; text-decoration: none; padding: 13px 24px; border-radius: 999px; font-size: 14px;">Open your order</a></p>
-          <p style="font-size: 13px; color: rgba(78,49,44,0.55); margin: 24px 0 0;">Reply to this email and a person — not a queue — will answer.</p>
-        </div>`,
+      ...receiptEmail({
+        reference: order.reference || intent.id,
+        firstName: (order.name || '').trim().split(/\s+/)[0] || 'there',
+        lines,
+        total,
+        paidAt: receiptDate(intent.created, clean(process.env.SHOP_TIMEZONE)),
+        card: paidWith,
+        orderUrl,
+        stripeReceiptUrl,
+        joinCraft: order.joinCraft,
+        trialOnly,
+        anyReady,
+        supportEmail: box.to,
+      }),
     })
   }
 

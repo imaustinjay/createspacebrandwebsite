@@ -17,6 +17,7 @@ and deploys separately; the brand context this site is built from is
   netlify/shared/         imported by the functions; never deployed as one
     catalog.mjs           the shelf, the Stripe client, and price → money
     mail.mjs              the house mailer (SMTP), shared by the webhook
+    receipt.mjs           the buyer's receipt — the house's own, not Stripe's
     storage.mjs           product files, their manifests, and orders (Blobs)
   netlify/functions/
     enquiry.mjs           brand enquiry → partnerships mailbox (SMTP)
@@ -101,6 +102,7 @@ below). Every application flow itself lives on createspacebrand.online.
 | `MAIL_USER` / `MAIL_PASSWORD` | SMTP login for the sending mailbox (falls back to `TITAN_EMAIL` / `TITAN_PASSWORD`, same convention as the workspace's `shared/mailCore.mjs`). |
 | `MAIL_SMTP_HOST` / `MAIL_SMTP_PORT` | Optional; default `smtp.titan.email` : `465`. |
 | `MAIL_FROM_NAME` | Optional visible From name; defaults to the house name. |
+| `SHOP_TIMEZONE` | Optional IANA zone (`America/Los_Angeles`) for the time printed on the receipt. Defaults to UTC — a guess would be worse than a label. |
 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` | Powers the live "open now / between seasons" status on the doors — see the next section. Without them the status simply stays hidden; unknown is never shown as closed. |
 
 Every variable must be scoped so **Functions** can read it (Netlify's "All
@@ -322,10 +324,9 @@ follows within five minutes, with no deploy.
    `STRIPE_WEBHOOK_SECRET`. **Nothing is delivered without this** — the
    webhook is what emails the files. Test and live need one endpoint each;
    `STRIPE_WEBHOOK_SECRET` holds both secrets at once, comma-separated.
-5. **Turn on Stripe's own email receipts** (Settings → Customer emails →
-   *Successful payments*). The webhook writes the house's own email — what was
-   bought, the download links, where to find them again — and leaves the tax
-   receipt to Stripe.
+5. **Turn Stripe's automatic receipt OFF** (Settings → Customer emails →
+   uncheck *Successful payments*). The house sends its own — see [The
+   receipt](#the-receipt) — and two receipts for one purchase is one too many.
 6. **Put the files in the stockroom** — see the next section. A product with
    nothing uploaded still sells; the buyer is told plainly that the file is
    being finished rather than handed a link that 404s.
@@ -427,6 +428,31 @@ after the switch.
 of Stripe. Unset everywhere it's deployed; set it and no request reaches Stripe
 at all. With a real test key, `4242 4242 4242 4242` and any future expiry buys
 something for real in test mode.
+
+## The receipt
+
+Stripe sends a perfectly serviceable receipt of its own: a navy diagonal, a
+summary table, a carbon-removal line. It is not ours, and its layout is not
+reachable from code — the dashboard exposes a logo and two colours and nothing
+else. So the house sends its own instead, and Stripe's is switched off. One
+email per purchase, in ivory, seal and sage, with the wordmark at the top.
+
+Which means it has to *be* a receipt rather than a thank-you note. It carries
+who sold it, what it cost, when it was paid, the card that paid it
+(`Visa •••• 4242`), a reference to quote, the refund terms, and a footnote
+linking to Stripe's own hosted copy for anyone who wants the processor's
+version. It also carries the download buttons — because the person hunting for
+their receipt and the person hunting for their files are usually the same
+person an hour apart.
+
+`netlify/shared/receipt.mjs` builds it. Email HTML is 1999 HTML: tables for
+layout, inline styles only, no webfont any client will reliably load. The
+palette carries the brand instead, with Georgia standing in for Lora on the
+wordmark — the closest thing to it that every mail client already has.
+
+`SHOP_TIMEZONE` (an IANA name like `America/Los_Angeles`) sets the zone the
+paid-at time is printed in. It defaults to UTC rather than guessing, because a
+receipt with the wrong hour on it is a receipt somebody queries.
 
 ## Digital delivery — the stockroom
 
