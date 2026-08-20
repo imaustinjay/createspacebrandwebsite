@@ -133,8 +133,28 @@ export default async (req, context) => {
     })
 
     if (result.ok) {
-      await clearFailures(ip)
+      // Deliberately NOT clearing the failure counter here.
+      //
+      // Getting the passphrase right is half of this door, and the half most
+      // likely to have leaked — a leaked passphrase is the entire reason the
+      // second step exists. Clearing the lockout on a correct passphrase
+      // handed exactly that attacker a reset button: guess codes until the
+      // counter climbs, re-post the passphrase, guess again, forever. The
+      // counter is only cleared once both halves are proved, below.
       return json({ ok: true, challenge: result.challenge, sentTo: result.sentTo, expiresIn: result.expiresIn })
+    }
+
+    // The passphrase was right, but this address has asked for too many codes.
+    // Said plainly, because the person who trips it is usually the owner
+    // retrying — and because a vague message here sends them to the logs.
+    if (result.reason === 'too-many-codes') {
+      return json(
+        {
+          error: 'That is several codes in a short time. Use the most recent one, or wait an hour for a new one.',
+          reason: 'too-many-codes',
+        },
+        { status: 429 }
+      )
     }
 
     // No mailbox is not a wrong passphrase — the passphrase was right, and

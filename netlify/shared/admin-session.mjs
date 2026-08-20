@@ -35,6 +35,12 @@ const CODE_ATTEMPTS = 5
 const LOCK_WINDOW_MS = 60 * 60 * 1000
 const LOCK_AFTER = 10
 
+// The in-memory fallback holds entries at least as long as the longest window
+// it has to answer for — an hour for a lockout, ten minutes for a challenge.
+// Sized to the longer of the two, because an entry that vanishes early turns
+// a lockout into a clean slate.
+const MEMORY_TTL_MS = Math.max(CODE_MS * 2, LOCK_WINDOW_MS)
+
 const memory = new Map()
 
 // Blobs, with the same in-memory fallback the rest of the shop uses: a bad
@@ -76,7 +82,73 @@ async function write(key, value) {
       return
     }
   }
-  memory.set(key, { value, exp: Date.now() + CODE_MS * 2 })
+  memory.set(key, { value, exp: Date.now() + MEMORY_TTL_MS })
+}
+
+// ------------------------------------------------- reading to write it back
+//
+// Everything that counts something here — wrong codes, failed passphrases —
+// is a read, an add, and a write back. Blobs has no atomic increment, so two
+// requests arriving together both read the old number, both add one, and both
+// write the same result: two attempts, one tick of the counter.
+//
+// That is not a rounding error on a login. It is the whole limit: fire the
+// guesses concurrently and the attempt counter never reaches its ceiling, so
+// the five-guess cap on a six-digit code becomes as many guesses as you can
+// hold open at once.
+//
+// So these two go together. `readWithTag` brings back the version it read at,
+// and `writeIfUnchanged` refuses the write if anything landed in between. The
+// caller decides what a refusal means — and for a login, a refusal always
+// means fail closed, never retry-and-hope.
+async function readWithTag(key) {
+  const s = await store()
+  if (s) {
+    try {
+      const held = await s.getWithMetadata(key, { type: 'json' })
+      return held ? { value: held.data, etag: held.etag } : { value: null, etag: null }
+    } catch (err) {
+      console.error('admin-session: tagged read failed —', err?.message || err)
+      return { value: null, etag: null }
+    }
+  }
+  const held = memory.get(key)
+  if (!held || held.exp <= Date.now()) return { value: null, etag: null }
+  return { value: held.value, etag: String(held.version || 0) }
+}
+
+// true when this write landed, false when somebody else got there first.
+async function writeIfUnchanged(key, value, etag) {
+  const s = await store()
+  if (s) {
+    try {
+      const result = etag
+        ? await s.setJSON(key, value, { onlyIfMatch: etag })
+        : await s.setJSON(key, value, { onlyIfNew: true })
+      // The client reports whether the condition held. Older shapes return
+      // nothing at all, and a silent success has to be read as success or no
+      // sign-in would ever complete.
+      return result && typeof result.modified === 'boolean' ? result.modified : true
+    } catch (err) {
+      console.error('admin-session: conditional write failed —', err?.message || err)
+      return false
+    }
+  }
+  // The memory fallback is one instance and one thread, so a version check is
+  // all the concurrency there is to lose to.
+  //
+  // "Expired" has to mean the same thing on both sides of this. readWithTag
+  // reports a lapsed entry as absent; if the write treated it as present, the
+  // two would never agree, every conditional write would be refused, and
+  // countFailure would take that for parallel abuse and lock out an address
+  // whose only crime was an hour-old entry.
+  const held = memory.get(key)
+  const absent = !held || held.exp <= Date.now()
+  if ((etag === null) !== absent) return false
+  const version = absent ? 0 : Number(held.version || 0)
+  if (!absent && String(version) !== String(etag)) return false
+  memory.set(key, { value, exp: Date.now() + MEMORY_TTL_MS, version: version + 1 })
+  return true
 }
 
 async function drop(key) {
@@ -196,16 +268,48 @@ export async function locked(ip) {
   return hits.filter((t) => now - t < LOCK_WINDOW_MS).length >= LOCK_AFTER
 }
 
+// Counted so it cannot be raced away. A handful of retries covers honest
+// contention; if every one of them loses, the failures really are arriving in
+// parallel, which is not something a person does — so it is recorded as a
+// full lockout rather than dropped.
 export async function countFailure(ip) {
-  const now = Date.now()
-  const hits = ((await read(`lock/${ip}`)) || []).filter((t) => now - t < LOCK_WINDOW_MS)
-  hits.push(now)
-  await write(`lock/${ip}`, hits)
-  return hits.length
+  const key = `lock/${ip}`
+  for (let tries = 0; tries < 4; tries++) {
+    const now = Date.now()
+    const { value, etag } = await readWithTag(key)
+    const hits = (value || []).filter((t) => now - t < LOCK_WINDOW_MS)
+    hits.push(now)
+    if (await writeIfUnchanged(key, hits, etag)) return hits.length
+  }
+  console.warn('portal: failures arriving in parallel — locking out', { ip })
+  await write(key, new Array(LOCK_AFTER).fill(Date.now()))
+  return LOCK_AFTER
 }
 
 export async function clearFailures(ip) {
   await drop(`lock/${ip}`)
+}
+
+// How many codes one address may ask for in an hour.
+//
+// Without this, a stolen passphrase buys unlimited attempts at the code: burn
+// a challenge, start again, get a fresh one. Each new challenge would also put
+// another email in the owner's inbox, so the ceiling protects the mailbox as
+// much as the door. Nobody legitimately needs a fourth code in an hour.
+const CODES_PER_WINDOW = 4
+
+async function overCodeBudget(ip) {
+  const key = `codes/${ip}`
+  for (let tries = 0; tries < 4; tries++) {
+    const now = Date.now()
+    const { value, etag } = await readWithTag(key)
+    const asked = (value || []).filter((t) => now - t < LOCK_WINDOW_MS)
+    if (asked.length >= CODES_PER_WINDOW) return true
+    asked.push(now)
+    if (await writeIfUnchanged(key, asked, etag)) return false
+  }
+  console.warn('portal: code requests arriving in parallel — refusing', { ip })
+  return true
 }
 
 // ------------------------------------------------------------ step one → two
@@ -223,6 +327,14 @@ export async function beginSignIn({ offered, ip, userAgent }) {
   // now and let the page say plainly that it is one factor deep.
   if (!state.secondFactor) {
     return { ok: false, reason: 'no-mailbox', session: mintSession() }
+  }
+
+  // Checked after the passphrase, so a stranger guessing passwords never
+  // learns anything from it, and before the code is minted, so a correct
+  // passphrase cannot be used to mint codes without end.
+  if (await overCodeBudget(ip)) {
+    console.warn('portal: code budget spent', { ip })
+    return { ok: false, reason: 'too-many-codes' }
   }
 
   const id = randomBytes(18).toString('hex')
@@ -273,7 +385,7 @@ export async function beginSignIn({ offered, ip, userAgent }) {
 // -------------------------------------------------------------- step two
 export async function finishSignIn({ challenge, code, ip }) {
   const key = `challenge/${String(challenge || '').replace(/[^a-f0-9]/gi, '')}`
-  const held = await read(key)
+  const { value: held, etag } = await readWithTag(key)
   if (!held) return { ok: false, reason: 'expired' }
   if (held.exp < Date.now()) {
     await drop(key)
@@ -290,7 +402,16 @@ export async function finishSignIn({ challenge, code, ip }) {
       await drop(key)
       return { ok: false, reason: 'burned' }
     }
-    await write(key, { ...held, attempts })
+    // The count has to land, or it is not a limit. If the challenge changed
+    // underneath us, another guess is in flight against this same code right
+    // now — which no person does, and which is exactly how you would try to
+    // race the counter into never reaching five. Burn it and make them start
+    // over, at the cost of one more email and a place in the code budget.
+    if (!(await writeIfUnchanged(key, { ...held, attempts }, etag))) {
+      console.warn('portal: concurrent guesses against one code — burning it', { ip })
+      await drop(key)
+      return { ok: false, reason: 'burned' }
+    }
     return { ok: false, reason: 'bad-code', left: CODE_ATTEMPTS - attempts }
   }
 
@@ -319,7 +440,16 @@ export function readSession(req) {
   const found = jar.split(';').map((c) => c.trim()).find((c) => c.startsWith(SESSION_COOKIE + '='))
   if (!found) return null
 
-  const raw = decodeURIComponent(found.slice(SESSION_COOKIE.length + 1))
+  // decodeURIComponent throws on a malformed escape, and a cookie is just a
+  // string somebody can put anything in — `cs_portal=%` was enough to turn
+  // every read of this into a 500. An unreadable cookie is not a session.
+  let raw
+  try {
+    raw = decodeURIComponent(found.slice(SESSION_COOKIE.length + 1))
+  } catch {
+    return null
+  }
+
   const cut = raw.lastIndexOf('.')
   if (cut < 1) return null
 
