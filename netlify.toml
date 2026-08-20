@@ -79,6 +79,31 @@
   to = "/.netlify/functions/products"
   status = 200
 
+# The site's own foot traffic. One beacon per page view, from
+# /assets/measure.js, answered with 204 and no body. Public by necessity —
+# every visitor's browser calls it — and deliberately unable to read anything
+# back out. What it writes is only ever readable through /api/insights.
+[[redirects]]
+  from = "/api/measure"
+  to = "/.netlify/functions/measure"
+  status = 200
+
+# The portal's login: a passphrase, then a six-digit code mailed to the owner,
+# then an HttpOnly session cookie. Kept apart from /api/insights so that one
+# function decides who you are and the other assumes it has been decided.
+[[redirects]]
+  from = "/api/admin-auth"
+  to = "/.netlify/functions/admin-auth"
+  status = 200
+
+# Everything /admin/ shows: the visit counters, Search Console, a live crawl
+# of our own pages, and the playbook built from all three. Behind the session
+# cookie above; 401 without it.
+[[redirects]]
+  from = "/api/insights"
+  to = "/.netlify/functions/insights"
+  status = 200
+
 # Stripe's own callback — the side of the checkout that can be trusted, and
 # therefore the side that fulfils. A rewrite (status 200) so the raw body
 # arrives byte-for-byte: the signature is computed over it, and a redirect
@@ -139,6 +164,20 @@
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
+
+# The portal. The page already carries a noindex meta tag; this says the same
+# thing in a header, which is the version a crawler sees before it parses any
+# HTML — and the version that still applies to the JSON behind it.
+#
+# Deliberately NOT disallowed in robots.txt. A disallowed URL is never fetched,
+# so the noindex is never read, and an unlinked-but-disallowed page can still
+# end up listed from an external link with no description. Letting it be
+# fetched and told not to index is the stronger of the two.
+[[headers]]
+  for = "/admin/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow, noarchive, nosnippet"
+    Cache-Control = "no-store"
 
 [[headers]]
   for = "/*"

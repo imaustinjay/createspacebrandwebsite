@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Portal | createspace</title>
+  <meta name="description" content="Site analytics and search performance. Not for visitors." />
+  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" href="/assets/fonts/raleway-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/assets/fonts/fonts.css?v=2" />
+  <link rel="stylesheet" href="/assets/site.css?v=4" />
+  <link rel="stylesheet" href="/assets/shop.css?v=7" />
+  <link rel="stylesheet" href="/assets/insights.css?v=1" />
+  <script src="/assets/insights.js?v=1" defer></script>
+</head>
+<body class="portal-body">
+<a class="skip" href="#main">Skip to content</a>
+
+<main id="main" data-portal>
+
+  <!-- ============================================================
+       The door.
+       Two steps: a passphrase that is checked against a hash, then a
+       six-digit code sent to the owner's mailbox. Nothing about the
+       session is readable from this page — the cookie is HttpOnly, so
+       no script here (or injected into here) can lift it.
+       ============================================================ -->
+  <section class="portal-gate" data-gate hidden>
+    <div class="gate-card">
+      <span class="eyebrow eyebrow-wide">createspace</span>
+      <h1 class="gate-title">Site portal</h1>
+      <p class="gate-lede" data-gate-lede>Traffic, search terms, and what to do about both.</p>
+
+      <!-- Step one -->
+      <form class="form-stack" data-step-passphrase autocomplete="off">
+        <label class="field">
+          <span>Passphrase</span>
+          <input type="password" name="passphrase" autocomplete="current-password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" required />
+        </label>
+        <button class="btn btn-primary" type="submit" data-submit>Continue</button>
+      </form>
+
+      <!-- Step two -->
+      <form class="form-stack" data-step-code hidden autocomplete="off">
+        <p class="gate-sent" data-sent></p>
+        <label class="field">
+          <span>Six-digit code</span>
+          <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required />
+        </label>
+        <button class="btn btn-primary" type="submit" data-submit>Open the portal</button>
+        <button class="btn btn-secondary" type="button" data-restart>Start again</button>
+      </form>
+
+      <p class="form-error" data-gate-error hidden></p>
+
+      <!-- Shown only when the door cannot be opened at all, with the
+           variable names that would fix it. -->
+      <div class="gate-setup" data-gate-setup hidden></div>
+
+      <p class="fine-12 gate-fine">This page is noindex, linked from nowhere, and holds nothing a visitor can see. The session lasts twelve hours and does not survive a passphrase change.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       The portal itself.
+       ============================================================ -->
+  <div class="portal" data-room hidden>
+
+    <header class="portal-bar">
+      <div class="portal-bar-in">
+        <div class="portal-id">
+          <span class="brand-word">createspace</span>
+          <span class="portal-id-sub">site portal</span>
+        </div>
+
+        <nav class="portal-tabs" aria-label="Sections">
+          <button type="button" class="portal-tab is-on" data-tab="traffic">Traffic</button>
+          <button type="button" class="portal-tab" data-tab="search">Search</button>
+          <button type="button" class="portal-tab" data-tab="suggestions">Suggestions</button>
+        </nav>
+
+        <div class="portal-tools">
+          <span class="live-dot" data-live title="Views in the last half hour"></span>
+          <label class="range-pick">
+            <span class="sr-only">Date range</span>
+            <select data-range>
+              <option value="7">7 days</option>
+              <option value="28" selected>28 days</option>
+              <option value="90">90 days</option>
+              <option value="180">180 days</option>
+            </select>
+          </label>
+          <button type="button" class="portal-ghost" data-refresh title="Re-crawl the site and re-read everything">Refresh</button>
+          <button type="button" class="portal-ghost" data-signout>Sign out</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="portal-shell">
+      <p class="portal-loading" data-loading>Reading the counters&hellip;</p>
+      <p class="form-error" data-room-error hidden></p>
+
+      <section data-panel="traffic"></section>
+      <section data-panel="search" hidden></section>
+      <section data-panel="suggestions" hidden></section>
+
+      <footer class="portal-foot">
+        <span data-stamp></span>
+        <span data-privacy>Measured first-party. No cookies, no third party, no identifier that survives the tab.</span>
+      </footer>
+    </div>
+  </div>
+</main>
+</body>
+</html>

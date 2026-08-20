@@ -22,6 +22,9 @@
   <link rel="stylesheet" href="/assets/site.css?v=4" />
   <script src="/assets/reveal.js?v=2" defer></script>
   <script src="/assets/motion.js?v=2" defer></script>
+  <!-- First-party visit counter. Path, referrer, time on page, scroll depth.
+       No cookie, no third party, nothing that survives the tab. -->
+  <script src="/assets/measure.js?v=1" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -80,7 +83,7 @@
     <div class="split" style="--cols: 0.8fr 1.2fr;">
       <div>
         <span class="eyebrow">In plain words</span>
-        <p class="body" style="margin: 16px 0 0; max-width: 40ch;">No analytics, no tracking pixels, no advertising cookies, no third-party font or script servers. The one thing you can give us here is an enquiry — and we only use it to reply.</p>
+        <p class="body" style="margin: 16px 0 0; max-width: 40ch;">No tracking pixels, no advertising cookies, no third-party analytics, no third-party font or script servers. We count how many people visit, ourselves, without a cookie and without anything that could name you. The one thing you can give us here is an enquiry — and we only use it to reply.</p>
       </div>
       <div class="rows rows-roomy">
         <div>
@@ -96,8 +99,13 @@
           <p class="body" style="line-height: 1.72; margin: 0; max-width: 62ch;">Applying to Community or Talent happens in our workspace at createspacebrand.online, which has its own careful handling — including a standing rule that no protected attributes are ever collected or scored. This site only links you there.</p>
         </div>
         <div>
+          <h3>Counting visits</h3>
+          <p class="body" style="line-height: 1.72; margin: 0; max-width: 62ch;">We do want to know whether anyone is reading, so this site counts its own visits rather than handing that job to Google or anyone else. Each page sends us five things: which page it was, which site you came from if any, how long the page was open, how far down it you scrolled, and whether it was the first page of your visit. Your browser type and the country our host resolved are added to that, and nothing else.</p>
+          <p class="body" style="line-height: 1.72; margin: 12px 0 0; max-width: 62ch;">No cookie is set, nothing is stored in your browser beyond a marker that is destroyed the moment you close the tab, and no data leaves our own servers. To count people rather than page loads we turn your IP address and browser into eleven scrambled characters, mixed with today's date — there is no table anywhere that turns it back, and tomorrow the same visitor produces a different string on purpose. We never store your IP address alongside anything else you did here.</p>
+        </div>
+        <div>
           <h3>Cookies and third parties</h3>
-          <p class="body" style="line-height: 1.72; margin: 0; max-width: 62ch;">This site sets no cookies and loads nothing from third-party servers — even the fonts are served from our own domain. Season status shown on the doors is fetched from our own workspace, and tells us nothing about you.</p>
+          <p class="body" style="line-height: 1.72; margin: 0; max-width: 62ch;">This site sets no cookies for visitors and loads nothing from third-party servers — even the fonts are served from our own domain. Season status shown on the doors is fetched from our own workspace, and tells us nothing about you. The one cookie this site can set belongs to a private staff page, and only exists after somebody signs into it.</p>
         </div>
         <div>
           <h3>Questions, or changes of mind</h3>

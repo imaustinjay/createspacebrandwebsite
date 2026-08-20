@@ -1,0 +1,385 @@
+/* ============================================================
+   The site portal — /admin/
+   Loaded by nothing else. Tokens come from site.css; nothing here
+   re-declares a brand colour, and nothing here is used by a public
+   page, so it can be denser than the rest of the house.
+   ============================================================ */
+
+.portal-body { background: var(--ivory); }
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- The door ---------- */
+
+.portal-gate {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  background: var(--dark-stage);
+}
+
+.gate-card {
+  width: 100%;
+  max-width: 30em;
+  background: var(--card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-shadow);
+  padding: clamp(28px, 5vw, 40px);
+}
+
+.gate-title {
+  font-family: 'Lora', Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(28px, 5vw, 36px);
+  margin: 14px 0 0;
+  letter-spacing: -0.01em;
+}
+
+.gate-lede { color: var(--muted); font-size: 14.5px; line-height: 1.65; margin: 10px 0 26px; }
+.gate-sent { font-size: 13.5px; color: var(--muted); margin: 0 0 4px; line-height: 1.6; }
+.gate-fine { margin: 22px 0 0; padding-top: 18px; border-top: 1px solid var(--hairline); }
+
+.gate-setup {
+  margin-top: 20px;
+  padding: 18px 20px;
+  border-radius: 12px;
+  background: var(--sage-tint);
+  font-size: 13.5px;
+  line-height: 1.75;
+}
+.gate-setup h2 { font-size: 13px; letter-spacing: 1.4px; text-transform: uppercase; margin: 0 0 10px; color: var(--sage); }
+.gate-setup ol { margin: 0; padding-left: 1.25em; }
+.gate-setup code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  background: rgba(78, 49, 44, 0.07);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+
+/* ---------- Chrome ---------- */
+
+.portal-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(255, 255, 240, 0.92);
+  backdrop-filter: saturate(140%) blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+
+.portal-bar-in {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.portal-id { display: flex; flex-direction: column; line-height: 1.1; margin-right: auto; }
+.portal-id .brand-word { font-size: 17px; }
+.portal-id-sub { font-size: 10px; letter-spacing: 2.2px; text-transform: uppercase; color: var(--faint); margin-top: 3px; }
+
+.portal-tabs { display: flex; gap: 4px; background: rgba(78, 49, 44, 0.05); padding: 4px; border-radius: 11px; }
+
+.portal-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--muted);
+  padding: 7px 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s var(--ease-settle), color 0.2s var(--ease-settle);
+}
+.portal-tab:hover { color: var(--seal); }
+.portal-tab.is-on { background: var(--card); color: var(--seal); box-shadow: 0 1px 3px rgba(78, 49, 44, 0.1); }
+
+.portal-tools { display: flex; align-items: center; gap: 8px; }
+
+.portal-ghost {
+  appearance: none;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 7px 13px;
+  cursor: pointer;
+  transition: border-color 0.2s var(--ease-settle), color 0.2s var(--ease-settle);
+}
+.portal-ghost:hover { color: var(--seal); border-color: var(--border-strong); }
+.portal-ghost[disabled] { opacity: 0.5; cursor: progress; }
+
+.range-pick select {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--seal);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+/* The live pip. Nothing in the last half hour and it simply doesn't
+   draw — a dot that is always there stops meaning anything. */
+.live-dot { display: none; align-items: center; gap: 7px; font-size: 12px; color: var(--sage); font-weight: 600; }
+.live-dot[data-on] { display: inline-flex; }
+.live-dot::before {
+  content: '';
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--sage);
+  animation: livePulse 2.4s var(--ease-settle) infinite;
+}
+@keyframes livePulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.8); } }
+@media (prefers-reduced-motion: reduce) { .live-dot::before { animation: none; } }
+
+.portal-shell { max-width: 1180px; margin: 0 auto; padding: 30px 20px clamp(56px, 8vw, 84px); }
+.portal-loading { color: var(--faint); font-size: 14px; padding: 40px 0; }
+
+.portal-foot {
+  margin-top: 44px;
+  padding-top: 18px;
+  border-top: 1px solid var(--hairline);
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+
+/* ---------- Section furniture ---------- */
+
+.p-head { margin: 0 0 16px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.p-head h2 {
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--sage);
+  margin: 0;
+}
+.p-head .p-note { font-size: 12.5px; color: var(--faint); }
+.p-block { margin-bottom: 34px; }
+
+.p-card {
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  padding: 20px 22px;
+}
+
+/* ---------- Stat tiles ---------- */
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+  gap: 12px;
+  margin-bottom: 26px;
+}
+
+.stat {
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  border-radius: 13px;
+  padding: 16px 17px 15px;
+}
+.stat-label { font-size: 10.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--faint); font-weight: 600; }
+.stat-value {
+  font-size: clamp(25px, 3.4vw, 32px);
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 9px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+.stat-value small { font-size: 0.5em; font-weight: 500; color: var(--faint); letter-spacing: 0; margin-left: 3px; }
+.stat-foot { margin-top: 7px; font-size: 12px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+.delta { font-weight: 700; font-variant-numeric: tabular-nums; }
+.delta[data-dir="up"] { color: var(--sage); }
+.delta[data-dir="down"] { color: #A85A5A; }
+.delta[data-dir="flat"], .delta[data-dir="new"] { color: var(--faint); }
+.delta-of { color: var(--faint); }
+
+/* ---------- Chart ---------- */
+
+.chart { width: 100%; height: 190px; display: block; overflow: visible; }
+.chart-area { fill: var(--sage-tint); }
+.chart-line { fill: none; stroke: var(--sage); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart-line-2 { fill: none; stroke: var(--dusk); stroke-width: 1.6; stroke-dasharray: 3 3; }
+.chart-grid { stroke: var(--hairline); stroke-width: 1; }
+.chart-tick { font-size: 10px; fill: var(--faint); }
+.chart-key { display: flex; gap: 16px; margin-top: 12px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+.chart-key i { display: inline-block; width: 11px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+
+/* ---------- Bar lists ---------- */
+
+.split { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+
+.bars { list-style: none; margin: 0; padding: 0; }
+.bars li { position: relative; padding: 8px 0; border-bottom: 1px solid var(--hairline); }
+.bars li:last-child { border-bottom: 0; }
+.bar-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; position: relative; z-index: 1; }
+.bar-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-count { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+.bar-fill {
+  position: absolute;
+  left: -6px; bottom: 4px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--sage-tint);
+}
+.bars li[data-accent="dusk"] .bar-fill { background: var(--dusk-tint); }
+
+/* ---------- Tables ---------- */
+
+.p-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+.p-table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 520px; }
+.p-table th {
+  text-align: left;
+  font-size: 10.5px;
+  letter-spacing: 1.3px;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 700;
+  padding: 0 0 9px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.p-table td { padding: 10px 0; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+.p-table tr:last-child td { border-bottom: 0; }
+/* Every column after the first buys its own gutter. Right-aligned numbers
+   sitting next to left-aligned text would otherwise touch, which is how a
+   link count and a schema list came to read as one word. */
+.p-table th + th, .p-table td + td { padding-left: 22px; }
+.p-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.p-path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+
+/* ---------- Hour strip ---------- */
+
+.hours { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; align-items: end; height: 76px; }
+.hours span { background: var(--sage-tint); border-radius: 3px 3px 1px 1px; min-height: 3px; display: block; }
+.hours-axis { display: flex; justify-content: space-between; margin-top: 7px; font-size: 10.5px; color: var(--faint); }
+
+/* ---------- Pills ---------- */
+
+.pill {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.pill[data-tone="good"]   { background: var(--sage-tint); color: var(--sage); }
+.pill[data-tone="watch"]  { background: var(--dusk-tint); color: #9E5568; }
+.pill[data-tone="bad"]    { background: rgba(168, 90, 90, 0.14); color: #A85A5A; }
+.pill[data-tone="quiet"]  { background: rgba(78, 49, 44, 0.07); color: var(--muted); }
+
+/* ---------- Empty / not-connected states ---------- */
+
+.p-empty {
+  background: var(--card);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-card);
+  padding: clamp(26px, 4vw, 36px);
+}
+.p-empty h3 { font-size: 18px; font-weight: 500; margin: 0 0 10px; }
+.p-empty p { font-size: 14px; color: var(--muted); line-height: 1.7; margin: 0 0 14px; max-width: 60ch; }
+.p-empty ol, .p-empty ul { font-size: 13.5px; line-height: 1.85; color: var(--muted); margin: 0; padding-left: 1.3em; max-width: 66ch; }
+.p-empty code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  background: rgba(78, 49, 44, 0.07);
+  padding: 1px 5px;
+  border-radius: 5px;
+  word-break: break-word;
+}
+
+/* ---------- Findings ---------- */
+
+.find { border: 1px solid var(--hairline); border-radius: 13px; background: var(--card); margin-bottom: 10px; overflow: hidden; }
+.find > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 15px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.find > summary::-webkit-details-marker { display: none; }
+.find > summary:hover { background: rgba(78, 49, 44, 0.02); }
+.find-title { font-size: 15px; font-weight: 500; flex: 1 1 16em; }
+.find-count { font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.find-body { padding: 0 18px 18px; border-top: 1px solid var(--hairline); }
+.find-why { font-size: 13.5px; line-height: 1.75; color: var(--muted); margin: 14px 0 0; max-width: 72ch; }
+.find-do { font-size: 13.5px; line-height: 1.85; margin: 12px 0 0; padding-left: 1.25em; }
+.find-where { margin: 14px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.find-where code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  background: rgba(78, 49, 44, 0.06);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+.find-evidence { margin: 12px 0 0; font-size: 12.5px; color: var(--faint); line-height: 1.8; list-style: none; padding: 0; }
+
+/* ---------- Keyword clusters ---------- */
+
+.cluster { border: 1px solid var(--hairline); border-radius: 13px; background: var(--card); padding: 20px 22px; }
+.cluster-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.cluster-name { font-size: 16px; font-weight: 500; }
+.cluster-page { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--sage); }
+.cluster-why { font-size: 13.5px; line-height: 1.7; color: var(--muted); margin: 8px 0 14px; }
+.cluster-terms { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.term {
+  font-size: 12.5px;
+  background: rgba(78, 49, 44, 0.05);
+  border-radius: 7px;
+  padding: 5px 10px;
+}
+.term[data-standing] { background: var(--sage-tint); }
+.cluster-move { font-size: 13px; line-height: 1.7; padding: 12px 14px; border-radius: 10px; background: var(--dusk-tint); }
+.cluster-move b { font-weight: 700; }
+
+/* ---------- Score dial ---------- */
+
+.score-wrap { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+.score-ring { flex: none; }
+.score-ring text { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 640px) {
+  .portal-bar-in { gap: 12px; }
+  .portal-id { margin-right: 0; width: 100%; }
+  .portal-tabs { flex: 1 1 auto; }
+  .portal-tab { flex: 1; text-align: center; padding: 8px 8px; }
+  .portal-tools { width: 100%; justify-content: space-between; }
+}

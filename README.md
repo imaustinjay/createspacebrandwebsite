@@ -20,6 +20,11 @@ and deploys separately; the brand context this site is built from is
     deliver.mjs           one delivery, reachable from two doors
     receipt.mjs           the buyer's receipt — the house's own, not Stripe's
     storage.mjs           product files, their manifests, and orders (Blobs)
+    admin-session.mjs     the portal's login — hash, mailed code, signed cookie
+    analytics.mjs         the site's own visit counters (Blobs, day-sharded)
+    searchconsole.mjs     real search terms, via a Google service account
+    seo-audit.mjs         the site crawling and grading its own pages
+    seo-playbook.mjs      findings + keyword map + the structural moves
   netlify/functions/
     enquiry.mjs           brand enquiry → partnerships mailbox (SMTP)
     seasons.mjs           live door status ← workspace casting cycles (anon RLS)
@@ -30,6 +35,9 @@ and deploys separately; the brand context this site is built from is
     stripe-webhook.mjs    POST /api/stripe-webhook — payment → files + inbox
     download.mjs          GET  /api/download — a file, to a paid download token
     products.mjs               /api/products — the stockroom (ADMIN_TOKEN)
+    measure.mjs           POST /api/measure — one visit, counted; 204, no body
+    admin-auth.mjs             /api/admin-auth — the portal's login
+    insights.mjs          GET  /api/insights — traffic + search + audit + plan
   public/                 everything served, exactly as-is — no build step
     index.html            Home
     creators/index.html   For creators (Community division)
@@ -54,10 +62,14 @@ and deploys separately; the brand context this site is built from is
     shop/checkout/        Three-step checkout — payment included (noindex)
     shop/order/           Order confirmation + downloads (noindex)
     shop/admin/           The stockroom — product files (noindex, unlinked)
+    admin/                The portal — traffic, search terms, what to fix
     assets/site.css       tokens (verbatim from reference/PUBLIC_SITE_CONTEXT.md §3) + components
     assets/shop.css       storefront components, in those same tokens
     assets/shop.js        cart, drawer, live prices, countdown, FAQ, checkout, forms
     assets/admin.js       the stockroom's upload/list/link behaviour
+    assets/insights.css   the portal's own components, in the house tokens
+    assets/insights.js    the portal — sign in, read /api/insights, draw it
+    assets/measure.js     the visit beacon, on every public page
     assets/zip.js         a ZIP writer, so a folder uploads as one download
     assets/enquiry.js     form submit → /api/enquiry → confirmation state
     assets/seasons.js     fills the door-status slots from /api/seasons
@@ -105,6 +117,13 @@ below). Every application flow itself lives on createspacebrand.online.
 | `MAIL_FROM_NAME` | Optional visible From name; defaults to the house name. |
 | `SHOP_TIMEZONE` | Optional IANA zone (`America/Los_Angeles`) for the time printed on the receipt. Defaults to UTC — a guess would be worse than a label. |
 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` | Powers the live "open now / between seasons" status on the doors — see the next section. Without them the status simply stays hidden; unknown is never shown as closed. |
+| `ADMIN_PASSWORD` | The first half of the portal's login at `/admin/`. 24 or more random characters; under 12 and the door refuses to open at all rather than open weakly. Once you are inside, the portal will hand you an `ADMIN_PASSWORD_HASH` to replace it with — see [The portal](#the-portal--admin). |
+| `ADMIN_PASSWORD_HASH` | Optional and better. `scrypt$<salt>$<hash>` — the env var stops being the secret and becomes a verifier for it. Wins over `ADMIN_PASSWORD` where both are set. |
+| `ADMIN_SESSION_SECRET` | Signs the portal's session cookie. 24+ random characters. Unset, it is derived from `ADMIN_PASSWORD` + `ADMIN_TOKEN` — which works, and means changing the passphrase signs every session out. Set it explicitly only if you want sessions to survive that. |
+| `ADMIN_EMAIL` | Where the portal's six-digit sign-in code is sent. Optional — falls back to `SHOP_EMAIL`, then `PARTNERSHIPS_EMAIL`, then the house inbox. Needs `MAIL_USER`/`MAIL_PASSWORD` set or there is no second step and the portal says so out loud. |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | The whole service-account key file, pasted in as one value. This is what makes the portal's Search tab show real keywords. Unset, that panel prints setup instructions rather than a number — see [Search Console](#search-console--the-keyword-panel). |
+| `GSC_CLIENT_EMAIL` / `GSC_PRIVATE_KEY` | The same credentials in two pieces, if pasting the whole file is awkward. Netlify stores newlines as literal `\n`, which the signer handles. |
+| `GSC_SITE_URL` | Which Search Console property to read — `sc-domain:createspacebrand.com` for a domain property, or the exact URL prefix if it was verified that way. Guessed from `URL` when unset. |
 
 Every variable must be scoped so **Functions** can read it (Netlify's "All
 scopes" default is fine). A variable scoped to Builds only is invisible at
@@ -667,6 +686,157 @@ that sits under every image while it loads. Nothing renders as a broken picture.
 Stripe, so these are a second source of truth that cannot be edited from here:
 **re-export the art whenever a price changes in Stripe**, or the card and the
 line beneath it will disagree.
+
+## The portal — `/admin/`
+
+Traffic, search terms, and what to do about both — on one page, behind a login
+only the owner can pass. Nothing links to it and it is `noindex` in both the
+page and the response header.
+
+### The login
+
+Three parts, because "one secret typed anywhere, forever" is the shape of an
+upload endpoint's guard rather than a login, and this page holds more than the
+stockroom does.
+
+1. **A passphrase**, checked against `ADMIN_PASSWORD` or — better —
+   `ADMIN_PASSWORD_HASH`, so the environment variable is a verifier rather
+   than the secret itself. Compared in constant time either way.
+2. **A six-digit code**, mailed to `ADMIN_EMAIL` through the house mailer.
+   Good for ten minutes, spendable once, five wrong tries and it dies. This
+   is the part that makes the login *verified*: knowing the passphrase is not
+   enough without holding the mailbox.
+3. **A signed session cookie** — HMAC over our own payload, `HttpOnly` so no
+   script on the page can read it, `SameSite=Strict` so it is never attached
+   to a request another site started, `Secure` everywhere but localhost.
+   Twelve hours.
+
+Ten failed attempts from one IP in an hour and that IP is locked out. The door
+is **shut, not open**, whenever it is not fully configured: an unset
+`ADMIN_PASSWORD` answers 503 with the variable's name, never a blank page that
+somebody might get past.
+
+**No mailbox is a supported state, and an honest one.** With `MAIL_USER` /
+`MAIL_PASSWORD` unset there is nowhere to send a code, so a correct passphrase
+signs you in on one factor and the page says exactly that at the top. Locking
+the owner out of their own site over an unset SMTP variable would be the worse
+failure.
+
+**Setting it up.** Put 24 random characters in `ADMIN_PASSWORD`, 24 more in
+`ADMIN_SESSION_SECRET`, redeploy, and sign in. To upgrade to a stored hash,
+`POST /api/admin-auth` with `{ "step": "hash", "passphrase": "…" }` from inside
+a signed-in session — it returns the `scrypt$…` line to paste into
+`ADMIN_PASSWORD_HASH`. That endpoint refuses without a session on purpose: an
+open hashing endpoint is an oracle for testing guesses without tripping the
+lockout.
+
+### Traffic — measured here, kept here
+
+`/assets/measure.js` is on every public page and sends two small messages per
+view to `/api/measure`: the path, the referrer, whether it began the visit,
+then how long the page was open and how far down it was scrolled. The endpoint
+answers **204 with no body, always** — a measurement endpoint that answers
+questions is one being used for something else.
+
+Why first-party rather than a tag:
+
+- **No cookie banner**, because there is no cookie and no durable identifier.
+- **Not blockable into silence** — the beacon is same-origin and looks like
+  every other request the site makes.
+- **The numbers stay ours** — no account, no sampling, no retention policy
+  written by somebody else.
+
+**People are counted without being identified.** The IP and user agent are
+hashed with the day's date down to eleven characters; there is no table that
+reverses it, and tomorrow the same visitor is a different string on purpose.
+The IP itself is never stored beside anything else about the visit. That
+answers "how many people" and refuses to answer "which people", which is the
+only version of the number worth keeping. It is written up plainly on
+[`/privacy/`](public/privacy/index.html) — **keep those two in step.**
+
+**Not counted:** anything whose user agent looks automated, any request whose
+`Origin` is not this site, `localhost`, `/admin/`, `/shop/admin/`, and any
+browser holding `cs.measure.off` in localStorage — which the portal sets on
+itself the first time you open it, so reading your numbers never inflates them.
+There is a per-IP ceiling of 200 views an hour.
+
+**Stored day-sharded in Blobs** (`day/<date>/<0-7>`). Blobs has no atomic
+increment, so two visits in the same instant would each read, add one, and
+write back — losing one. Eight shards make that eight times rarer and a read
+simply sums them. Undercounting by a hair beats holding a lock on every
+pageview, and the alternative to both is a third party.
+
+**A range is visitors-per-day added up**, not a distinct count across days —
+the salt rotates daily, so the union genuinely cannot be recovered. Every tool
+reports it that way unless it keeps a durable identifier, and keeping one is
+the thing this deliberately does not do.
+
+### Search Console — the keyword panel
+
+Impressions, clicks and average position are measurements of Google's index.
+Nothing on this side can stand in for them, so **when the connection is not
+configured the panel prints setup steps rather than a number.** A dashboard
+that guesses at its search data is worse than one that admits it has none,
+because a guess gets acted on.
+
+The connection is a Google service account with read access to the property —
+no OAuth dance, no refresh token to babysit. A signed assertion goes out, an
+access token comes back, and it is cached in the instance until it expires.
+
+1. Google Cloud Console → new project → enable the **Google Search Console
+   API**.
+2. Credentials → **Service account** (no roles — it needs none) → Keys → JSON.
+3. **Search Console → the property → Settings → Users and permissions → add
+   the service account's email.** This is the step everybody misses; without
+   it the key works and every read returns 403. The portal names that case
+   specifically when it happens.
+4. Paste the key file into `GOOGLE_SERVICE_ACCOUNT_JSON`, set `GSC_SITE_URL`,
+   redeploy.
+
+Every window ends **three days ago**, because Search Console's own data lags
+by that much and asking for yesterday returns nothing — which reads as "we
+lost all our traffic" on a chart.
+
+### Suggestions — findings, then strategy
+
+Two kinds of advice, kept visibly apart because the reader has to know which
+is which.
+
+**Findings are computed.** `seo-audit.mjs` fetches the pages `sitemap.xml`
+lists, exactly as a crawler would receive them, and grades each on title and
+description length, canonical, heading structure, word count, alt text, image
+dimensions, structured data, share tags and internal links. Duplicate titles
+and descriptions are found across pages, which no single-page check can see.
+Every finding names the pages it applies to and disappears when they are
+fixed. The crawl is cached an hour; **Refresh** re-runs it.
+
+The score is this site grading itself against those checks — 100 minus 18 per
+critical, 8 per warning, 3 per note. It is not a number from Google, and the
+page says so where it is shown.
+
+`noindex` pages are crawled to confirm they still say `noindex` and then left
+alone. A missing description on a page nobody should find is correct, not a
+fault, and flagging it would train the reader to ignore the list.
+
+**Strategy is written.** The keyword map — nine clusters grouped by the job
+the searcher is doing, each naming the page that should win it — and the
+structural moves are editorial judgement about this business, labelled as
+such. **No search volumes or difficulty scores appear anywhere**, because
+nothing here can measure one. Where Search Console is connected, terms in the
+map that already rank are marked with their live position; where it is not,
+they are simply terms.
+
+The largest item on that list is that there is nowhere on this site to answer
+a question. Every page sells something, and almost all search volume in this
+category is people asking how to do something — see the `journal` entry in
+`seo-playbook.mjs`.
+
+### Reading it locally
+
+`netlify dev` is required — the portal is four serverless functions and a
+static server serves none of them. `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET`
+in `.env` are enough to get in; Search Console and the mailer will each say
+they are not connected, which is the state they are meant to show.
 
 ## Caching — read before changing an asset
 
