@@ -84,7 +84,7 @@ export default async (req, context) => {
   // turn this into an oracle for testing guesses without the lockout.
   if (step === 'hash') {
     if (!readSession(req)) return json({ error: 'Not authorised.' }, { status: 401 })
-    const value = String(body.passphrase || '')
+    const value = String(body.passphrase || '').trim()
     if (value.length < 16) {
       return json({ error: 'Use at least 16 characters — this is the half of the door you can be phished out of.' }, { status: 400 })
     }
@@ -104,7 +104,13 @@ export default async (req, context) => {
   // ------------------------------------------------------ step one: know it
   if (step === 'passphrase') {
     const result = await beginSignIn({
-      offered: String(body.passphrase || ''),
+      // Trimmed, because a password manager pasting into the field routinely
+      // brings a trailing space with it and a phone keyboard adds one after
+      // autocomplete. Neither is something the owner typed, and a login that
+      // fails on an invisible character is a login that fails at the worst
+      // possible moment. The env var is trimmed by clean() at the other end,
+      // so this only makes the two sides agree.
+      offered: String(body.passphrase || '').trim(),
       ip,
       userAgent: req.headers.get('user-agent') || '',
     })
