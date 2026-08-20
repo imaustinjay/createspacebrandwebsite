@@ -177,6 +177,22 @@ export function visitorHash(ip, ua, date) {
   return createHash('sha256').update(`${date} ${ip} ${ua}`).digest('hex').slice(0, 11)
 }
 
+// The same idea for the beacon's rate limiter, which needs to recognise a
+// caller across requests without knowing who they are.
+//
+// It matters more here than it looks. A rate limiter keyed by raw IP writes a
+// durable record of every address that visited and when — under a key that is
+// itself the address. Nothing reads that store back, but it would exist, it
+// would never expire, and /privacy/ now tells people we do not keep their IP.
+// A promise that depends on nobody looking at the storage is not a promise.
+//
+// Deliberately not salted with the user agent, unlike visitorHash: the point
+// of the limiter is to hold one caller to a ceiling, and an agent string is
+// the easiest thing in the world to vary between requests.
+export function rateKey(ip, date) {
+  return createHash('sha256').update(`rate ${date} ${ip}`).digest('hex').slice(0, 16)
+}
+
 // ------------------------------------------------------------ writing it
 
 function blankDay(date) {

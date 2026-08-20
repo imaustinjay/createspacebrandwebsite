@@ -34,6 +34,13 @@
   // A local preview is not the internet.
   if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') return
 
+  // Neither is a Netlify deploy preview or branch build. They share the live
+  // site's storage, so without this the first numbers on the dashboard would
+  // be the owner clicking through a preview of the dashboard — and there is
+  // no way to take a counted view back out afterwards. Only the real domain
+  // is counted; *.netlify.app is a staging address, including this site's own.
+  if (/\.netlify\.app$/i.test(location.hostname)) return
+
   var SESSION = 'cs.m.session'
   var path = location.pathname
   var started = Date.now()

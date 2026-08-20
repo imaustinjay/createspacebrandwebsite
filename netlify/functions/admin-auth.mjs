@@ -45,6 +45,16 @@ export default async (req, context) => {
   const door = doorState()
 
   // ------------------------------------------------------------- who am I
+  //
+  // Readable without a session, because a login screen has to know whether
+  // there is a login to attempt. It says as little as that requires.
+  //
+  // `sentTo` and `storedAs` are held back until there is a session. The
+  // gate never displayed either — it reads only `ok` — so to a stranger they
+  // were pure disclosure: the owner's mail domain, and whether the passphrase
+  // is stored hashed. Neither is catastrophic and neither had a reason to be
+  // there. The address is still shown after step one, where it belongs and
+  // where the passphrase has already been proved.
   if (req.method === 'GET') {
     const session = readSession(req)
     return json({
@@ -52,7 +62,14 @@ export default async (req, context) => {
       signedIn: Boolean(session),
       expiresAt: session ? session.exp : null,
       door: door.ok
-        ? { ok: true, secondFactor: door.secondFactor, sentTo: door.sentTo, storedAs: door.storedAs }
+        ? {
+            ok: true,
+            // Kept public deliberately: it is the one field that answers "is
+            // this thing configured properly" from a browser bar, and it
+            // gives away nothing an attempted sign-in wouldn't.
+            secondFactor: door.secondFactor,
+            ...(session ? { sentTo: door.sentTo, storedAs: door.storedAs } : {}),
+          }
         : { ok: false, reason: door.reason, message: SHUT[door.reason] || 'This portal is not set up yet.' },
     })
   }

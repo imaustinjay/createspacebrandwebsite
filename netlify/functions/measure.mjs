@@ -17,6 +17,7 @@ import {
   channelOf,
   looksAutomated,
   readAgent,
+  rateKey,
   recordDwell,
   recordView,
   tidyHost,
@@ -62,19 +63,24 @@ const memoryHits = new Map()
 
 async function overLimit(ip) {
   const now = Date.now()
+  // Never the address itself — see rateKey. The key rotates daily, so the
+  // worst case is that somebody who was throttled just before midnight gets a
+  // fresh allowance just after it, which is a fair trade for not writing down
+  // who visited.
+  const key = rateKey(ip, today())
   try {
     const { getStore } = await import('@netlify/blobs')
     const store = getStore('measure-rate')
-    const hits = ((await store.get(ip, { type: 'json' })) || []).filter((t) => now - t < WINDOW_MS)
+    const hits = ((await store.get(key, { type: 'json' })) || []).filter((t) => now - t < WINDOW_MS)
     if (hits.length >= MAX_PER_WINDOW) return true
     hits.push(now)
-    await store.setJSON(ip, hits)
+    await store.setJSON(key, hits)
     return false
   } catch {
-    const hits = (memoryHits.get(ip) || []).filter((t) => now - t < WINDOW_MS)
+    const hits = (memoryHits.get(key) || []).filter((t) => now - t < WINDOW_MS)
     if (hits.length >= MAX_PER_WINDOW) return true
     hits.push(now)
-    memoryHits.set(ip, hits)
+    memoryHits.set(key, hits)
     return false
   }
 }
