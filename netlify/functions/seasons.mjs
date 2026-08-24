@@ -45,7 +45,7 @@ export default async (req) => {
 
   try {
     const res = await fetch(
-      `${url.replace(/\/$/, '')}/rest/v1/ws_cast_cycles?select=division,season,year,closes_at&status=eq.open`,
+      `${url.replace(/\/+$/, '').replace(/\/(rest|auth)\/v1$/i, '')}/rest/v1/ws_cast_cycles?select=division,season,year,closes_at&status=eq.open`,
       { headers: { apikey: key, authorization: `Bearer ${key}` } }
     )
     // 401/403 = the key is wrong or the anon read policy is missing;

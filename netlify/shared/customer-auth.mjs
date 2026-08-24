@@ -28,7 +28,10 @@ function config() {
   const url = clean(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL)
   const key = clean(process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY)
   if (!url || !key) return null
-  return { url: url.replace(/\/+$/, ''), key }
+  // Supabase's dashboard shows the project URL with a /rest/v1/ tail in some
+  // places, and a pasted tail turns every call into a doubled path and a 404
+  // that looks like anything but this. Strip it rather than teach it.
+  return { url: url.replace(/\/+$/, '').replace(/\/(rest|auth|storage|functions)\/v1$/i, ''), key }
 }
 
 // { ok } · { ok: false, reason: 'not-configured' } — one answer to "can

@@ -3,7 +3,7 @@
 The public website for **createspace · community + talent**, ported from the
 Claude Design handoff (`Createspace_brand_website_design.zip`), plus the
 storefront from the second handoff (`Createspace_Storefront_standalone.html`).
-Twenty-nine real routes, two stylesheets, twelve serverless functions. The workspace app
+Twenty-nine real routes, two stylesheets, thirteen serverless functions. The workspace app
 (createspacebrand.online) lives in its own repo — `createspace-workspace` —
 and deploys separately; the brand context this site is built from is
 `reference/PUBLIC_SITE_CONTEXT.md` over there.
@@ -21,6 +21,7 @@ and deploys separately; the brand context this site is built from is
     receipt.mjs           the buyer's receipt — the house's own, not Stripe's
     storage.mjs           product files, their manifests, and orders (Blobs)
     admin-session.mjs     the portal's login — hash, mailed code, signed cookie
+    invoice-mail.mjs      the brand's invoice email — the house's own
     customer-auth.mjs     the customer door — Supabase Auth, HttpOnly cookie
     analytics.mjs         the site's own visit counters (Blobs, day-sharded)
     searchconsole.mjs     real search terms, via a Google service account
@@ -41,6 +42,7 @@ and deploys separately; the brand context this site is built from is
     account-auth.mjs           /api/account-auth — create, log in, recover
     account.mjs           GET  /api/account — purchases + membership + invoices
     account-billing.mjs   POST /api/account-billing — Stripe's billing portal
+    billing.mjs                /api/billing — the billing desk (portal session)
     insights.mjs          GET  /api/insights — traffic + search + audit + plan
   public/                 everything served, exactly as-is — no build step
     index.html            Home
@@ -75,6 +77,7 @@ and deploys separately; the brand context this site is built from is
     assets/admin.js       the stockroom's upload/list/link behaviour
     assets/insights.css   the portal's own components, in the house tokens
     assets/insights.js    the portal — sign in, read /api/insights, draw it
+    assets/billing.js     the portal's Billing tab — issue, ledger, resend, void
     assets/measure.js     the visit beacon, on every public page
     assets/zip.js         a ZIP writer, so a folder uploads as one download
     assets/enquiry.js     form submit → /api/enquiry → confirmation state
@@ -693,6 +696,33 @@ rest.
 create an account and the confirmation email should arrive from Supabase.
 `{"in":false,"reason":"not-configured"}` means the Supabase variables are
 missing or not scoped to Functions.
+
+### The billing desk — invoicing a brand from /admin/
+
+The **Billing** tab of the portal issues a brand's invoice without leaving the
+site: contact name, company, email, the lines, a due date — *Issue & email the
+invoice*. No Stripe dashboard, and no account needed on the brand's side; if
+that address ever does create one, the invoice is already waiting in their
+portal's Brand billing pane.
+
+What happens on issue: the function finds or creates the Stripe customer by
+address, builds and finalizes the invoice, and then **the house emails it** —
+wordmark, ivory and seal, the same family as the shop's receipt — with
+Stripe's hosted invoice page behind the one button. Stripe's own invoice
+email stays off (Settings → Billing → Invoices → uncheck the customer
+emails), for the same reason the shop turns off Stripe's receipt: one branded
+email beats two mixed ones. The hosted page itself carries the logo and
+colours from Stripe → Settings → Branding — set those once.
+
+The payment lands in the Stripe balance with everything else the site earns,
+and pays out to the bank on the account's normal payout schedule. The ledger
+under the form shows every hand-raised invoice (subscription cycles are
+deliberately excluded — those belong to members, not brands), what is
+outstanding, and per-invoice: open, PDF, resend the email, void a mistake.
+
+If the mailbox isn't configured the invoice is still created and the desk
+says so plainly, with the hosted link ready to copy — an unsent email is
+recoverable; a swallowed invoice is not.
 
 ## The free product
 

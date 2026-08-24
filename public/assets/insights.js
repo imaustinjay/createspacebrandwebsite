@@ -248,7 +248,7 @@
   tabs.forEach(function (tab) {
     tab.addEventListener('click', function () {
       tabs.forEach(function (t) { t.classList.toggle('is-on', t === tab) })
-      ;['traffic', 'search', 'suggestions'].forEach(function (name) {
+      ;['traffic', 'search', 'suggestions', 'billing'].forEach(function (name) {
         room.querySelector('[data-panel="' + name + '"]').hidden = name !== tab.dataset.tab
       })
     })
