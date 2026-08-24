@@ -4,12 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Your account — one login for everything you buy | createspace</title>
-  <meta name="description" content="Your files, receipts, licences and membership behind one door that doesn't expire. Permanent download links, member pricing applied automatically, and first access to drops and cohort seats." />
+  <meta name="description" content="Your files, receipts, licences and membership behind one door that doesn't expire. Permanent download links, your membership, and brand billing — one login, here and in the workspace." />
   <link rel="canonical" href="https://createspacebrand.com/shop/account/" />
   <meta property="og:site_name" content="createspace · community + talent" />
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Your account — one login for everything you buy | createspace" />
-  <meta property="og:description" content="One login for everything you buy. Accounts open with the doors on August 17, 2026." />
+  <meta property="og:description" content="One login for everything you buy — your files, your membership, your invoices, and your place in the room." />
   <meta property="og:url" content="https://createspacebrand.com/shop/account/" />
   <meta property="og:image" content="https://createspacebrand.com/assets/og.png" />
   <meta property="og:image:width" content="1200" />
@@ -20,10 +20,11 @@
   <link rel="preload" href="/assets/fonts/lora-italic-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="/assets/fonts/fonts.css?v=2" />
   <link rel="stylesheet" href="/assets/site.css?v=4" />
-  <link rel="stylesheet" href="/assets/shop.css?v=7" />
+  <link rel="stylesheet" href="/assets/shop.css?v=8" />
   <script src="/assets/reveal.js?v=2" defer></script>
   <script src="/assets/motion.js?v=2" defer></script>
   <script src="/assets/shop.js?v=5" defer></script>
+  <script src="/assets/account.js?v=1" defer></script>
   <!-- First-party visit counter. Path, referrer, time on page, scroll depth.
        No cookie, no third party, nothing that survives the tab. -->
   <script src="/assets/measure.js?v=1" defer></script>
@@ -95,13 +96,14 @@
       <ul class="dot-list dot-list-lg settle-late" style="list-style: none; margin: 30px 0 0; padding: 0; gap: 15px;">
         <li>Permanent download links for every product you own</li>
         <li>Receipts and licences in one place, ready for your accountant</li>
-        <li>Member pricing applied automatically at checkout</li>
-        <li>First access to drops, cohort seats and workshop dates</li>
+        <li>Your <em class="emph">craft</em> membership — plan, card and renewal, managed in one place</li>
+        <li>Your Collection Program seat, and the door to the workspace portal</li>
+        <li>For brands: your invoices from the agency, payable online</li>
       </ul>
     </div>
 
     <div class="form-card">
-      <form data-form="account" data-done="account-done" data-mode="create" novalidate>
+      <form data-account="auth" data-mode="create" novalidate>
         <label class="hp" aria-hidden="true">Leave this field empty <input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
         <div class="tabs" role="tablist">
           <button type="button" role="tab" data-mode="create" aria-selected="true">Create account</button>
@@ -111,6 +113,14 @@
           <label class="field" data-create-only>
             <span>Full name</span>
             <input type="text" name="name" placeholder="Your name" autocomplete="name" data-msg="Add your name." />
+          </label>
+          <label class="check" data-create-only>
+            <input type="checkbox" name="brand" />
+            <span><b>I'm here as a brand</b>Working with the agency — your invoices and payments will live behind this login.</span>
+          </label>
+          <label class="field" data-brand-only hidden>
+            <span>Brand or company</span>
+            <input type="text" name="company" placeholder="The name on the invoice" autocomplete="organization" disabled data-msg="Add the brand or company name." />
           </label>
           <label class="field">
             <span>Email</span>
@@ -126,14 +136,35 @@
           </label>
           <p class="form-error" data-error hidden></p>
           <button class="btn btn-primary btn-lg" type="submit" data-cta>Create my account</button>
-          <p class="fine-12" style="text-align: center; margin: 0;">Your password is checked in this browser and never sent — accounts themselves open with the doors on August 17.</p>
+          <p class="fine-12" style="text-align: center; margin: 0;" data-login-only hidden><a href="#" data-forgot>Forgotten your password?</a></p>
+          <p class="fine-12" style="text-align: center; margin: 0;" data-create-only>One login for the shop and the workspace. Sent once, encrypted, straight to the account service — never stored here.</p>
         </div>
       </form>
-      <div class="done-panel" id="account-done" hidden>
-        <p class="done-mark">Reserved</p>
-        <p class="done-title">Almost in.</p>
-        <p class="body-15" style="margin: 0 0 22px;">We've noted <span data-fill="email"></span>. Accounts open on August 17 with the rest of the shop, and your confirmation link arrives the day they do — nothing else to do.</p>
+
+      <!-- The way back in — shown when a recovery link lands here. -->
+      <form data-account="reset" hidden novalidate>
+        <div class="form-stack">
+          <p class="done-mark">Reset your password</p>
+          <label class="field">
+            <span>New password</span>
+            <input type="password" name="password" placeholder="At least 10 characters" autocomplete="new-password" data-min="10" data-msg="Passwords need at least 10 characters." />
+          </label>
+          <p class="form-error" data-error hidden></p>
+          <button class="btn btn-primary btn-lg" type="submit">Set the new password</button>
+        </div>
+      </form>
+
+      <div class="done-panel" id="account-confirm" hidden>
+        <p class="done-mark">One more step</p>
+        <p class="done-title">Prove the address.</p>
+        <p class="body-15" style="margin: 0 0 22px;">A confirmation link is on its way to <span data-fill="email"></span>. Click it and your account opens — your purchases and downloads hang off that address, so it has to be really yours.</p>
         <a class="btn btn-secondary" href="/shop/">Back to the shop</a>
+      </div>
+      <div class="done-panel" id="account-sent" hidden>
+        <p class="done-mark">Sent</p>
+        <p class="done-title">Check your inbox.</p>
+        <p class="body-15" style="margin: 0 0 22px;" data-sent-note>If that address has an account, a reset link is on its way to it.</p>
+        <a class="btn btn-secondary" href="/shop/account/">Back to log in</a>
       </div>
     </div>
   </div>
