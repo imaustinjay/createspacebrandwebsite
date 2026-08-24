@@ -25,9 +25,9 @@
   status = 200
 
 # The shop desk — contact, careers and workshop alerts, internship
-# applications, the Fall Drop first-look list, account reservations, and the
-# Collection Program's notify list when the workspace can't take it. One
-# handler, one destination mailbox.
+# applications, the Fall Drop first-look list, and the Collection Program's
+# notify list when the workspace can't take it. One handler, one destination
+# mailbox.
 [[redirects]]
   from = "/api/shop"
   to = "/.netlify/functions/shop"
@@ -86,6 +86,30 @@
 [[redirects]]
   from = "/api/measure"
   to = "/.netlify/functions/measure"
+  status = 200
+
+# The customer door — create an account, log in, recover a password. Identity
+# lives in Supabase Auth on the same project as the workspace, so it is one
+# login for both; the session comes back in an HttpOnly cookie.
+[[redirects]]
+  from = "/api/account-auth"
+  to = "/.netlify/functions/account-auth"
+  status = 200
+
+# Everything /account/ shows — purchases with their permanent download links,
+# the craft membership, and any invoices raised to the signed-in address.
+# Behind the account cookie; 401 without it, and nothing before the address
+# is confirmed.
+[[redirects]]
+  from = "/api/account"
+  to = "/.netlify/functions/account"
+  status = 200
+
+# "Manage billing" — opens a Stripe billing portal session for the signed-in
+# customer. Card, invoices, cancellation all happen on Stripe's hosted page.
+[[redirects]]
+  from = "/api/account-billing"
+  to = "/.netlify/functions/account-billing"
   status = 200
 
 # The portal's login: a passphrase, then a six-digit code mailed to the owner,
@@ -175,6 +199,14 @@
 # fetched and told not to index is the stronger of the two.
 [[headers]]
   for = "/admin/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow, noarchive, nosnippet"
+    Cache-Control = "no-store"
+
+# The customer portal — a signed-in page with nothing in it for a crawler,
+# and nothing in it that should outlive the visit in a shared cache.
+[[headers]]
+  for = "/account/*"
   [headers.values]
     X-Robots-Tag = "noindex, nofollow, noarchive, nosnippet"
     Cache-Control = "no-store"

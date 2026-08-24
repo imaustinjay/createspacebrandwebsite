@@ -3,7 +3,7 @@
 The public website for **createspace · community + talent**, ported from the
 Claude Design handoff (`Createspace_brand_website_design.zip`), plus the
 storefront from the second handoff (`Createspace_Storefront_standalone.html`).
-Twenty-eight real routes, two stylesheets, nine serverless functions. The workspace app
+Twenty-nine real routes, two stylesheets, twelve serverless functions. The workspace app
 (createspacebrand.online) lives in its own repo — `createspace-workspace` —
 and deploys separately; the brand context this site is built from is
 `reference/PUBLIC_SITE_CONTEXT.md` over there.
@@ -21,6 +21,7 @@ and deploys separately; the brand context this site is built from is
     receipt.mjs           the buyer's receipt — the house's own, not Stripe's
     storage.mjs           product files, their manifests, and orders (Blobs)
     admin-session.mjs     the portal's login — hash, mailed code, signed cookie
+    customer-auth.mjs     the customer door — Supabase Auth, HttpOnly cookie
     analytics.mjs         the site's own visit counters (Blobs, day-sharded)
     searchconsole.mjs     real search terms, via a Google service account
     seo-audit.mjs         the site crawling and grading its own pages
@@ -37,6 +38,9 @@ and deploys separately; the brand context this site is built from is
     products.mjs               /api/products — the stockroom (ADMIN_TOKEN)
     measure.mjs           POST /api/measure — one visit, counted; 204, no body
     admin-auth.mjs             /api/admin-auth — the portal's login
+    account-auth.mjs           /api/account-auth — create, log in, recover
+    account.mjs           GET  /api/account — purchases + membership + invoices
+    account-billing.mjs   POST /api/account-billing — Stripe's billing portal
     insights.mjs          GET  /api/insights — traffic + search + audit + plan
   public/                 everything served, exactly as-is — no build step
     index.html            Home
@@ -58,7 +62,8 @@ and deploys separately; the brand context this site is built from is
     shop/workshops/       The Workshop
     shop/services/        Done-for-you services
     shop/faq/             FAQ
-    shop/account/         Sign up / log in
+    shop/account/         Sign up / log in — real accounts (Supabase Auth)
+    account/              The customer portal — behind the login (noindex)
     shop/checkout/        Three-step checkout — payment included (noindex)
     shop/order/           Order confirmation + downloads (noindex)
     shop/admin/           The stockroom — product files (noindex, unlinked)
@@ -66,6 +71,7 @@ and deploys separately; the brand context this site is built from is
     assets/site.css       tokens (verbatim from reference/PUBLIC_SITE_CONTEXT.md §3) + components
     assets/shop.css       storefront components, in those same tokens
     assets/shop.js        cart, drawer, live prices, countdown, FAQ, checkout, forms
+    assets/account.js     the account door + the customer portal
     assets/admin.js       the stockroom's upload/list/link behaviour
     assets/insights.css   the portal's own components, in the house tokens
     assets/insights.js    the portal — sign in, read /api/insights, draw it
@@ -111,12 +117,12 @@ below). Every application flow itself lives on createspacebrand.online.
 | `STRIPE_AUTOMATIC_TAX` | Optional, `true` to turn on Stripe Tax. Off by default — it needs Stripe Tax configured on the account first, and it makes a billing address required at checkout. |
 | `STRIPE_CRAFT_TRIAL_UNTIL` | Optional ISO date for the craft's subscription trial, so "nothing is charged before August 17" is enforced rather than promised. Ignored once it's in the past. |
 | `PARTNERSHIPS_EMAIL` | Where brand enquiries land. Optional override — unset, they go to the house inbox, `hello@createspacebrand.com`. Server-side only — deliberately never printed in the client bundle, per the handoff, so it can't be scraped. |
-| `SHOP_EMAIL` | Where the storefront's forms land (contact, careers and workshop alerts, internship applications, the Fall Drop list, account reservations, and the Collection Program notify list when the workspace endpoint can't be reached). Optional override — falls back to `PARTNERSHIPS_EMAIL`, then to `hello@createspacebrand.com`. Server-side only, same as above. |
+| `SHOP_EMAIL` | Where the storefront's forms land (contact, careers and workshop alerts, internship applications, the Fall Drop list, and the Collection Program notify list when the workspace endpoint can't be reached). Optional override — falls back to `PARTNERSHIPS_EMAIL`, then to `hello@createspacebrand.com`. Server-side only, same as above. |
 | `MAIL_USER` / `MAIL_PASSWORD` | SMTP login for the sending mailbox (falls back to `TITAN_EMAIL` / `TITAN_PASSWORD`, same convention as the workspace's `shared/mailCore.mjs`). |
 | `MAIL_SMTP_HOST` / `MAIL_SMTP_PORT` | Optional; default `smtp.titan.email` : `465`. |
 | `MAIL_FROM_NAME` | Optional visible From name; defaults to the house name. |
 | `SHOP_TIMEZONE` | Optional IANA zone (`America/Los_Angeles`) for the time printed on the receipt. Defaults to UTC — a guess would be worse than a label. |
-| `SUPABASE_URL` / `SUPABASE_ANON_KEY` | Powers the live "open now / between seasons" status on the doors — see the next section. Without them the status simply stays hidden; unknown is never shown as closed. |
+| `SUPABASE_URL` / `SUPABASE_ANON_KEY` | Two jobs, one public pair: the live "open now / between seasons" status on the doors (next section), and the customer accounts — see [Accounts — the customer portal](#accounts--the-customer-portal). Without them the status stays hidden and the account door says plainly it isn't connected. |
 | `ADMIN_PASSWORD` | The first half of the portal's login at `/admin/`. 24 or more random characters; under 12 and the door refuses to open at all rather than open weakly. Once you are inside, the portal will hand you an `ADMIN_PASSWORD_HASH` to replace it with — see [The portal](#the-portal--admin). |
 | `ADMIN_PASSWORD_HASH` | Optional and better. `scrypt$<salt>$<hash>` — the env var stops being the secret and becomes a verifier for it. Wins over `ADMIN_PASSWORD` where both are set. |
 | `ADMIN_SESSION_SECRET` | Signs the portal's session cookie. 24+ random characters. Unset, it is derived from `ADMIN_PASSWORD` + `ADMIN_TOKEN` — which works, and means changing the passphrase signs every session out. Set it explicitly only if you want sessions to survive that. |
@@ -596,10 +602,9 @@ link starts working; no re-issue, no code change.
 
 ### Still to wire
 
-- **Accounts.** `/shop/account/` reserves the address for launch day rather
-  than pretending to create an account. The password is validated in the
-  browser and never leaves it — `shop.js` strips it from the payload and the
-  function has no field for it.
+- ~~**Accounts**~~ Resolved: `/shop/account/` creates real accounts and
+  `/account/` is the portal behind them — see
+  [Accounts — the customer portal](#accounts--the-customer-portal).
 - ~~**Downloads**~~ Resolved: buying a product delivers it — see
   [Digital delivery](#digital-delivery--the-stockroom). What's left is the
   files themselves. Until they're uploaded, the confirmation and the receipt
@@ -610,6 +615,84 @@ link starts working; no re-issue, no code change.
   publishes no addresses anymore. The form is the single way in, and every
   form on the site delivers to `hello@createspacebrand.com` unless an env
   var says otherwise (see the environment table above).
+
+## Accounts — the customer portal
+
+`/shop/account/` creates real accounts; `/account/` is the room behind them.
+One signed-in page holds a person's purchases (with the same permanent
+download links their receipt carries), their **craft** membership, the door to
+their Collection Program seat, and — for brands — the invoices the agency has
+raised to them, payable online.
+
+**Identity lives in Supabase Auth, on the same project the workspace uses.**
+That is the load-bearing decision: one person is one user, whether they bought
+a planner here or hold a cohort seat over there. This site keeps no user table
+of its own, so there is nothing to sync and nothing to drift — "cross-synced
+to the internal workspace" is true by construction, because both read the same
+identity. The functions speak to Supabase's auth API with the same public
+`SUPABASE_URL` / `SUPABASE_ANON_KEY` pair `/api/seasons` already uses; **no
+new environment variables**.
+
+The session is Supabase's own token pair carried in an HttpOnly,
+SameSite=Strict cookie (`cs_account`). No script can read it, the browser
+never sees an access token, and "am I signed in" is always a question to the
+server. The hourly access token is refreshed silently behind the cookie.
+
+### Setting it up (Supabase dashboard, once)
+
+1. **Email confirmation ON** — Authentication → Sign In / Up → *Confirm
+   email*. This is not optional politeness: the portal matches purchases and
+   invoices to the signed-in **address**, so the address has to be proven.
+   Signed in but unconfirmed is a real state the portal renders honestly —
+   it shows nothing but "click the link in your inbox".
+2. **Redirect allow-list** — Authentication → URL Configuration → add
+   `https://createspacebrand.com/shop/account/`. Password-recovery links
+   return there; without the entry Supabase refuses the redirect.
+3. Nothing else. Accounts use auth only — no new tables, no RLS changes, and
+   the anon key still reads exactly what row-level security lets it read.
+
+Until the Supabase variables are set the door answers the same way every
+unwired desk on this site does: "accounts aren't connected yet — nothing was
+saved."
+
+### What the portal reads
+
+| Pane | Source |
+|---|---|
+| Purchases | The shop's own order records (Blobs), filtered to **delivered** orders whose email matches the proven address. Each links to `/shop/order/?token=…` — the receipt's permanent door, files included. |
+| Membership | Stripe subscriptions on customers carrying the address — status, trial end, renewal. **Manage billing** opens Stripe's hosted billing portal (`/api/account-billing`), where the card, past invoices and cancellation live. Needs the billing portal configured once in Stripe → Settings → Billing → Customer portal. |
+| Collection | Static copy plus the live `/api/cohort-status` read, same honest-default rules as `/collection/`. The seat itself stays in the workspace — the portal is a door, not a mirror. |
+| Brand billing | Stripe invoices raised to the address (subscription cycle invoices excluded — those belong under membership). An open one links to Stripe's hosted invoice page to pay; card details never touch this site. |
+
+### Brand payments — the workflow
+
+A brand creates an account the same way a customer does, ticking **"I'm here
+as a brand"** (which asks for the company name; both land in the user's
+metadata, where the workspace can read them too). On the agency side, raising
+an invoice is plain Stripe, no code: Stripe dashboard → Customers → create (or
+find) a customer with **the brand's sign-in email** → Invoices → create and
+send. The invoice appears in their portal with a **Pay this invoice** button —
+Stripe's hosted page — and Stripe's own receipt and reconciliation do the
+rest.
+
+### The rules this door keeps
+
+- **A password crosses once, over TLS, on its way to Supabase** — never
+  logged, never stored here, never in a response.
+- **Nothing is shown to an unproven address.** Anyone can type anyone's email
+  into a signup form; only a confirmed address gets purchases, downloads or
+  invoices.
+- **The recovery form is not a directory.** "If that address has an account,
+  a reset link is on its way" — the same sentence whether or not it exists.
+- **Per-IP rate limit** (30/hour, Blobs-durable) on top of Supabase's own
+  per-address limits; honeypot on the form.
+- `/account/` is noindex and `no-store`, header and meta both, same as
+  `/admin/`.
+
+**Verify it** at `/api/account-auth`: `{"in":false}` means the door is up;
+create an account and the confirmation email should arrive from Supabase.
+`{"in":false,"reason":"not-configured"}` means the Supabase variables are
+missing or not scoped to Functions.
 
 ## The free product
 
