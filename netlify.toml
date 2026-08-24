@@ -112,6 +112,14 @@
   to = "/.netlify/functions/account-billing"
   status = 200
 
+# The billing desk — the Billing tab of /admin/. Issues a brand's invoice
+# (Stripe holds it, the house emails it, the balance banks it), reads the
+# ledger back, resends, voids. Behind the portal session cookie; 401 bare.
+[[redirects]]
+  from = "/api/billing"
+  to = "/.netlify/functions/billing"
+  status = 200
+
 # The portal's login: a passphrase, then a six-digit code mailed to the owner,
 # then an HttpOnly session cookie. Kept apart from /api/insights so that one
 # function decides who you are and the other assumes it has been decided.

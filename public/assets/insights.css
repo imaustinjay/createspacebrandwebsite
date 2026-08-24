@@ -383,3 +383,22 @@
   .portal-tab { flex: 1; text-align: center; padding: 8px 8px; }
   .portal-tools { width: 100%; justify-content: space-between; }
 }
+
+/* ------------------------------------------------------------ billing desk
+   The Billing tab: the issue form and the ledger, in the portal's own
+   shapes. Field and button primitives come from site.css/shop.css. */
+.bill-form { display: grid; gap: 16px; max-width: 640px; }
+.bill-form .portal-ghost { justify-self: start; }
+.bill-lines-label { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sage, #567363); }
+.bill-lines { display: grid; gap: 10px; }
+.bill-line { display: grid; grid-template-columns: 1fr 130px auto; gap: 10px; align-items: center; }
+.bill-drop { -webkit-appearance: none; appearance: none; background: transparent; border: none; color: var(--muted, rgba(78,49,44,0.55)); font-size: 18px; cursor: pointer; padding: 4px 8px; }
+.bill-ok { margin: 0; font-size: 14px; color: var(--sage, #567363); }
+.bill-fine { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--muted, rgba(78,49,44,0.55)); max-width: 56ch; }
+.bill-card { background: var(--card, #fff); border: 1px solid var(--hairline, rgba(78,49,44,0.12)); border-radius: 14px; padding: 16px 18px; margin-top: 12px; }
+.bill-card[data-status="void"], .bill-card[data-status="uncollectible"] { opacity: 0.55; }
+.bill-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.bill-card-head b { font-size: 15px; font-weight: 500; }
+.bill-meta { margin: 6px 0 0; font-size: 12.5px; color: var(--muted, rgba(78,49,44,0.55)); }
+.bill-actions { display: flex; gap: 8px; margin: 12px 0 0; flex-wrap: wrap; }
+.bill-actions a { text-decoration: none; }
