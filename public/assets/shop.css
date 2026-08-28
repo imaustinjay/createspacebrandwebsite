@@ -721,7 +721,10 @@ a.prod-name:hover { color: var(--sage); }
 .back-link:hover { color: var(--seal); }
 
 /* ---------- Services ---------- */
-.svc-table { display: grid; grid-template-columns: 1.1fr 1.5fr auto auto; gap: 0 30px; }
+/* Five columns now: service, what it delivers, the "from" price, turnaround,
+   and the request button. Prices here are written into the markup rather than
+   read from Stripe — see the note above .svc-price. */
+.svc-table { display: grid; grid-template-columns: 1.05fr 1.5fr auto auto auto; gap: 0 30px; }
 .svc-head {
   font-size: 10px;
   font-weight: 700;
@@ -740,6 +743,101 @@ a.prod-name:hover { color: var(--sage); }
 }
 .svc-row h3 { font-size: 19px; font-weight: 400; margin: 0; }
 .svc-row .btn { white-space: nowrap; }
+
+/* Services are quoted, not carted. Unlike the digital products — whose
+   amounts come from /api/catalog because you can buy them on the spot —
+   a service price is an opening band that a written scope replaces, and
+   nothing here is ever charged from the page. So these are plain text,
+   the same way the Collection Program's seat price is. The rule in
+   shop.js ("it never names a price") governs the cart, and the cart
+   never sees these. Source: CS-COM-CTLG-008, August 2026. */
+.svc-price {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 300;
+  color: var(--seal);
+  white-space: nowrap;
+}
+/* The column header carries the word "From" on wide screens, so the label is
+   lifted out of the layout there — but kept in the accessibility tree, because
+   "$497" announced on its own is a different claim about money than "from
+   $497". Once the table folds into a stack the headers go and the label
+   becomes visible copy again. */
+.svc-price small {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Tier 04. These carry a scope line and a list of what's included, which is
+   more than a table row holds, so they get cards instead. */
+.svc-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+.svc-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 30px 32px;
+  display: flex;
+  flex-direction: column;
+}
+.svc-card-wide { grid-column: 1 / -1; }
+.svc-card h3 { font-size: 21px; font-weight: 400; margin: 0; }
+.svc-card-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.svc-card-top .svc-price { font-size: 21px; }
+.svc-card-scope {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--sage);
+  margin: 8px 0 0;
+}
+.svc-card .btn { align-self: start; margin-top: 22px; }
+.svc-card-foot { margin-top: auto; }
+
+/* Personal Brand Architecture ships in two shapes — a project and a monthly
+   retainer — so the wide card holds a pair of priced rows. */
+.svc-shape {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px 28px;
+  align-items: baseline;
+  border-top: 1px solid var(--hairline);
+  padding: 18px 0;
+}
+.svc-shape h4 { font-size: 16px; font-weight: 500; margin: 0; }
+.svc-shape p { grid-column: 1; margin: 0; }
+.svc-shape .svc-price { grid-row: 1; grid-column: 2; font-size: 19px; }
+
+/* ---------- Add-ons & adjustments ---------- */
+.addon-table { display: grid; grid-template-columns: 1fr auto 1.4fr; gap: 0 30px; }
+.addon-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: baseline;
+  border-top: 1px solid var(--hairline);
+  padding: 16px 0;
+}
+.addon-row > :first-child { font-size: 15px; font-weight: 400; color: var(--seal); }
+.addon-adj {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--sage);
+  white-space: nowrap;
+}
+.addon-adj-down { color: var(--dusk); }
 
 /* ---------- FAQ ---------- */
 .faq { border-bottom: 1px solid var(--hairline); }
@@ -1205,6 +1303,28 @@ textarea::placeholder { color: var(--faint); }
   .svc-head { display: none; }
   .svc-row { grid-template-columns: 1fr; gap: 10px; }
   .svc-row .btn { justify-self: start; margin-top: 4px; }
+  /* Headers are gone, so the label returns as visible copy. */
+  .svc-price small {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0 0 3px;
+    overflow: visible;
+    clip-path: none;
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .svc-cards { grid-template-columns: 1fr; }
+  /* The price column eats most of a narrow card, so the description drops
+     below it rather than trickling down a two-word-wide gutter. */
+  .svc-shape p.fine-13 { grid-column: 1 / -1; }
+  .addon-table { grid-template-columns: 1fr auto; }
+  .addon-row { grid-template-columns: subgrid; row-gap: 6px; }
+  .addon-row > :last-child { grid-column: 1 / -1; }
 }
 
 @media (max-width: 900px) {
@@ -1285,6 +1405,13 @@ textarea::placeholder { color: var(--faint); }
   .prod-body { padding: 22px 22px 24px; }
   .steps > div span { display: none; }
   .steps > div[data-on] span { display: inline; }
+  .svc-card { padding: 26px 22px; }
+  /* A no-wrap band like $1,200-$2,200 sets a floor the auto column can't go
+     under, so on the smallest screens the price takes its own line instead
+     of pushing the card past the viewport. */
+  .svc-shape { grid-template-columns: 1fr; gap: 4px; }
+  .svc-shape .svc-price { grid-row: auto; grid-column: 1; }
+  .svc-shape p.fine-13 { margin-top: 6px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
