@@ -568,7 +568,8 @@
 
   // Services sends people here with what they were reading about, so the
   // topic is already chosen when the form opens.
-  var about = new URLSearchParams(window.location.search).get('about')
+  var params = new URLSearchParams(window.location.search)
+  var about = params.get('about')
   if (about) {
     var topic = document.querySelector('[data-form="contact"] [name="topic"]')
     var wanted = { service: 'A done-for-you service', craft: 'the craft membership', order: 'An order or download', workshops: 'Workshops or cohorts', partnerships: 'Partnerships' }[about]
@@ -577,6 +578,33 @@
         if (o.textContent === wanted) topic.selectedIndex = i
       })
     }
+  }
+
+  // ...and which one. "A done-for-you service" was enough to triage on when
+  // the page listed five builds; it isn't now that it lists nine things you
+  // can ask for. Only a slug from this list resolves to a name — the value
+  // ends up in an email subject, and the URL carrying it is public, so an
+  // unknown slug is ignored rather than passed along. /api/shop checks the
+  // same list again server-side; this half is convenience, that half is the
+  // guarantee.
+  var SERVICE_NAMES = {
+    'creator-intensive': 'Creator Intensive',
+    'storefront-buildout': 'Storefront Buildout',
+    'profile-rebrand': 'Profile Rebrand',
+    'content-system-setup': 'Content System Setup',
+    'visual-brand-kit': 'Visual Brand Kit',
+    'social-strategy-sprint': 'Social Strategy Sprint',
+    'organizational-systems': 'Organizational Systems',
+    'personal-brand-architecture': 'Personal Brand Architecture',
+  }
+  var serviceName = SERVICE_NAMES[params.get('service')]
+  if (serviceName) {
+    var serviceField = document.querySelector('[data-form="contact"] [name="service"]')
+    var serviceNote = document.querySelector('[data-service-note]')
+    var serviceLabel = document.querySelector('[data-service-name]')
+    if (serviceField) serviceField.value = serviceName
+    if (serviceLabel) serviceLabel.textContent = serviceName
+    if (serviceNote) serviceNote.hidden = false
   }
 
   document.querySelectorAll('form[data-form]').forEach(function (form) {

@@ -108,7 +108,7 @@
     var submit = el('button', 'btn btn-primary', 'Issue & email the invoice')
     submit.type = 'submit'
     form.appendChild(submit)
-    form.appendChild(el('p', 'bill-fine', 'The brand gets the house’s own email — wordmark, the lines, one pay button. The payment happens on Stripe’s secured page and lands in the same balance as the shop.'))
+    form.appendChild(el('p', 'bill-fine', 'The brand gets the house’s own email — wordmark, the lines, one pay button. The payment happens on Stripe’s secured page and lands in the same balance as the shop. Card, Klarna and Afterpay are offered on the invoice, so a brand can split a four-figure engagement without a separate arrangement.'))
 
     form.addEventListener('submit', function (e) {
       e.preventDefault()
@@ -202,9 +202,16 @@
       daysUntilDue: Number(value('daysUntilDue')) || 14,
       lines: lines,
     }).then(function (data) {
-      okLine.textContent = data.mailed
+      // Say whether the plan methods actually made it onto this invoice.
+      // Stripe turns them down above their own ceilings and when the account
+      // hasn't activated them, and a four-figure engagement issued card-only
+      // is worth knowing about before the brand finds out instead.
+      var plans = data.plans
+        ? ' Klarna and Afterpay are on it.'
+        : ' Card only on this one — Stripe wouldn’t take the plan methods, so check they’re active and inside their limits if the brand asked to split it.'
+      okLine.textContent = (data.mailed
         ? 'Issued and emailed — ' + data.invoice.number + ', ' + data.invoice.total + '.'
-        : 'Issued (' + data.invoice.number + ') — but the mailbox isn’t connected, so nothing was emailed. Open it below and send them the link yourself.'
+        : 'Issued (' + data.invoice.number + ') — but the mailbox isn’t connected, so nothing was emailed. Open it below and send them the link yourself.') + plans
       okLine.hidden = false
       form.reset()
       while (linesBox.firstChild) linesBox.removeChild(linesBox.firstChild)

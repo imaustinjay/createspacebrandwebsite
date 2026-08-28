@@ -33,6 +33,45 @@ const MAX_LINES = 20
 const MAX_LINE_CENTS = 5_000_000 // $50,000 a line; past that, talk to a human
 const MIN_TOTAL_CENTS = 100 // Stripe's own floor is 50¢; a dollar keeps it clean
 
+// What the brand can pay with. The shop's one-off checkout leaves this to the
+// dashboard (`automatic_payment_methods`), which is right for a $47 preset
+// pack — but the services page makes a specific promise about four-figure
+// work: "payment plans are available on services and programs through
+// third-party processors including Klarna and Afterpay". A promise a page
+// makes has to be true on the invoice, so the desk asks for them by name
+// rather than hoping the dashboard default happens to include them.
+//
+// Override with STRIPE_INVOICE_PAYMENT_METHODS (comma-separated) to add or
+// drop one without a deploy. Stripe refuses a method the account has not
+// activated, and refuses the plan methods outright above their own ceilings
+// (Afterpay's is a few thousand dollars) — so a refusal falls back to the
+// account default and still issues the invoice. An unpayable invoice would be
+// a worse outcome than a card-only one.
+const DEFAULT_INVOICE_METHODS = ['card', 'klarna', 'afterpay_clearpay']
+
+function invoiceMethods() {
+  const raw = String(process.env.STRIPE_INVOICE_PAYMENT_METHODS || '').trim()
+  if (!raw) return DEFAULT_INVOICE_METHODS
+  const picked = raw.split(',').map((m) => m.trim().toLowerCase()).filter(Boolean)
+  return picked.length ? picked : DEFAULT_INVOICE_METHODS
+}
+
+// Stripe says no to an un-activated or out-of-range payment method in a few
+// different shapes. Match narrowly: a genuine failure (a dead key, a deleted
+// customer) must still surface as one rather than be retried into silence.
+function isMethodRefusal(err) {
+  const text = String(err?.message || '').toLowerCase()
+  const code = String(err?.code || '')
+  if (code === 'payment_method_not_available' || code === 'invoice_payment_method_not_available') return true
+  if (!text) return false
+  return (
+    text.includes('payment_method_types') ||
+    text.includes('payment method type') ||
+    text.includes('klarna') ||
+    text.includes('afterpay')
+  )
+}
+
 const say = (body, status = 200) => Response.json(body, { status, headers: NO_STORE })
 
 export default async (req, context) => {
@@ -148,14 +187,28 @@ async function issue(stripe, body, req) {
 
     // The invoice first, then its items pinned to it by id — never
     // "whatever items happen to be pending", which would sweep in strays.
-    const invoice = await stripe.invoices.create({
+    const base = {
       customer: customer.id,
       collection_method: 'send_invoice',
       days_until_due: days,
       description: memo || undefined,
       pending_invoice_items_behavior: 'exclude',
       auto_advance: false,
-    })
+    }
+    let planMethods = invoiceMethods()
+    let invoice
+    try {
+      invoice = await stripe.invoices.create({
+        ...base,
+        payment_settings: { payment_method_types: planMethods },
+      })
+    } catch (err) {
+      if (!isMethodRefusal(err)) throw err
+      console.warn('billing: Stripe would not take', planMethods.join(', '), '— issuing on the account default instead:', err?.message || err)
+      planMethods = null
+      invoice = await stripe.invoices.create(base)
+    }
+
     for (const line of lines) {
       await stripe.invoiceItems.create({
         customer: customer.id,
@@ -165,15 +218,38 @@ async function issue(stripe, body, req) {
         currency: 'usd',
       })
     }
-    const final = await stripe.invoices.finalizeInvoice(invoice.id)
+
+    // The total is only known once the items are on, and the plan methods
+    // have their own ceilings — so a refusal can arrive here rather than at
+    // create. Drop back to the account default and finalize, instead of
+    // leaving a draft nobody can pay.
+    let final
+    try {
+      final = await stripe.invoices.finalizeInvoice(invoice.id)
+    } catch (err) {
+      if (!planMethods || !isMethodRefusal(err)) throw err
+      console.warn('billing: plan methods refused at finalize — retrying on the account default:', err?.message || err)
+      await stripe.invoices.update(invoice.id, { payment_settings: { payment_method_types: '' } })
+      planMethods = null
+      final = await stripe.invoices.finalizeInvoice(invoice.id)
+    }
 
     // The house's own email. Stripe's stays off; if ours cannot send, the
     // invoice still exists and the answer says so with the link in hand,
     // rather than failing the whole issue over the last step.
     const mailed = await sendBranded(final, { name, company, memo }, req)
 
-    console.log('billing: invoice issued', { number: final.number, total: final.total })
-    return say({ ok: true, invoice: present(final), mailed: mailed.ok, mailReason: mailed.ok ? null : mailed.reason })
+    const offered = final.payment_settings?.payment_method_types || null
+    console.log('billing: invoice issued', { number: final.number, total: final.total, methods: offered || 'account default' })
+    return say({
+      ok: true,
+      invoice: present(final),
+      mailed: mailed.ok,
+      mailReason: mailed.ok ? null : mailed.reason,
+      // The desk says what the brand will actually be offered, rather than
+      // what was asked for — the two differ when Stripe refuses one.
+      plans: !!(offered && offered.some((m) => m === 'klarna' || m === 'afterpay_clearpay')),
+    })
   } catch (err) {
     console.error('billing: issue failed —', err?.message || err)
     return say({ ok: false, error: 'Stripe refused that: ' + (err?.message || 'no reason given.') }, 502)

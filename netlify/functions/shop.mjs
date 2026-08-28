@@ -15,11 +15,14 @@ import nodemailer from 'nodemailer'
 // Anything not named here is dropped — a form can never widen its own payload.
 const FORMS = {
   contact: {
-    subject: (f) => `Shop contact — ${f.topic || 'Something else'}`,
+    // A service enquiry names the service in the subject — with nine of them
+    // listed, "A done-for-you service" no longer says enough to triage on.
+    subject: (f) => `Shop contact — ${f.service || f.topic || 'Something else'}`,
     fields: [
       ['name', 'Name'],
       ['email', 'Email', 'required'],
       ['topic', "What it's about"],
+      ['service', 'Which service'],
       ['message', 'Message', 'required'],
     ],
   },
@@ -73,6 +76,22 @@ const FORMS = {
 }
 
 const LIMITS = { message: 4000, goal: 2000, default: 300 }
+
+// The services /contact/ can be reached from, by the name the catalog gives
+// each one (CS-COM-CTLG-008). The link that carries it is public and editable
+// by anyone, so the value is matched against this list and dropped if it does
+// not appear — a crafted URL must not be able to write its own copy into the
+// house inbox or its subject line.
+const SERVICES = new Set([
+  'Creator Intensive',
+  'Storefront Buildout',
+  'Profile Rebrand',
+  'Content System Setup',
+  'Visual Brand Kit',
+  'Social Strategy Sprint',
+  'Organizational Systems',
+  'Personal Brand Architecture',
+])
 
 // Env values arrive however they were pasted — strip wrapping quotes and edge
 // whitespace, never interior content (same reasoning as enquiry.mjs).
@@ -142,6 +161,10 @@ export default async (req, context) => {
     if (required && !values[key]) {
       return Response.json({ error: 'Something’s missing — check the form and try again.' }, { status: 400 })
     }
+  }
+  if (values.service && !SERVICES.has(values.service)) {
+    console.log('shop desk: dropped an unrecognised service name', { kind: body.kind })
+    values.service = ''
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email || '')) {
     return Response.json({ error: "That email doesn't look complete — mind checking it?" }, { status: 400 })

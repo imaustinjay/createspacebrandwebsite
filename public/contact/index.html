@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/assets/shop.css?v=9" />
   <script src="/assets/reveal.js?v=2" defer></script>
   <script src="/assets/motion.js?v=2" defer></script>
-  <script src="/assets/shop.js?v=5" defer></script>
+  <script src="/assets/shop.js?v=6" defer></script>
   <!-- First-party visit counter. Path, referrer, time on page, scroll depth.
        No cookie, no third party, nothing that survives the tab. -->
   <script src="/assets/measure.js?v=1" defer></script>
@@ -127,6 +127,11 @@
               <option>Something else</option>
             </select>
           </label>
+          <!-- Filled by shop.js from ?service= on the services page, and shown
+               rather than hidden: the sender should see what the form is about
+               to tell us, and be able to go back and change it. -->
+          <input type="hidden" name="service" value="" />
+          <p class="fine-13" data-service-note hidden style="margin: -8px 0 0;">About <b data-service-name style="color: var(--seal); font-weight: 500;"></b> &mdash; <a href="/shop/services/">pick a different service</a></p>
           <label class="field">
             <span>Message</span>
             <textarea name="message" rows="6" placeholder="As much or as little as you like." data-min="5" data-msg="Tell us a little about it first."></textarea>
