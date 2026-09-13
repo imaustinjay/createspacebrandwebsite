@@ -1554,6 +1554,13 @@ textarea::placeholder { color: var(--faint); }
 .choice:has(input:checked) .tick::after { transform: scale(1); }
 .choice:has(input:focus-visible) { outline: 2px solid var(--sage); outline-offset: 3px; }
 
+/* The "before you begin" column keeps pace with the form on wide screens only.
+   Stacked on a phone it must scroll away like everything else — pinned, the
+   form slid over it and the two columns printed on top of each other. */
+@media (min-width: 901px) {
+  .inquire-aside { position: sticky; top: 28px; }
+}
+
 /* The greeting when someone arrives from the tap card (?via=card). */
 .via-card {
   display: flex;
