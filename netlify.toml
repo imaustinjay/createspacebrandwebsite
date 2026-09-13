@@ -24,6 +24,14 @@
   to = "/.netlify/functions/enquiry"
   status = 200
 
+# The new client service inquiry on /inquire/ — also where the tap card
+# (/card/) sends people. Same guards as the enquiry; destination
+# INQUIRY_EMAIL, falling back to the house mailbox.
+[[redirects]]
+  from = "/api/inquiry"
+  to = "/.netlify/functions/inquiry"
+  status = 200
+
 # The shop desk — contact, careers and workshop alerts, internship
 # applications, the Fall Drop first-look list, and the Collection Program's
 # notify list when the workspace can't take it. One handler, one destination

@@ -29,6 +29,7 @@ and deploys separately; the brand context this site is built from is
     seo-playbook.mjs      findings + keyword map + the structural moves
   netlify/functions/
     enquiry.mjs           brand enquiry → partnerships mailbox (SMTP)
+    inquiry.mjs           new client service inquiry → desk mailbox + a copy to the sender
     seasons.mjs           live door status ← workspace casting cycles (anon RLS)
     shop.mjs              every storefront form → the shop mailbox (SMTP)
     catalog.mjs           GET  /api/catalog — live shelf prices from Stripe
@@ -54,6 +55,8 @@ and deploys separately; the brand context this site is built from is
     privacy/index.html    Privacy — what the site holds, plainly
     terms/index.html      Terms of service — the house rules, plainly
     contact/index.html    Contact — a person, not a queue
+    inquire/index.html    Work with us — the new client service inquiry (intake form)
+    card/                 the founder's tap card (NFC / AirDrop / QR target) — noindex
     collection/           The Collection Program — the paid Community cohort
     partnerships/         Partnerships — collaborations, sponsorship, tools
     careers/              Careers — no open roles, plus the alert list
@@ -94,6 +97,53 @@ Each page carries its own `<title>` (from the design's `TITLES` map), meta
 description, canonical URL and OG tags — the SPA page-switcher from the design
 became real routes, per the handoff README.
 
+## The client service inquiry (`/inquire/`)
+
+The front desk for new client work — broader than the brand enquiry on
+`/brands/` and the general contact form: name/email/company/role/phone/handle,
+what they're interested in (brand partnership, UGC + content, social strategy +
+brand direction, creator representation, events + community, something else),
+what they're trying to make, platforms, timing, budget, how to reply (email /
+call / text — a phone number is required for the last two), how they found us,
+and a free line. Handler: `netlify/functions/inquiry.mjs` at `/api/inquiry`,
+same guards as the enquiry (honeypot, min-fill-time, 5/hour per IP), mail via
+`netlify/shared/mail.mjs`. Desk copy goes to `INQUIRY_EMAIL` when set,
+otherwise the house mailbox the mailer already uses; the sender gets a short
+acknowledgement copy (best-effort, after the desk copy has gone).
+
+Arriving with `?via=card` (what the tap card links to) shows a greeting,
+pre-selects "We met in person", and tags the desk email as *from the tap
+card*. Linked from every nav menu and footer as **Work with us**, from the
+brands page, and in the sitemap.
+
+## The tap card (`/card/`)
+
+One URL — `https://createspacebrand.com/card/` — that works as an NFC tap, an
+AirDrop, a text, or a QR scan. Buttons: **Email Austin** (`mailto:` with the
+address and a subject prefilled), **Start a client inquiry** (`/inquire/?via=card`),
+**About createspace** (`/about/`), **Save contact** (`card/austin-jay.vcf`), plus
+a native **Share** sheet (AirDrop lives there on iPhone), **Copy link**, and the
+QR (`card/qr.svg`). A **Call or text** button appears automatically once a
+number is set — deliberately not set: this repo is public, and the card is
+too.
+
+The dusk orb (`card/orb-dusk.png`, a 640px crop of the brand mark) is always
+in motion: rings rippling out, a turning halo, the mark colouring in through
+its own alpha mask, a sheen pass, a breathing glow, orbiting sparks. Reduced
+motion resolves to the still, fully coloured orb.
+
+- **To change the details:** edit the `data-*` attributes on `<main>` in
+  `public/card/index.html` (name, email, subject) **and** the `.vcf` — the
+  only two places the address lives.
+- **NFC tag:** any NTAG213/215 sticker or card. With a free app such as
+  *NFC Tools*, write one record → URL → `https://createspacebrand.com/card/`,
+  then lock it if you like. iPhones and most Androids open it on tap with
+  nothing installed.
+- **AirDrop / phone-to-phone:** open `/card/` on your phone, tap **Share** →
+  AirDrop (or Messages). Add it to your Home Screen for a one-tap open.
+- `noindex` and out of the sitemap — public to anyone with the link,
+  invisible to search.
+
 ## Connecting it (Netlify + GitHub)
 
 1. Netlify → **Add new site** → **Import an existing project** → pick this
@@ -120,6 +170,7 @@ below). Every application flow itself lives on createspacebrand.online.
 | `STRIPE_AUTOMATIC_TAX` | Optional, `true` to turn on Stripe Tax. Off by default — it needs Stripe Tax configured on the account first, and it makes a billing address required at checkout. |
 | `STRIPE_CRAFT_TRIAL_UNTIL` | Optional ISO date for the craft's subscription trial, so "nothing is charged before August 17" is enforced rather than promised. Ignored once it's in the past. |
 | `PARTNERSHIPS_EMAIL` | Where brand enquiries land. Optional override — unset, they go to the house inbox, `hello@createspacebrand.com`. Server-side only — deliberately never printed in the client bundle, per the handoff, so it can't be scraped. |
+| `INQUIRY_EMAIL` | Where **client service inquiries** (`/inquire/`, and the tap card) land. Optional override — unset, they go wherever the house mailer already points (`SHOP_EMAIL`, then `PARTNERSHIPS_EMAIL`, then `hello@createspacebrand.com`). Server-side only, same as above. |
 | `SHOP_EMAIL` | Where the storefront's forms land (contact, careers and workshop alerts, internship applications, the Fall Drop list, and the Collection Program notify list when the workspace endpoint can't be reached). Optional override — falls back to `PARTNERSHIPS_EMAIL`, then to `hello@createspacebrand.com`. Server-side only, same as above. |
 | `MAIL_USER` / `MAIL_PASSWORD` | SMTP login for the sending mailbox (falls back to `TITAN_EMAIL` / `TITAN_PASSWORD`, same convention as the workspace's `shared/mailCore.mjs`). |
 | `MAIL_SMTP_HOST` / `MAIL_SMTP_PORT` | Optional; default `smtp.titan.email` : `465`. |
