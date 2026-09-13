@@ -56,7 +56,6 @@ and deploys separately; the brand context this site is built from is
     terms/index.html      Terms of service — the house rules, plainly
     contact/index.html    Contact — a person, not a queue
     inquire/index.html    Work with us — the new client service inquiry (intake form)
-    card/                 the founder's tap card (NFC / AirDrop / QR target) — noindex
     collection/           The Collection Program — the paid Community cohort
     partnerships/         Partnerships — collaborations, sponsorship, tools
     careers/              Careers — no open roles, plus the alert list
@@ -111,38 +110,19 @@ same guards as the enquiry (honeypot, min-fill-time, 5/hour per IP), mail via
 otherwise the house mailbox the mailer already uses; the sender gets a short
 acknowledgement copy (best-effort, after the desk copy has gone).
 
-Arriving with `?via=card` (what the tap card links to) shows a greeting,
+Arriving with `?via=card` (what the tap card on the workspace links to) shows a greeting,
 pre-selects "We met in person", and tags the desk email as *from the tap
 card*. Linked from every nav menu and footer as **Work with us**, from the
 brands page, and in the sitemap.
 
-## The tap card (`/card/`)
+## The tap card lives on the workspace, not here
 
-One URL — `https://createspacebrand.com/card/` — that works as an NFC tap, an
-AirDrop, a text, or a QR scan. Buttons: **Email Austin** (`mailto:` with the
-address and a subject prefilled), **Start a client inquiry** (`/inquire/?via=card`),
-**About createspace** (`/about/`), **Save contact** (`card/austin-jay.vcf`), plus
-a native **Share** sheet (AirDrop lives there on iPhone), **Copy link**, and the
-QR (`card/qr.svg`). A **Call or text** button appears automatically once a
-number is set — deliberately not set: this repo is public, and the card is
-too.
-
-The dusk orb (`card/orb-dusk.png`, a 640px crop of the brand mark) is always
-in motion: rings rippling out, a turning halo, the mark colouring in through
-its own alpha mask, a sheen pass, a breathing glow, orbiting sparks. Reduced
-motion resolves to the still, fully coloured orb.
-
-- **To change the details:** edit the `data-*` attributes on `<main>` in
-  `public/card/index.html` (name, email, subject) **and** the `.vcf` — the
-  only two places the address lives.
-- **NFC tag:** any NTAG213/215 sticker or card. With a free app such as
-  *NFC Tools*, write one record → URL → `https://createspacebrand.com/card/`,
-  then lock it if you like. iPhones and most Androids open it on tap with
-  nothing installed.
-- **AirDrop / phone-to-phone:** open `/card/` on your phone, tap **Share** →
-  AirDrop (or Messages). Add it to your Home Screen for a one-tap open.
-- `noindex` and out of the sitemap — public to anyone with the link,
-  invisible to search.
+The founder's tap / AirDrop / QR business card is served by the workspace app
+(`createspace-workspace`, createspacebrand.online/card/), not this site: this
+repo is public and this site's build runs Netlify secrets scanning, which
+refuses any deploy whose output contains the admin address — and a card that
+doesn't carry the founder's address isn't a card. It links back here to
+`/inquire/?via=card` and `/about/`.
 
 ## Connecting it (Netlify + GitHub)
 
