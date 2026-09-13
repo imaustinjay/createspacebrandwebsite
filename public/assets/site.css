@@ -1456,3 +1456,387 @@ input::placeholder { color: var(--faint); }
   font-weight: 600;
   color: var(--sage);
 }
+
+/* ---------- Client service inquiry (/inquire/) ---------- */
+textarea {
+  font-family: 'Raleway', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14.5px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--seal);
+  background: var(--ivory);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 12px 14px;
+  outline: none;
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+}
+textarea:focus {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 3px var(--dusk-tint);
+}
+textarea::placeholder { color: var(--faint); }
+@media (max-width: 900px) { textarea { font-size: 16px; } }
+
+.field > .field-hint, .field-hint { font-size: 12.5px; font-weight: 300; line-height: 1.5; letter-spacing: 0; text-transform: none; color: var(--faint); }
+.field > span .opt { font-weight: 500; letter-spacing: 0.04em; text-transform: none; color: var(--faint); }
+
+/* A group of fields under one tracked label — the form's chapters. */
+.fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; }
+.fieldset > legend {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0;
+  margin-bottom: 4px;
+}
+.form-chapter { display: grid; gap: 18px; padding-top: 26px; border-top: 1px solid var(--hairline); }
+.form-chapter:first-child { padding-top: 0; border-top: 0; }
+.form-chapter-h { font-size: 16px; font-weight: 600; margin: 0; }
+
+/* Choice tiles — checkboxes and radios that read as objects, not controls.
+   The real input stays in the DOM for keyboards and screen readers. */
+.choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.choices-row { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+.choice {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 14px;
+  background: var(--ivory);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  cursor: pointer;
+  transition: border-color 0.2s var(--ease-ignite), background 0.2s var(--ease-ignite), transform 0.15s var(--ease-spring);
+}
+.choice:active { transform: scale(0.985); }
+.choice input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+.choice .tick {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--card);
+  display: grid;
+  place-items: center;
+  transition: background 0.2s var(--ease-ignite), border-color 0.2s var(--ease-ignite);
+}
+.choice input[type="radio"] + .tick { border-radius: 50%; }
+.choice .tick::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--ivory);
+  transform: scale(0);
+  transition: transform 0.2s var(--ease-spring);
+}
+.choice input[type="radio"] + .tick::after { border-radius: 50%; }
+.choice .choice-text { display: grid; gap: 3px; }
+.choice .choice-text b { font-size: 14px; font-weight: 600; color: var(--seal); }
+.choice .choice-text small { font-size: 12.5px; font-weight: 300; line-height: 1.45; color: var(--muted); }
+.choice:has(input:checked) { border-color: var(--sage); background: var(--sage-tint); }
+.choice:has(input:checked) .tick { background: var(--sage); border-color: var(--sage); }
+.choice:has(input:checked) .tick::after { transform: scale(1); }
+.choice:has(input:focus-visible) { outline: 2px solid var(--sage); outline-offset: 3px; }
+
+/* The greeting when someone arrives from the tap card (?via=card). */
+.via-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 11px;
+  background: var(--dusk-tint);
+  color: var(--seal);
+  font-size: 13.5px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+/* ---------- The tap card (/card/) ---------- */
+.card-stage {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px 32px;
+}
+.tap-card {
+  width: 100%;
+  max-width: 420px;
+  display: grid;
+  gap: 22px;
+}
+.tap-head { display: grid; justify-items: center; text-align: center; gap: 12px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ----- The living orb: the dusk mark, always in motion -----
+   Layers, back to front: three highlight rings rippling outward, a slowly
+   turning halo, the orb itself (a faint ivory ghost of the mark, the dusk
+   colour filling it in from the bottom, then a sheen passing through — all
+   painted THROUGH the mark's own alpha as a mask), and three sparks orbiting.
+   Reduced motion: every animation stops on its finished frame, so the orb
+   simply sits there, fully coloured, halo still. */
+.orb {
+  --orb: 160px;
+  position: relative;
+  width: var(--orb);
+  height: var(--orb);
+  display: grid;
+  place-items: center;
+  margin: 6px 0 4px;
+}
+.orb > * { position: absolute; inset: 0; border-radius: 50%; }
+
+.orb-ring {
+  border: 1.5px solid rgba(214, 148, 164, 0.75);
+  opacity: 0;
+  transform: scale(0.72);
+  animation: orbRing 3.6s var(--ease-settle) infinite;
+}
+.orb-ring-2 { animation-delay: 1.2s; border-color: rgba(255, 255, 240, 0.6); }
+.orb-ring-3 { animation-delay: 2.4s; border-color: rgba(214, 148, 164, 0.55); }
+@keyframes orbRing {
+  0%   { opacity: 0;   transform: scale(0.72); }
+  12%  { opacity: 0.9; }
+  100% { opacity: 0;   transform: scale(1.55); }
+}
+
+.orb-halo {
+  inset: -10px;
+  background: conic-gradient(from 0deg,
+    rgba(214, 148, 164, 0) 0deg,
+    rgba(214, 148, 164, 0.95) 70deg,
+    rgba(255, 255, 240, 0.9) 120deg,
+    rgba(214, 148, 164, 0.35) 190deg,
+    rgba(86, 115, 99, 0.6) 260deg,
+    rgba(214, 148, 164, 0) 360deg);
+  -webkit-mask: radial-gradient(circle, transparent calc(50% - 4px), #000 calc(50% - 3px), #000 calc(50% - 1px), transparent 50%);
+          mask: radial-gradient(circle, transparent calc(50% - 4px), #000 calc(50% - 3px), #000 calc(50% - 1px), transparent 50%);
+  animation: orbSpin 9s linear infinite;
+  filter: drop-shadow(0 0 6px rgba(214, 148, 164, 0.55));
+}
+@keyframes orbSpin { to { transform: rotate(360deg); } }
+
+.orb-body {
+  inset: 12px;
+  border-radius: 0;
+  animation: orbBreathe 3.2s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 18px rgba(214, 148, 164, 0.45));
+}
+@keyframes orbBreathe {
+  from { transform: scale(0.97); filter: drop-shadow(0 0 12px rgba(214, 148, 164, 0.35)); }
+  to   { transform: scale(1.04); filter: drop-shadow(0 0 26px rgba(214, 148, 164, 0.7)); }
+}
+.orb-body > * { position: absolute; inset: 0; border-radius: 0; }
+.orb-img { width: 100%; height: 100%; display: block; }
+
+/* Where the mark can be used as a mask, the image steps back and the layers
+   paint the colouring-in. Everywhere else the plain orb shows, breathing. */
+@supports ((-webkit-mask-image: url("")) or (mask-image: url(""))) {
+  .orb-img { opacity: 0; }
+  .orb-ghost, .orb-fill, .orb-sheen {
+    -webkit-mask: url("/card/orb-dusk.png") center / contain no-repeat;
+            mask: url("/card/orb-dusk.png") center / contain no-repeat;
+  }
+  .orb-ghost { background: rgba(255, 255, 240, 0.3); }
+  .orb-fill {
+    background: linear-gradient(160deg, #E8B4C0 0%, #D694A4 45%, #C77E92 100%);
+    clip-path: inset(0 0 0 0);
+    animation: orbFill 7s var(--ease-settle) infinite;
+  }
+  .orb-sheen {
+    background: linear-gradient(115deg,
+      rgba(255, 255, 240, 0) 38%,
+      rgba(255, 255, 240, 0.85) 50%,
+      rgba(255, 255, 240, 0) 62%);
+    background-size: 260% 100%;
+    background-position: 130% 0;
+    opacity: 0;
+    animation: orbSheen 7s ease-in-out infinite;
+  }
+}
+@keyframes orbFill {
+  0%   { clip-path: inset(100% 0 0 0); opacity: 1; }
+  38%  { clip-path: inset(0 0 0 0);    opacity: 1; }
+  86%  { clip-path: inset(0 0 0 0);    opacity: 1; }
+  100% { clip-path: inset(0 0 0 0);    opacity: 0; }
+}
+@keyframes orbSheen {
+  0%, 40%  { background-position: 130% 0; opacity: 0; }
+  46%      { opacity: 1; }
+  62%      { background-position: -30% 0; opacity: 1; }
+  66%, 100% { background-position: -30% 0; opacity: 0; }
+}
+
+.orb-spark {
+  inset: auto;
+  width: 6px;
+  height: 6px;
+  top: 50%;
+  left: 50%;
+  margin: -3px 0 0 -3px;
+  background: var(--dusk);
+  box-shadow: 0 0 8px 2px rgba(214, 148, 164, 0.6);
+  opacity: 0;
+  animation: orbOrbit 6s linear infinite;
+  --r: 80px;
+}
+.orb-spark-2 { width: 4px; height: 4px; margin: -2px 0 0 -2px; background: var(--ivory); box-shadow: 0 0 8px 2px rgba(255, 255, 240, 0.5); --r: 88px; animation-duration: 8.5s; animation-direction: reverse; }
+.orb-spark-3 { width: 5px; height: 5px; background: #8FB39F; box-shadow: 0 0 8px 2px rgba(86, 115, 99, 0.6); --r: 72px; animation-duration: 11s; animation-delay: -4s; }
+@keyframes orbOrbit {
+  from { opacity: 1; transform: rotate(0deg)   translateX(var(--r)); }
+  to   { opacity: 1; transform: rotate(360deg) translateX(var(--r)); }
+}
+
+/* The stage answers the orb: a breathing dusk aurora behind the head. */
+.tap-aurora {
+  position: absolute;
+  z-index: 0;
+  width: 560px;
+  height: 560px;
+  left: 50%;
+  top: 30px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(214, 148, 164, 0.26), rgba(214, 148, 164, 0.06) 42%, transparent 68%);
+  filter: blur(30px);
+  animation: auroraBreathe 5.5s ease-in-out infinite alternate;
+}
+@keyframes auroraBreathe {
+  from { opacity: 0.55; transform: translateX(-50%) scale(0.92); }
+  to   { opacity: 1;    transform: translateX(-50%) scale(1.08); }
+}
+.card-stage { position: relative; overflow: hidden; }
+.card-stage > .tap-card { position: relative; z-index: 1; }
+
+/* The name catches the light on a slow pass. */
+.tap-name-shine {
+  background: linear-gradient(100deg, var(--ivory) 0%, var(--ivory) 40%, #F3CDD8 50%, var(--ivory) 60%, var(--ivory) 100%);
+  background-size: 240% 100%;
+  background-position: 120% 0;
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+  animation: nameShine 7s ease-in-out infinite;
+}
+@keyframes nameShine {
+  0%, 55% { background-position: 120% 0; }
+  85%, 100% { background-position: -120% 0; }
+}
+
+/* The primary button gets a sheen on the same beat as the orb. */
+.tap-btn-sheen { position: relative; overflow: hidden; }
+.tap-btn-sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 35%, rgba(214, 148, 164, 0.35) 50%, transparent 65%);
+  background-size: 250% 100%;
+  background-position: 130% 0;
+  pointer-events: none;
+  animation: btnSheen 7s ease-in-out infinite;
+}
+@keyframes btnSheen {
+  0%, 50% { background-position: 130% 0; }
+  70%, 100% { background-position: -50% 0; }
+}
+.tap-name { font-weight: 300; font-size: 32px; line-height: 1.15; letter-spacing: -0.01em; color: var(--ivory); margin: 0; }
+.tap-role { font-size: 12.5px; font-weight: 400; letter-spacing: 0.06em; color: rgba(255, 255, 240, 0.66); margin: 0; }
+.tap-line { font-size: 16px; font-weight: 300; line-height: 1.6; color: rgba(255, 255, 240, 0.78); margin: 2px 0 0; max-width: 32ch; }
+
+.tap-actions { display: grid; gap: 10px; }
+.tap-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 15px 16px 15px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 240, 0.14);
+  background: rgba(255, 255, 240, 0.06);
+  color: var(--ivory);
+  font-family: 'Raleway', 'Helvetica Neue', Arial, sans-serif;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.22s var(--ease-ignite), border-color 0.22s var(--ease-ignite), transform 0.15s var(--ease-spring);
+}
+.tap-btn:hover { background: rgba(255, 255, 240, 0.10); border-color: rgba(255, 255, 240, 0.26); color: var(--ivory); }
+.tap-btn:active, .tap-btn.is-pressed { transform: scale(0.975); background: rgba(214, 148, 164, 0.22); border-color: rgba(214, 148, 164, 0.5); }
+.tap-btn-primary { background: var(--ivory); border-color: var(--ivory); color: var(--seal); }
+.tap-btn-primary:hover { background: #FFFFFF; border-color: #FFFFFF; color: var(--seal); }
+.tap-btn-primary:active, .tap-btn-primary.is-pressed { background: var(--dusk); border-color: var(--dusk); color: var(--seal); }
+.tap-ico {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 240, 0.08);
+}
+.tap-btn-primary .tap-ico { background: rgba(78, 49, 44, 0.08); }
+.tap-ico svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.tap-text { display: grid; gap: 2px; min-width: 0; }
+.tap-text b { font-size: 15px; font-weight: 600; }
+.tap-text small { font-size: 12.5px; font-weight: 300; opacity: 0.72; line-height: 1.4; }
+.tap-arrow { margin-left: auto; opacity: 0.45; flex: none; }
+.tap-arrow svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+.tap-share {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 240, 0.10);
+  background: rgba(255, 255, 240, 0.04);
+}
+.tap-qr { width: 96px; height: 96px; padding: 8px; border-radius: 10px; background: var(--ivory); display: block; }
+.tap-share-text { display: grid; gap: 8px; }
+.tap-share-text p { margin: 0; font-size: 12.5px; font-weight: 300; line-height: 1.5; color: rgba(255, 255, 240, 0.7); }
+.tap-mini { display: flex; gap: 8px; flex-wrap: wrap; }
+.tap-mini .btn { padding: 9px 14px; font-size: 12.5px; }
+.tap-mini .btn-outline-ivory:active { background: rgba(255, 255, 240, 0.10); }
+.tap-foot { text-align: center; display: grid; gap: 4px; }
+.tap-foot a { color: rgba(255, 255, 240, 0.7); font-size: 12.5px; }
+.tap-foot a:hover { color: var(--ivory); }
+.tap-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translate(-50%, 8px);
+  padding: 10px 16px;
+  border-radius: 20px;
+  background: var(--ivory);
+  color: var(--seal);
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s var(--ease-ignite), transform 0.25s var(--ease-settle);
+}
+.tap-toast.show { opacity: 1; transform: translate(-50%, 0); }
+@media (max-width: 380px) {
+  .tap-share { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+  .tap-mini { justify-content: center; }
+}
