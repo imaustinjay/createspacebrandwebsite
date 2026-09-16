@@ -20,7 +20,7 @@
 // debugging both at 2am should find the same furniture in the same places.
 import { randomBytes } from 'node:crypto'
 import { clean, keyMismatch, siteOrigin, stripeClient } from '../shared/catalog.mjs'
-import { SERVICES, isBuyable, resolveServicePrices, serviceLine } from '../shared/services.mjs'
+import { SERVICES, isBuyable, resolveServicePrices, serviceLine, serviceReference } from '../shared/services.mjs'
 import { ensureOrder } from '../shared/storage.mjs'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -48,15 +48,10 @@ async function overLimit(ip) {
   }
 }
 
-// No 0/O/1/I — a reference gets read aloud down a phone line. Prefixed SVC so
-// a service order is recognisable at a glance in the ledger and in Stripe.
-const ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
-function reference() {
-  const bytes = randomBytes(6)
-  let tail = ''
-  for (const b of bytes) tail += ALPHABET[b % ALPHABET.length]
-  return `CS-SVC-${new Date().getUTCFullYear()}-${tail}`
-}
+// Prefixed SVC so a service order is recognisable at a glance in the ledger
+// and in Stripe. The format itself lives in shared/services.mjs, because the
+// billing desk mints these too.
+const reference = () => serviceReference(randomBytes(6), new Date().getUTCFullYear())
 
 const str = (v, max) => String(v ?? '').trim().slice(0, max)
 

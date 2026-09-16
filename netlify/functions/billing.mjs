@@ -21,7 +21,9 @@
 // Behind the portal session (the passphrase + mailed-code login), not the
 // stockroom token: issuing an invoice is signing the house's name to a
 // number, which is an owner's act, not an uploader's.
-import { money, stripeClient } from '../shared/catalog.mjs'
+import { randomBytes } from 'node:crypto'
+import { money, stripeClient, subscriptionInvoice } from '../shared/catalog.mjs'
+import { SERVICES, isServiceReference, serviceReference } from '../shared/services.mjs'
 import { readSession } from '../shared/admin-session.mjs'
 import { brandInvoiceEmail } from '../shared/invoice-mail.mjs'
 import { sendMail } from '../shared/mail.mjs'
@@ -75,7 +77,7 @@ async function ledger(stripe) {
   }
 
   const invoices = rows
-    .filter((inv) => !inv.subscription)
+    .filter((inv) => !subscriptionInvoice(inv))
     .map(present)
 
   const open = invoices.filter((i) => i.status === 'open')
@@ -115,6 +117,27 @@ async function issue(stripe, body, req) {
   const memo = String(body?.memo || '').trim().slice(0, 500)
   const days = Math.min(90, Math.max(1, Math.round(Number(body?.daysUntilDue) || 14)))
 
+  // Optional, and validated against the catalog rather than trusted: an
+  // invoice tagged with a service is the door a done-for-you engagement comes
+  // through when the client is invoiced instead of sent to a checkout. Left
+  // blank it is an ordinary invoice and nothing downstream fires.
+  const serviceId = String(body?.service || '').trim().slice(0, 64)
+  if (serviceId && !SERVICES[serviceId]) return say({ ok: false, error: 'That is not a service we offer.' }, 400)
+  const mode = body?.mode === 'deposit' ? 'deposit' : 'full'
+
+  // A job invoiced as a deposit and then a balance is TWO invoices and two
+  // `invoice.paid` events. Pasting the first invoice's reference onto the
+  // second is what keeps them one engagement: the workspace holds the
+  // reference as a primary key and answers a repeat with the engagement it
+  // already opened. Blank mints a new one, which is the common case.
+  const given = String(body?.reference || '').trim().toUpperCase()
+  if (given && !isServiceReference(given)) {
+    return say({ ok: false, error: 'That reference is not one of ours — it should look like CS-SVC-2026-K7M2PQ.' }, 400)
+  }
+  if (given && !serviceId) {
+    return say({ ok: false, error: 'A reference belongs to a service engagement — pick the service it continues.' }, 400)
+  }
+
   if (!name) return say({ ok: false, error: 'Add the contact name.' }, 400)
   if (!EMAIL_RE.test(email)) return say({ ok: false, error: 'That email does not look right.' }, 400)
 
@@ -148,6 +171,23 @@ async function issue(stripe, body, req) {
 
     // The invoice first, then its items pinned to it by id — never
     // "whatever items happen to be pending", which would sweep in strays.
+    // The reference is minted here, before Stripe sees the invoice, so the
+    // number the desk files the engagement under is the same one printed on
+    // the invoice's memo and carried on the webhook.
+    const ref = serviceId ? given || serviceReference(randomBytes(6), new Date().getUTCFullYear()) : ''
+
+    // Metadata goes on the INVOICE, not the customer and not the line items.
+    // The customer is reused across invoices (the `customers.list` lookup
+    // above short-circuits `customers.create`, so its metadata is written once
+    // and never updated) and `data.object.customer` in a webhook is a bare id
+    // string anyway. Line-item metadata arrives as `lines.data[i].metadata`,
+    // and that list is truncated at 10 while this endpoint allows 20 lines.
+    // The invoice's own bag is the only one that reliably reaches
+    // `invoice.paid` intact.
+    //
+    // `contact` is carried explicitly because `customers.create` above sets
+    // `name: company || name` — so `invoice.customer_name` on the event may be
+    // the company, and the engagement needs the person.
     const invoice = await stripe.invoices.create({
       customer: customer.id,
       collection_method: 'send_invoice',
@@ -155,6 +195,27 @@ async function issue(stripe, body, req) {
       description: memo || undefined,
       pending_invoice_items_behavior: 'exclude',
       auto_advance: false,
+      ...(serviceId
+        ? {
+            metadata: {
+              kind: 'service',
+              service: serviceId,
+              mode,
+              reference: ref,
+              contact: name.slice(0, 200),
+              email: email.slice(0, 200),
+              // On a 'full' invoice the total IS the engagement's value, so
+              // say so and the desk opens it at exactly that. On a DEPOSIT it
+              // deliberately is not sent: this desk takes free-text lines and
+              // has no idea what the whole fee is, and a guess here would open
+              // the engagement at half its worth. Left absent, the workspace
+              // applies the house convention — a deposit is half — which is a
+              // stated rule rather than a number we made up.
+              ...(mode === 'full' ? { fullAmount: String(totalCents) } : {}),
+              source: 'billing-desk',
+            },
+          }
+        : {}),
     })
     for (const line of lines) {
       await stripe.invoiceItems.create({
@@ -183,6 +244,11 @@ async function issue(stripe, body, req) {
       mailed: mailed.ok,
       mailReason: mailed.ok ? null : mailed.reason,
       mailDetail: mailed.ok ? null : mailed.detail || '',
+      // Echoed so the page can say what was tagged rather than promise what
+      // will happen — the engagement opens when the invoice is PAID, not now.
+      service: serviceId
+        ? { id: serviceId, name: SERVICES[serviceId].name, mode, reference: ref, continues: Boolean(given) }
+        : null,
     })
   } catch (err) {
     console.error('billing: issue failed —', err?.message || err)

@@ -13,7 +13,7 @@
 // confirmed one gets this far, because an unconfirmed address would let a
 // stranger read — and download — somebody else's orders. Signed in but
 // unconfirmed is answered honestly as its own state, never with data.
-import { SHELF, money, stripeClient } from '../shared/catalog.mjs'
+import { SHELF, money, stripeClient, subscriptionInvoice } from '../shared/catalog.mjs'
 import { requireUser, accountCookie } from '../shared/customer-auth.mjs'
 import { deliverableCount, manifests, recentOrders } from '../shared/storage.mjs'
 
@@ -165,7 +165,7 @@ async function stripeSide(stripe, email) {
   // A brand invoice is one raised by hand: no subscription behind it.
   const invoices = invLists
     .flat()
-    .filter((inv) => !inv.subscription && inv.status !== 'draft' && inv.status !== 'void')
+    .filter((inv) => !subscriptionInvoice(inv) && inv.status !== 'draft' && inv.status !== 'void')
     .sort((a, b) => (b.created || 0) - (a.created || 0))
     .map((inv) => ({
       number: inv.number || inv.id,

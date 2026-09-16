@@ -16,7 +16,11 @@
   if (!panel || !tab) return
 
   var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  var REF_RE = /^CS-SVC-[0-9]{4}-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/
   var booted = false
+  var serviceBlock = null
+  var serviceSelect = null
+  var serviceExtra = null
 
   tab.addEventListener('click', function () {
     if (booted) return
@@ -98,6 +102,8 @@
     dueWrap.appendChild(due)
     form.appendChild(dueWrap)
 
+    form.appendChild(buildServiceBlock())
+
     errorLine = el('p', 'form-error')
     errorLine.hidden = true
     form.appendChild(errorLine)
@@ -163,6 +169,82 @@
     linesBox.appendChild(row)
   }
 
+  // ── Is this invoice a done-for-you service? ────────────────────────────
+  //
+  // Optional, and blank by default: most invoices are ordinary and nothing
+  // downstream should fire for them. Pick a service and the invoice is tagged
+  // with it, so that when it goes PAID the webhook opens the engagement on the
+  // desk — the same door a card checkout comes through, for the clients who
+  // are invoiced instead.
+  //
+  // The options are fetched rather than hardcoded, because the catalog lives
+  // in one place and a second copy here would drift. All nine appear: the
+  // storefront's own picker filters to the ones without a published price,
+  // which is right for a scoping form and wrong for a billing desk — the whole
+  // point of invoicing is that the fee was agreed off the shelf.
+  function buildServiceBlock() {
+    serviceBlock = el('div', 'bill-service')
+    serviceBlock.hidden = true
+
+    var pick = el('label', 'field')
+    pick.appendChild(el('span', null, 'Is this a done-for-you service? (optional)'))
+    serviceSelect = el('select')
+    serviceSelect.name = 'service'
+    var none = el('option', null, 'No — an ordinary invoice')
+    none.value = ''
+    serviceSelect.appendChild(none)
+    pick.appendChild(serviceSelect)
+    serviceBlock.appendChild(pick)
+
+    serviceExtra = el('div', 'form-two')
+    serviceExtra.hidden = true
+
+    var modeWrap = el('label', 'field')
+    modeWrap.appendChild(el('span', null, 'This invoice covers'))
+    var mode = el('select')
+    mode.name = 'mode'
+    ;[['full', 'The whole fee'], ['deposit', 'A deposit — the balance comes later']].forEach(function (opt) {
+      var o = el('option', null, opt[1])
+      o.value = opt[0]
+      mode.appendChild(o)
+    })
+    modeWrap.appendChild(mode)
+    serviceExtra.appendChild(modeWrap)
+
+    serviceExtra.appendChild(field('Continues reference (optional)', 'reference', 'CS-SVC-2026-K7M2PQ', 'text'))
+    serviceBlock.appendChild(serviceExtra)
+    serviceBlock.appendChild(
+      el(
+        'p',
+        'bill-fine',
+        'The engagement opens on the desk when the invoice is PAID, not now. Issuing a balance invoice for a job already under way? Paste its reference above and it stays one engagement.'
+      )
+    )
+
+    serviceSelect.addEventListener('change', function () {
+      serviceExtra.hidden = !serviceSelect.value
+    })
+
+    api('/api/services')
+      .then(function (data) {
+        var list = (data && data.services) || []
+        if (!list.length) return
+        list.forEach(function (s) {
+          var o = el('option', null, s.name)
+          o.value = s.id
+          serviceSelect.appendChild(o)
+        })
+        serviceBlock.hidden = false
+      })
+      .catch(function () {
+        // The shelf is unreachable. An empty picker would be worse than none,
+        // and an ordinary invoice does not need it.
+        serviceBlock.hidden = true
+      })
+
+    return serviceBlock
+  }
+
   function value(name) {
     var input = form.querySelector('[name="' + name + '"]')
     return input ? input.value.trim() : ''
@@ -189,6 +271,15 @@
     if (!EMAIL_RE.test(value('email'))) return fail('That email doesn’t look right.')
     if (!lines.length) return fail('An invoice needs at least one line.')
 
+    // Checked here as well as on the server: a typo in a reference is silent
+    // damage — it opens a SECOND engagement for a job already under way, and
+    // nothing about the invoice looks wrong afterwards.
+    var service = serviceSelect ? serviceSelect.value : ''
+    var reference = service ? value('reference').toUpperCase() : ''
+    if (reference && !REF_RE.test(reference)) {
+      return fail('That reference isn’t one of ours — it should look like CS-SVC-2026-K7M2PQ. Leave it blank to start a new engagement.')
+    }
+
     submit.disabled = true
     var label = submit.textContent
     submit.textContent = 'Issuing…'
@@ -201,6 +292,9 @@
       memo: value('memo'),
       daysUntilDue: Number(value('daysUntilDue')) || 14,
       lines: lines,
+      service: service,
+      mode: service ? value('mode') : '',
+      reference: reference,
     }).then(function (data) {
       // Two different failures, two different fixes: a mailbox that was never
       // configured, and one that took the login and refused the send. The
@@ -211,11 +305,23 @@
         : 'Issued (' + data.invoice.number + ') — but the mailbox refused it' +
           (data.mailDetail ? ' (' + data.mailDetail + ')' : '') +
           '. The invoice is live; open it below and send them the link yourself.'
-      okLine.textContent = data.mailed
+      var line = data.mailed
         ? 'Issued and emailed — ' + data.invoice.number + ', ' + data.invoice.total + '.'
         : unsent
+      // Worded as what is true now. The engagement opens when the invoice is
+      // PAID, and saying otherwise would be an untrue statement in the
+      // operator's own ledger.
+      if (data.service) {
+        line += data.service.continues
+          ? ' Tagged ' + data.service.name + ', continuing ' + data.service.reference + '.'
+          : ' Tagged ' + data.service.name + ' — ' + data.service.reference +
+            '. The engagement opens on the desk when it is paid.'
+      }
+      okLine.textContent = line
       okLine.hidden = false
       form.reset()
+      // form.reset() restores values, not the visibility this file controls.
+      if (serviceExtra) serviceExtra.hidden = true
       while (linesBox.firstChild) linesBox.removeChild(linesBox.firstChild)
       addLine()
       readLedger()

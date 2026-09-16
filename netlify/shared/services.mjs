@@ -277,4 +277,25 @@ export const serviceLine = (id, mode = 'full') => {
 
 /** Shares catalog.mjs's Stripe client, so a deploy holds one connection and
     one set of retry rules rather than two of each. */
+// The house's reference for a service engagement, in the one format the
+// workspace's desk recognises. Lived in service-checkout.mjs until the billing
+// desk needed to mint one too; two copies of a reference format is how you end
+// up with a CS-SVC that the workspace files under something else.
+//
+// No 0/O/1/I — a reference gets read aloud down a phone line.
+const REF_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
+export function serviceReference(bytes, year) {
+  let tail = ''
+  for (const b of bytes) tail += REF_ALPHABET[b % REF_ALPHABET.length]
+  return `CS-SVC-${year}-${tail}`
+}
+
+// The same format, read back. An agency job is often two invoices — a deposit
+// and a balance — and each one paid fires its own `invoice.paid`. Reusing the
+// first reference on the second is what makes the desk answer the second with
+// the engagement it already opened instead of opening a duplicate, so the
+// billing desk accepts one back and this decides whether it is really ours.
+export const SERVICE_REFERENCE_RE = new RegExp(`^CS-SVC-[0-9]{4}-[${REF_ALPHABET}]{6}$`)
+export const isServiceReference = (v) => SERVICE_REFERENCE_RE.test(String(v || '').trim().toUpperCase())
+
 export { stripeClient } from './catalog.mjs'

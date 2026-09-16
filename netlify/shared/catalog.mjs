@@ -147,6 +147,31 @@ export function stripeClient() {
   return client
 }
 
+// ── Was this invoice born of a subscription? ─────────────────────────────
+//
+// Two places on this site mean to keep the craft's $29 renewal cycles out of
+// a list of hand-raised agency invoices, and both used to ask `!inv.subscription`.
+// On the API version this SDK pins (2026-07-29.dahlia — see
+// node_modules/stripe/cjs/apiVersion.js, sent as `Stripe-Version` on every
+// request, so the account's own default never applies) an Invoice has NO
+// top-level `subscription`. It has `parent: { type, subscription_details,
+// quote_details }`. So `!inv.subscription` was `!undefined` — permanently
+// true, a filter that filtered nothing, and every membership renewal sat in
+// the billing desk next to a $4,500 engagement.
+//
+// Both shapes are accepted on purpose. A LIST call comes back at the version
+// the SDK pins, but a WEBHOOK payload is rendered at the version configured on
+// the endpoint, which is set in the Stripe dashboard and can be older than the
+// library. One helper that reads either is the only version-proof answer.
+export function subscriptionInvoice(invoice) {
+  if (!invoice) return false
+  if (invoice.parent) {
+    return invoice.parent.type === 'subscription_details' || Boolean(invoice.parent.subscription_details)
+  }
+  // Pre-Basil payloads, and anything an older webhook endpoint renders.
+  return Boolean(invoice.subscription || invoice.subscription_details)
+}
+
 // Currencies Stripe holds without a minor unit — ¥500 is 500, not 50000.
 const ZERO_DECIMAL = new Set([
   'bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw', 'mga',
