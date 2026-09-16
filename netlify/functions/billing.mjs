@@ -173,7 +173,17 @@ async function issue(stripe, body, req) {
     const mailed = await sendBranded(final, { name, company, memo }, req)
 
     console.log('billing: invoice issued', { number: final.number, total: final.total })
-    return say({ ok: true, invoice: present(final), mailed: mailed.ok, mailReason: mailed.ok ? null : mailed.reason })
+    // `mailDetail` is the mail server's own words. This endpoint is behind
+    // the portal session, so the person reading it is the one who can fix it
+    // — and "it didn't send" without a reason is the message that cost an
+    // afternoon on the sign-in code.
+    return say({
+      ok: true,
+      invoice: present(final),
+      mailed: mailed.ok,
+      mailReason: mailed.ok ? null : mailed.reason,
+      mailDetail: mailed.ok ? null : mailed.detail || '',
+    })
   } catch (err) {
     console.error('billing: issue failed —', err?.message || err)
     return say({ ok: false, error: 'Stripe refused that: ' + (err?.message || 'no reason given.') }, 502)
@@ -187,7 +197,25 @@ async function resend(stripe, body, req) {
     const invoice = await stripe.invoices.retrieve(id)
     if (invoice.status !== 'open') return say({ ok: false, error: 'Only an open invoice can be re-sent.' }, 400)
     const mailed = await sendBranded(invoice, { name: invoice.customer_name || '', company: '', memo: invoice.description || '' }, req)
-    if (!mailed.ok) return say({ ok: false, error: 'The mailbox is not connected — nothing was sent.' }, 503)
+    if (!mailed.ok) {
+      // An unconfigured mailbox and a refused send are different problems
+      // with different fixes; saying "not connected" for both sends the
+      // owner to check variables that are already set.
+      return mailed.reason === 'not-configured'
+        ? say({ ok: false, error: 'The mailbox is not connected — nothing was sent. Set MAIL_USER and MAIL_PASSWORD.', reason: mailed.reason }, 503)
+        : say(
+            {
+              ok: false,
+              // The reply is inlined rather than sent as a side field: the
+              // billing page renders one error string, and a detail nobody
+              // renders is a detail nobody reads.
+              error: `The mailbox refused it — the invoice is untouched and still open.${mailed.detail ? ` The mail server said: “${mailed.detail}”` : ''}`,
+              reason: mailed.reason,
+              detail: mailed.detail || '',
+            },
+            502
+          )
+    }
     return say({ ok: true })
   } catch (err) {
     console.error('billing: resend failed —', err?.message || err)

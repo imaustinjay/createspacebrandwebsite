@@ -58,6 +58,11 @@
           var err = new Error(body.error || 'That did not work.')
           err.reason = body.reason
           err.status = res.status
+          // Carried so a failure can explain itself on the page rather than
+          // in a function log the person reading it cannot reach.
+          err.detail = body.detail
+          err.mailbox = body.mailbox
+          err.fix = body.fix
           throw err
         }
         return body
@@ -92,6 +97,38 @@
 
   // ------------------------------------------------------------- the door
 
+  // Environment variables, set as <code> without ever building HTML from a
+  // string: this page does not use innerHTML, on purpose, and an SMTP reply
+  // is the last text you would want to make an exception for.
+  var ENV_RE = /\b((?:ADMIN_PASSWORD_HASH|ADMIN_SESSION_SECRET|ADMIN_SECOND_FACTOR|ADMIN_PASSWORD|ADMIN_EMAIL|MAIL_SMTP_HOST|MAIL_SMTP_PORT|MAIL_PASSWORD|MAIL_USER|MAIL_FROM_NAME|SHOP_EMAIL)(?:=[\w.:@-]+)?)/
+
+  function envLine(text, node) {
+    String(text).split(ENV_RE).forEach(function (part, i) {
+      if (!part) return
+      node.appendChild(i % 2 ? el('code', null, part) : document.createTextNode(part))
+    })
+    return node
+  }
+
+  // The passphrase was right and the mailbox refused the code. The old
+  // message here named MAIL_USER and MAIL_PASSWORD, which is the one thing it
+  // cannot be — an unset pair signs you in on one factor instead. So this
+  // prints what the mail server actually said, which account and host were
+  // tried, and the way back in that does not require fixing mail first.
+  function showMailTrouble(err) {
+    clear(gateSetup)
+    gateSetup.hidden = false
+    gateSetup.appendChild(el('h2', null, 'The mailbox refused the code'))
+    gateSetup.appendChild(el('p', null, 'Your passphrase was right. The six-digit code could not be sent, so the door stayed shut.'))
+    if (err.detail) gateSetup.appendChild(el('p', null, 'The mail server said: \u201c' + err.detail + '\u201d'))
+    if (err.mailbox) gateSetup.appendChild(envLine('Tried: ' + err.mailbox, el('p')))
+    var fix = err.fix || []
+    if (!fix.length) return
+    var steps = el('ol')
+    fix.forEach(function (line) { steps.appendChild(envLine(line, el('li'))) })
+    gateSetup.appendChild(steps)
+  }
+
   function showGate(door) {
     gate.hidden = false
     room.hidden = true
@@ -112,15 +149,7 @@
       'Make sure MAIL_USER and MAIL_PASSWORD are set, so the six-digit code has somewhere to be sent. Optionally set ADMIN_EMAIL to choose which inbox.',
       'Deploys → Trigger deploy. Netlify hands variables to functions at deploy time, so a new one does not exist until the next build.'
     ]
-    lines.forEach(function (line) {
-      var li = el('li')
-      // Variable names are set as code without building HTML from a string:
-      // this page never uses innerHTML, on purpose.
-      line.split(/\b(ADMIN_PASSWORD|ADMIN_SESSION_SECRET|MAIL_USER|MAIL_PASSWORD|ADMIN_EMAIL)\b/).forEach(function (part, i) {
-        li.appendChild(i % 2 ? el('code', null, part) : document.createTextNode(part))
-      })
-      steps.appendChild(li)
-    })
+    lines.forEach(function (line) { steps.appendChild(envLine(line, el('li'))) })
     gateSetup.appendChild(steps)
   }
 
@@ -144,6 +173,9 @@
   stepPass.addEventListener('submit', function (event) {
     event.preventDefault()
     say(gateError, '')
+    // Any explanation left over from a previous attempt goes now; the door is
+    // usable or step one would not be on screen.
+    gateSetup.hidden = true
     var value = stepPass.querySelector('[name="passphrase"]').value
     if (!value) return
     lockButtons(stepPass, true, 'Checking…')
@@ -167,6 +199,7 @@
       })
       .catch(function (err) {
         say(gateError, err.message)
+        if (err.reason === 'send-failed') showMailTrouble(err)
         if (err.reason === 'no-passphrase' || err.reason === 'weak-passphrase' || err.reason === 'no-session-secret') {
           showGate({ ok: false, reason: err.reason, message: err.message })
         }

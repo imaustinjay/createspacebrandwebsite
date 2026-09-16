@@ -202,9 +202,18 @@
       daysUntilDue: Number(value('daysUntilDue')) || 14,
       lines: lines,
     }).then(function (data) {
+      // Two different failures, two different fixes: a mailbox that was never
+      // configured, and one that took the login and refused the send. The
+      // second used to be reported as the first, which sends you to check
+      // variables that are already set.
+      var unsent = data.mailReason === 'not-configured'
+        ? 'Issued (' + data.invoice.number + ') — but the mailbox isn’t connected, so nothing was emailed. Open it below and send them the link yourself.'
+        : 'Issued (' + data.invoice.number + ') — but the mailbox refused it' +
+          (data.mailDetail ? ' (' + data.mailDetail + ')' : '') +
+          '. The invoice is live; open it below and send them the link yourself.'
       okLine.textContent = data.mailed
         ? 'Issued and emailed — ' + data.invoice.number + ', ' + data.invoice.total + '.'
-        : 'Issued (' + data.invoice.number + ') — but the mailbox isn’t connected, so nothing was emailed. Open it below and send them the link yourself.'
+        : unsent
       okLine.hidden = false
       form.reset()
       while (linesBox.firstChild) linesBox.removeChild(linesBox.firstChild)

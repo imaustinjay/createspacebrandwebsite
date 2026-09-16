@@ -26,7 +26,14 @@ export function mailbox() {
   }
 }
 
-// { ok: true } · { ok: false, reason: 'not-configured' } · { ok: false, reason: 'send-failed' }
+// { ok: true }
+// { ok: false, reason: 'not-configured' }
+// { ok: false, reason: 'send-failed', detail } — `detail` is the mail server's
+//   own words. It travels because the one place this matters most is the admin
+//   portal's sign-in code: without it the operator is told to check two
+//   variables that are demonstrably already set, and has to go reading function
+//   logs to find out the password was rejected. Nodemailer's message here is
+//   the SMTP reply ("Invalid login: 535 …"); it never contains the credential.
 export async function sendMail({ to, replyTo, subject, text, html }) {
   const box = mailbox()
   if (!box) return { ok: false, reason: 'not-configured' }
@@ -49,8 +56,9 @@ export async function sendMail({ to, replyTo, subject, text, html }) {
     })
     return { ok: true }
   } catch (err) {
-    console.error('mail: SMTP send failed —', err?.message || err)
-    return { ok: false, reason: 'send-failed' }
+    const detail = String(err?.message || err).slice(0, 300)
+    console.error('mail: SMTP send failed —', detail)
+    return { ok: false, reason: 'send-failed', detail, host: box.host, port: box.port, user: box.user }
   }
 }
 

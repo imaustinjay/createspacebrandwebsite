@@ -233,6 +233,24 @@ function signingKey() {
 }
 
 // { ok } · { ok: false, reason } — the single answer to "can anyone log in".
+/**
+ * The deliberate way past the second factor.
+ *
+ * A MISSING mailbox already signs the owner in on the passphrase alone — the
+ * code refuses to lock somebody out of their own site over an unset SMTP
+ * variable. A BROKEN mailbox did not: a wrong password, a blocked login or a
+ * changed SMTP host locked the door completely, which is the same outcome for
+ * a worse reason.
+ *
+ * The answer is not to silently degrade on a send failure — an attacker who
+ * can break your mail should not thereby remove your second factor. It is to
+ * make the choice explicit and visible: set this, and the door says out loud
+ * that it is running on one factor. Unset it and the second step comes back.
+ *
+ * `ADMIN_SECOND_FACTOR=off`
+ */
+export const secondFactorOff = () => clean(process.env.ADMIN_SECOND_FACTOR).toLowerCase() === 'off'
+
 export function doorState() {
   const held = passphrase()
   const key = signingKey()
@@ -245,7 +263,10 @@ export function doorState() {
     ok: true,
     // Whether step two can actually happen. False is a working login with one
     // factor, and the page says so out loud rather than implying two.
-    secondFactor: Boolean(box && email),
+    secondFactor: Boolean(box && email) && !secondFactorOff(),
+    /** True when a mailbox exists and a person deliberately switched the
+        second step off, so the page can say WHICH kind of one-factor it is. */
+    secondFactorDisabled: secondFactorOff(),
     // Masked, so the page can say where the code went without printing an
     // address to whoever is standing at a login screen.
     sentTo: box && email ? maskEmail(email) : null,
@@ -375,7 +396,15 @@ export async function beginSignIn({ offered, ip, userAgent }) {
 
   if (!sent.ok) {
     await drop(`challenge/${id}`)
-    return { ok: false, reason: sent.reason === 'not-configured' ? 'no-mailbox' : 'send-failed' }
+    // The mail server's own words travel with the failure. Without them the
+    // operator sees "check MAIL_USER and MAIL_PASSWORD" — variables that, had
+    // they been the problem, would have signed them in on one factor instead.
+    return {
+      ok: false,
+      reason: sent.reason === 'not-configured' ? 'no-mailbox' : 'send-failed',
+      detail: sent.detail || '',
+      mailbox: sent.user ? `${sent.user} → ${sent.host}:${sent.port}` : '',
+    }
   }
 
   console.log('portal: sign-in code sent', { ip, challenge: id.slice(0, 8) })

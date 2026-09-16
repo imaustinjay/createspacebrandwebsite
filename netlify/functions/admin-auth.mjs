@@ -40,6 +40,60 @@ function json(body, init = {}) {
   return Response.json(body, { ...init, headers: { ...NO_STORE, ...(init.headers || {}) } })
 }
 
+// ── When the mailbox refuses the sign-in code ────────────────────────────
+//
+// This branch used to say "check MAIL_USER and MAIL_PASSWORD", which is the
+// one thing it cannot be: an unset pair signs you in on one factor at the
+// branch above rather than shutting the door. So the person reading it was
+// locked out of their own site and pointed at two variables that were
+// demonstrably already set, with the real reason sitting in a function log
+// they had no way to reach from the login screen.
+//
+// So the answer now carries the mail server's own words, names the account
+// and host actually tried, and leads with the fix that matches what went
+// wrong. Everything here is safe to show: a correct passphrase has already
+// been proved, an SMTP reply never contains the credential, and the address
+// is the house's own.
+const HINT = {
+  auth: 'Almost always the password: Titan, Google and Zoho all want an app-specific password here, not the one you type into the web mail. Generate one and set it as MAIL_PASSWORD.',
+  recipient: 'The mail server took the login but refused the recipient. Check ADMIN_EMAIL — that is where the code is addressed, and it falls back to SHOP_EMAIL when unset.',
+  reach: 'The mail server could not be reached at all. Check MAIL_SMTP_HOST and MAIL_SMTP_PORT — the default is smtp.titan.email on 465, which is the only port this sends on.',
+  host: 'If the account is not on Titan, set MAIL_SMTP_HOST and MAIL_SMTP_PORT to your provider’s (the default is smtp.titan.email:465).',
+  breakGlass:
+    'To get in right now without fixing mail: add ADMIN_SECOND_FACTOR=off in Netlify and redeploy. The door then runs on the passphrase alone and says so on every sign-in. Remove it to bring the code back.',
+}
+
+/** Which of the three things went wrong, read from the mail server's reply.
+    Order matters: the words a server uses are a better signal than its
+    numbers, so plain-English recipient trouble is claimed before the 5.7.x
+    codes, which are mostly — but not only — authentication. */
+export function mailFault(detail = '') {
+  const d = String(detail || '')
+  if (/ENOTFOUND|ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH|ECONNRESET|ESOCKET|EDNS|greeting never received|timed? ?out/i.test(d)) return 'reach'
+  if (/EENVELOPE|recipient|relay|mailbox (?:unavailable|not found)|no such user|user unknown|address rejected|does not exist/i.test(d)) return 'recipient'
+  if (/EAUTH|invalid login|authenticat|credential|password|username|\b53[45]\b|5\.7\.[0-9]/i.test(d)) return 'auth'
+  if (/\b5[05][0-9]\b/.test(d)) return 'recipient'
+  return 'unknown'
+}
+
+/** The whole answer, pure, so the wording is a thing that can be tested. */
+export function mailTrouble(result = {}) {
+  const detail = String(result.detail || '')
+  const fault = mailFault(detail)
+  const fix =
+    fault === 'auth' ? [HINT.auth, HINT.host]
+    : fault === 'recipient' ? [HINT.recipient, HINT.auth]
+    : fault === 'reach' ? [HINT.reach, HINT.auth]
+    : [HINT.auth, HINT.host, HINT.recipient]
+  return {
+    error: 'The passphrase was right. The mailbox refused to send the code.',
+    reason: 'send-failed',
+    detail,
+    mailbox: String(result.mailbox || ''),
+    fix: [...fix, HINT.breakGlass],
+  }
+}
+
 export default async (req, context) => {
   const ip = clientIp(req, context)
   const door = doorState()
@@ -163,25 +217,26 @@ export default async (req, context) => {
     // SMTP variable.
     if (result.reason === 'no-mailbox' && result.session) {
       await clearFailures(ip)
-      console.warn('portal: signed in on one factor — no mailbox configured')
+      const deliberate = door.secondFactorDisabled
+      console.warn('portal: signed in on one factor —', deliberate ? 'ADMIN_SECOND_FACTOR=off' : 'no mailbox configured')
       return json(
         {
           ok: true,
           signedIn: true,
           secondFactor: false,
-          notice:
-            'Signed in on the passphrase alone: no mailbox is configured, so no code could be sent. Set MAIL_USER and MAIL_PASSWORD to add the second step.',
+          notice: deliberate
+            ? 'Signed in on the passphrase alone — ADMIN_SECOND_FACTOR is off. Unset it to bring the mailed code back.'
+            : 'Signed in on the passphrase alone: no mailbox is configured, so no code could be sent. Set MAIL_USER and MAIL_PASSWORD to add the second step.',
           expiresAt: result.session.expiresAt,
         },
         { headers: { 'Set-Cookie': sessionCookie(result.session, req) } }
       )
     }
 
+    // The mailbox exists and REFUSED the send.
     if (result.reason === 'send-failed') {
-      return json(
-        { error: 'The passphrase was right, but the code could not be sent. Check MAIL_USER and MAIL_PASSWORD.', reason: 'send-failed' },
-        { status: 502 }
-      )
+      console.error('portal: sign-in code refused by the mailbox —', result.detail || 'no reason given', result.mailbox || '')
+      return json(mailTrouble(result), { status: 502 })
     }
 
     const count = await countFailure(ip)
