@@ -147,7 +147,10 @@ below). Every application flow itself lives on createspacebrand.online.
 | `STRIPE_WEBHOOK_SECRET` | The signing secret of the webhook endpoint at `/api/stripe-webhook`. Without it, payments still succeed but **nothing is delivered**: no files, no buyer email, no house notification. Holds **more than one**, comma- or space-separated — test and live are separate endpoints with separate secrets, and keeping both means a sandbox purchase still checks delivery after the switch to live. Also how you rotate one without a window where signatures fail. |
 | `ADMIN_TOKEN` | Opens `/shop/admin/`, where the product files are uploaded. The one value nobody hands you — **/shop/admin/ has a "Make me one" button** that generates it in the browser. 16 characters minimum, 40 from the button. Unset, the stockroom is shut rather than open — see [Digital delivery](#digital-delivery--the-stockroom). |
 | `STRIPE_PRICE_*` | Optional, one per product (`STRIPE_PRICE_START_SMALL`, …). Only needed if the prices don't carry lookup keys; an env var wins where both exist. |
-| `STRIPE_AUTOMATIC_TAX` | Optional, `true` to turn on Stripe Tax. Off by default — it needs Stripe Tax configured on the account first, and it makes a billing address required at checkout. |
+| `STRIPE_PRICE_SVC_*` | The same convention for the **done-for-you services**, one per half of the fee. Optional if the prices carry lookup keys instead — see the table under [Done-for-you services](#done-for-you-services--the-ten-prices) for all ten. A tier-03 service with no price resolves to the **Request the scope** door rather than a dead button, so a missing one costs a click, never the journey. |
+| `SERVICE_BRIDGE_SECRET` | **The seam between the two sites.** A long random string (`openssl rand -hex 32`) held identically here and in the workspace, used to sign an HMAC over each commission's exact body with the timestamp inside the signature. Unset, a service can still be paid for — the commission is **held in the outbox** and retried, and the desk is emailed — but nothing opens on the workspace until it is set. Several, comma-separated, are accepted; **this site signs with the FIRST**, the workspace accepts any, which is why a rotation goes workspace-first ([below](#rotating-service_bridge_secret)). |
+| `WORKSPACE_URL` | Where the commission is posted. Defaults to `https://createspacebrand.online`. Never derived from a request. |
+| `STRIPE_AUTOMATIC_TAX` | **Not wired up.** The name was reserved for turning on Stripe Tax and nothing reads it — setting it does nothing at all. Kept in this table, said plainly, rather than deleted: a variable that looks configured and is not is worse than one that is documented as pending. |
 | `STRIPE_CRAFT_TRIAL_UNTIL` | Optional ISO date for the craft's subscription trial, so "nothing is charged before August 17" is enforced rather than promised. Ignored once it's in the past. |
 | `PARTNERSHIPS_EMAIL` | Where brand enquiries land. Optional override — unset, they go to the house inbox, `hello@createspacebrand.com`. Server-side only — deliberately never printed in the client bundle, per the handoff, so it can't be scraped. |
 | `INQUIRY_EMAIL` | Where **client service inquiries** (`/inquire/`, and the tap card) land. Optional override — unset, they go wherever the house mailer already points (`SHOP_EMAIL`, then `PARTNERSHIPS_EMAIL`, then `hello@createspacebrand.com`). Server-side only, same as above. |
@@ -164,6 +167,49 @@ below). Every application flow itself lives on createspacebrand.online.
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | The whole service-account key file, pasted in as one value. This is what makes the portal's Search tab show real keywords. Unset, that panel prints setup instructions rather than a number — see [Search Console](#search-console--the-keyword-panel). |
 | `GSC_CLIENT_EMAIL` / `GSC_PRIVATE_KEY` | The same credentials in two pieces, if pasting the whole file is awkward. Netlify stores newlines as literal `\n`, which the signer handles. |
 | `GSC_SITE_URL` | Which Search Console property to read — `sc-domain:createspacebrand.com` for a domain property, or the exact URL prefix if it was verified that way. Guessed from `URL` when unset. |
+
+### Done-for-you services — the ten prices
+
+Two Stripe prices per tier-03 service: the full fee, and the 50% deposit. Tag
+each with its lookup key and the shelf resolves itself — no env vars needed.
+Tier 04 gets no price at all, by design: the catalog's rule is that no payment
+link exists until the scope and the fee are agreed in writing.
+
+| Service | Catalog "from" | `lookup_key` | env override (optional) |
+|---|---|---|---|
+| Visual Brand Kit | $895 | `svc-visual-brand-kit` | `STRIPE_PRICE_SVC_VISUAL_BRAND_KIT` |
+| ↳ deposit | $447.50 | `svc-visual-brand-kit-deposit` | `…_VISUAL_BRAND_KIT_DEPOSIT` |
+| Storefront Buildout | $595 | `svc-storefront-buildout` | `STRIPE_PRICE_SVC_STOREFRONT_BUILDOUT` |
+| ↳ deposit | $297.50 | `svc-storefront-buildout-deposit` | `…_STOREFRONT_BUILDOUT_DEPOSIT` |
+| Content System Setup | $695 | `svc-content-system-setup` | `STRIPE_PRICE_SVC_CONTENT_SYSTEM_SETUP` |
+| ↳ deposit | $347.50 | `svc-content-system-setup-deposit` | `…_CONTENT_SYSTEM_SETUP_DEPOSIT` |
+| Creator Intensive | $497 | `svc-creator-intensive` | `STRIPE_PRICE_SVC_CREATOR_INTENSIVE` |
+| ↳ deposit | $248.50 | `svc-creator-intensive-deposit` | `…_CREATOR_INTENSIVE_DEPOSIT` |
+| Profile Rebrand | $695 | `svc-profile-rebrand` | `STRIPE_PRICE_SVC_PROFILE_REBRAND` |
+| ↳ deposit | $347.50 | `svc-profile-rebrand-deposit` | `…_PROFILE_REBRAND_DEPOSIT` |
+
+The derivation, if you add a service later: the env name is
+`STRIPE_PRICE_SVC_` + the service key uppercased with `-` → `_`, plus
+`_DEPOSIT`; the lookup key is `svc-` + the service key, plus `-deposit`.
+
+**A deposit need not be exactly half.** The storefront resolves both prices and
+sends the whole fee with the commission, so the workspace records the agreed
+figure rather than doubling whatever was taken.
+
+### Rotating `SERVICE_BRIDGE_SECRET`
+
+The variable accepts several values, comma-separated — but only the RECEIVING
+side tries them all. A signature is made with exactly one key, and this site
+signs with the **first** in its list. So:
+
+1. **Workspace** → `<old>, <new>` (accepts both)
+2. **This site** → `<new>` (signs with the new one)
+3. **Workspace** → `<new>` (drops the old)
+
+The bridge stays up throughout. Doing it the other way round — putting the list
+here — is the one sequence that breaks: this site would sign with the literal
+string `"<new>, <old>"`, which is not a key the workspace tries, and every sale
+would land in the outbox with a 401 while both dashboards looked correct.
 
 Every variable must be scoped so **Functions** can read it (Netlify's "All
 scopes" default is fine). A variable scoped to Builds only is invisible at

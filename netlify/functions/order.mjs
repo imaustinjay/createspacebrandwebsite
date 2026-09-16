@@ -13,7 +13,9 @@
 // URL, so the buyer has them and nobody else does.
 import { SHELF, money, siteOrigin, stripeClient } from '../shared/catalog.mjs'
 import { deliverOrder } from '../shared/deliver.mjs'
-import { deliverableCount, ensureOrder, manifests, orderByToken, readableSize } from '../shared/storage.mjs'
+import { deliverableCount, ensureOrder, manifests, markDelivered, orderByToken, readableSize } from '../shared/storage.mjs'
+import { SERVICES } from '../shared/services.mjs'
+import { commissionFromOrder, deliverCommission } from '../shared/commission.mjs'
 
 const NO_STORE = { 'Cache-Control': 'no-store' }
 const PAYMENT_RE = /^pi_[A-Za-z0-9]+$/
@@ -96,17 +98,42 @@ export default async (req) => {
   // Written at checkout, before the card was asked for — so it is here even
   // when the webhook hasn't run yet, and `ensureOrder` never mints a second
   // token for an order that already has one.
+  const isService = meta.kind === 'service'
   const record = await ensureOrder(id, {
     reference: meta.reference || null,
     email: intent.receipt_email || null,
     name: meta.name || null,
     handle: meta.handle || '',
     joinCraft: meta.joinCraft !== 'no',
-    items: String(meta.cart || '').split(',').filter(Boolean),
+    items: isService ? [] : String(meta.cart || '').split(',').filter(Boolean),
     currency: intent.currency || 'usd',
     amount: typeof intent.amount === 'number' ? intent.amount : 0,
-    kind: isSetup ? 'membership' : 'one-time',
+    kind: isService ? 'service' : isSetup ? 'membership' : 'one-time',
+    ...(isService ? { service: meta.service || '', mode: meta.mode === 'deposit' ? 'deposit' : 'full', platform: meta.platform || '', niche: meta.niche || '', notes: meta.notes || '', fullAmount: Number(meta.fullAmount) > 0 ? Number(meta.fullAmount) : 0 } : {}),
   })
+
+  // The second door, for a SERVICE. Same reasoning as the one below it and
+  // higher stakes: a buyer whose commission never crossed is a buyer who paid
+  // for a fortnight of work that nobody has started. If the webhook has not
+  // managed it by the time they open their confirmation, this does — and the
+  // workspace dedupes on the reference, so a race between the two doors opens
+  // one engagement, not two.
+  if (isService && state === 'paid' && !record.delivered) {
+    const service = SERVICES[record.service]
+    if (service) {
+      console.warn('order: service paid but not commissioned — sending from the confirmation page', { reference: record.reference, intent: id })
+      const answers = {}
+      if (record.niche) answers['Your niche, in your own words'] = record.niche
+      if (record.handle) answers['Your primary platform (and handle)'] = [record.platform, `@${record.handle}`].filter(Boolean).join(' · ')
+      const sent = await deliverCommission(
+        commissionFromOrder({ order: record, service, mode: record.mode, intent, answers, notes: record.notes || '' }),
+      )
+      if (sent.ok) {
+        const next = await markDelivered(id, { via: 'order-page', engagement: sent.code || sent.engagementId || '' })
+        if (next) Object.assign(record, next)
+      }
+    }
+  }
 
   // The second door onto delivery.
   //
@@ -119,7 +146,7 @@ export default async (req) => {
   //
   // So if an order is paid and still undelivered when its owner opens it,
   // deliver it here. `claimDelivery` makes sure only one door ever does.
-  if (state === 'paid' && !record.delivered) {
+  if (!isService && state === 'paid' && !record.delivered) {
     console.warn('order: paid but undelivered — sending from the confirmation page', {
       reference: record.reference,
       intent: id,
@@ -143,6 +170,46 @@ export default async (req) => {
 // return parameters and the receipt's permanent token — land here, so the
 // page renders identically whichever one the buyer came through.
 async function present(record, { state, paid, nothingDueToday = false }) {
+  // A service order has no files and never will. Its "delivery" is an
+  // engagement on the desk and an assessment in the buyer's inbox, so the
+  // page is told what to say instead of being handed an empty item list and
+  // left to render a download section with nothing in it.
+  if (record.kind === 'service') {
+    const service = SERVICES[record.service] || null
+    return {
+      ok: true,
+      state,
+      paid,
+      kind: 'service',
+      free: false,
+      reference: record.reference || null,
+      email: record.email || null,
+      name: record.name || null,
+      joinCraft: record.joinCraft === true,
+      total: typeof record.amount === 'number' ? money(record.amount, record.currency) : null,
+      currency: record.currency || null,
+      nothingDueToday: false,
+      permalink: record.token ? `/shop/order/?token=${encodeURIComponent(record.token)}` : null,
+      service: service
+        ? {
+            id: record.service,
+            name: service.name,
+            turnaround: service.turnaround,
+            delivers: service.delivers,
+            mode: record.mode === 'deposit' ? 'deposit' : 'full',
+          }
+        : null,
+      // Whether the workspace has it. `false` on a paid order means the
+      // commission is held in the outbox and retrying — the page says we are
+      // on it, and the desk has already been told.
+      opened: Boolean(record.delivered),
+      engagement: record.engagement || '',
+      items: [],
+      anyReady: false,
+      allReady: false,
+    }
+  }
+
   const ids = Array.isArray(record.items) ? record.items : []
   const shelves = await manifests(ids)
 
