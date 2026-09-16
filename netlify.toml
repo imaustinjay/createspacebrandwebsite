@@ -15,6 +15,21 @@
 [build.environment]
   NODE_VERSION = "22"
 
+  # WORKSPACE_URL is the public address of the workspace app
+  # (createspacebrand.online) — the same value this repo hard-codes as its
+  # fallback in netlify/shared/commission.mjs, links to from the nav of every
+  # page, and proxies /api/cohort-status to just below. It is a destination,
+  # not a credential: nothing is authenticated by knowing it (the commission
+  # bridge is authenticated by SERVICE_BRIDGE_SECRET, which is never printed).
+  #
+  # Netlify's secrets scanning matches env var VALUES against the build
+  # output, so setting this variable in the Netlify UI made a URL that is
+  # meant to be on the page read as a leaked secret and failed the deploy.
+  # Naming it here tells the scanner it is public on purpose. Keep every
+  # genuine secret out of this list — that is the guard described in the
+  # README, and it is doing its job everywhere else.
+  SECRETS_SCAN_OMIT_KEYS = "WORKSPACE_URL"
+
 [functions]
   node_bundler = "esbuild"
 
