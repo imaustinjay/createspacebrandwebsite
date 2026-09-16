@@ -425,9 +425,14 @@ follows within five minutes, with no deploy.
    function log.
 4. **Add the webhook** in Stripe → Developers → Webhooks, pointing at
    `https://createspacebrand.com/api/stripe-webhook`, subscribed to
-   `payment_intent.succeeded`, `payment_intent.payment_failed` and
-   `setup_intent.succeeded`. Payload style **Snapshot** — the thin style sends
-   a stub this webhook can't read. Put its signing secret in
+   `payment_intent.succeeded`, `payment_intent.payment_failed`,
+   `setup_intent.succeeded` and `invoice.paid`. Payload style **Snapshot** —
+   the thin style sends a stub this webhook can't read. `invoice.paid` is the
+   one that turns a paid agency invoice into an engagement on the desk; leave
+   it unselected and an invoiced client is never commissioned, silently. It is
+   safe to select on an existing endpoint: craft membership renewals and $0
+   trial invoices are filtered out on arrival, and an invoice with no service
+   tagged on it passes through untouched. Put its signing secret in
    `STRIPE_WEBHOOK_SECRET`. **Nothing is delivered without this** — the
    webhook is what emails the files. Test and live need one endpoint each;
    `STRIPE_WEBHOOK_SECRET` holds both secrets at once, comma-separated.
