@@ -8,6 +8,7 @@
 // repo root): MAIL_USER/MAIL_PASSWORD preferred, TITAN_* as the legacy
 // fallback, values cleaned of pasted quotes/whitespace.
 import nodemailer from 'nodemailer'
+import { secureFor } from '../shared/mail.mjs'
 
 const BUDGETS = {
   'under-5k': 'Under $5,000',
@@ -120,10 +121,12 @@ export default async (req, context) => {
     )
   }
 
+  const PORT = Number(clean(process.env.MAIL_SMTP_PORT || process.env.TITAN_SMTP_PORT)) || 465
   const transporter = nodemailer.createTransport({
     host: clean(process.env.MAIL_SMTP_HOST || process.env.TITAN_SMTP_HOST) || 'smtp.titan.email',
-    port: Number(clean(process.env.MAIL_SMTP_PORT || process.env.TITAN_SMTP_PORT)) || 465,
-    secure: true,
+    port: PORT,
+    // TLS from the first byte on 465; STARTTLS on 587 and 25. See secureFor().
+    secure: secureFor(PORT),
     auth: { user, pass: password },
   })
 

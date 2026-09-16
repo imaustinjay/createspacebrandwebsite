@@ -57,7 +57,7 @@ function json(body, init = {}) {
 const HINT = {
   auth: 'Almost always the password: Titan, Google and Zoho all want an app-specific password here, not the one you type into the web mail. Generate one and set it as MAIL_PASSWORD.',
   recipient: 'The mail server took the login but refused the recipient. Check ADMIN_EMAIL — that is where the code is addressed, and it falls back to SHOP_EMAIL when unset.',
-  reach: 'The mail server could not be reached at all. Check MAIL_SMTP_HOST and MAIL_SMTP_PORT — the default is smtp.titan.email on 465, which is the only port this sends on.',
+  reach: 'The mail server could not be reached. Check MAIL_SMTP_HOST and MAIL_SMTP_PORT — the default is smtp.titan.email on 465. Use 465 or 587, whichever your provider names; a port it is not listening on looks exactly like this.',
   host: 'If the account is not on Titan, set MAIL_SMTP_HOST and MAIL_SMTP_PORT to your provider’s (the default is smtp.titan.email:465).',
   breakGlass:
     'To get in right now without fixing mail: add ADMIN_SECOND_FACTOR=off in Netlify and redeploy. The door then runs on the passphrase alone and says so on every sign-in. Remove it to bring the code back.',

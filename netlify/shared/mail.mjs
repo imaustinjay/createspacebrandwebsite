@@ -11,6 +11,15 @@ import { clean } from './catalog.mjs'
 export const esc = (s = '') =>
   String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
+// Port 465 is TLS from the first byte; 587 and 25 start in the clear and
+// upgrade with STARTTLS. Nodemailer will not work this out for you — with
+// `secure: true` on 587 it opens a TLS handshake against a server waiting to
+// speak plain SMTP, and the send dies on a timeout that names neither the port
+// nor the reason. Every provider's own setup page offers both numbers, so
+// somebody following Google's or Zoho's instructions would set 587 and take
+// the site's entire mail down, including the portal's own sign-in code.
+export const secureFor = (port) => Number(port) === 465
+
 export function mailbox() {
   const to = clean(process.env.SHOP_EMAIL || process.env.PARTNERSHIPS_EMAIL) || 'hello@createspacebrand.com'
   const user = clean(process.env.MAIL_USER || process.env.TITAN_EMAIL)
@@ -41,7 +50,7 @@ export async function sendMail({ to, replyTo, subject, text, html }) {
   const transporter = nodemailer.createTransport({
     host: box.host,
     port: box.port,
-    secure: true,
+    secure: secureFor(box.port),
     auth: { user: box.user, pass: box.password },
   })
 

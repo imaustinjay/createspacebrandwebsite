@@ -10,6 +10,7 @@
 // Conventions (honeypot, minimum fill time, per-IP limit, SMTP env names) are
 // deliberately identical to netlify/functions/enquiry.mjs.
 import nodemailer from 'nodemailer'
+import { secureFor } from '../shared/mail.mjs'
 
 // What each form is allowed to send, in the order it reads in the email.
 // Anything not named here is dropped — a form can never widen its own payload.
@@ -169,10 +170,12 @@ export default async (req, context) => {
     )
   }
 
+  const PORT = Number(clean(process.env.MAIL_SMTP_PORT || process.env.TITAN_SMTP_PORT)) || 465
   const transporter = nodemailer.createTransport({
     host: clean(process.env.MAIL_SMTP_HOST || process.env.TITAN_SMTP_HOST) || 'smtp.titan.email',
-    port: Number(clean(process.env.MAIL_SMTP_PORT || process.env.TITAN_SMTP_PORT)) || 465,
-    secure: true,
+    port: PORT,
+    // TLS from the first byte on 465; STARTTLS on 587 and 25. See secureFor().
+    secure: secureFor(PORT),
     auth: { user, pass: password },
   })
 
