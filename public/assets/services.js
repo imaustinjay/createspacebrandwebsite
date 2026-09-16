@@ -124,15 +124,20 @@
     panel.querySelectorAll('[data-book-step]').forEach(function (el) {
       el.hidden = Number(el.getAttribute('data-book-step')) !== n
     })
+    panel.querySelectorAll('[data-book-error]').forEach(function (el) { el.textContent = ''; el.hidden = true })
   }
 
-  function setError(message, where) {
-    var target = (where || panel)
-    if (!target) return
-    var el = target.querySelector('[data-book-error]')
-    if (!el) return
-    el.textContent = message || ''
-    el.hidden = !message
+  // Each step has its own error line, so a message raised on the payment step
+  // must land on the payment step — writing it into step one's hidden element
+  // is the same as not showing it at all.
+  function setError(message) {
+    if (!panel) return
+    panel.querySelectorAll('[data-book-error]').forEach(function (el) {
+      var step = el.closest('[data-book-step]')
+      var visible = step && !step.hidden
+      el.textContent = visible ? (message || '') : ''
+      el.hidden = !visible || !message
+    })
   }
 
   function details() {
