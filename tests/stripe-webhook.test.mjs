@@ -10,10 +10,17 @@
 // membership's first invoice is $0 and Stripe marks it paid by itself; and
 // invoices raised by hand in the Stripe dashboard carry whatever metadata a
 // person typed, usually none. Each of those must pass through untouched.
+//
+// These live in tests/ rather than beside the function they cover, because
+// `netlify.toml` sets `functions = "netlify/functions"` and Netlify deploys
+// every top-level module in that directory as an endpoint — a file left there
+// would be published at /.netlify/functions/<name>.test and run on request.
+// The shared/ tests are colocated safely for exactly the same reason: that
+// directory is deliberately outside the one Netlify scans.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { invoiceCommission } from './stripe-webhook.mjs'
-import { subscriptionInvoice } from '../shared/catalog.mjs'
+import { invoiceCommission } from '../netlify/functions/stripe-webhook.mjs'
+import { subscriptionInvoice } from '../netlify/shared/catalog.mjs'
 
 /** A paid agency invoice, tagged with a service by the billing desk. */
 const serviceInvoice = (over = {}) => ({

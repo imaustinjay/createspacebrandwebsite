@@ -9,9 +9,16 @@
 // to a function log they could not reach from a login screen.
 //
 // A sentence can regress as quietly as it shipped, so it is tested.
+//
+// These live in tests/ rather than beside the function they cover, because
+// `netlify.toml` sets `functions = "netlify/functions"` and Netlify deploys
+// every top-level module in that directory as an endpoint — a file left there
+// would be published at /.netlify/functions/<name>.test and run on request.
+// The shared/ tests are colocated safely for exactly the same reason: that
+// directory is deliberately outside the one Netlify scans.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mailFault, mailTrouble } from './admin-auth.mjs'
+import { mailFault, mailTrouble } from '../netlify/functions/admin-auth.mjs'
 
 /* ── reading the mail server's reply ─────────────────────────────────────── */
 
