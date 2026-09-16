@@ -29,9 +29,9 @@ function withEnv(vars, fn) {
 }
 
 const BOX = {
-  MAIL_USER: 'desk@createspacebrand.com',
+  MAIL_USER: 'desk@example.com',
   MAIL_PASSWORD: 'an-app-password',
-  SHOP_EMAIL: 'hello@createspacebrand.com',
+  SHOP_EMAIL: 'hello@example.com',
   MAIL_SMTP_HOST: undefined,
   MAIL_SMTP_PORT: undefined,
   PARTNERSHIPS_EMAIL: undefined,

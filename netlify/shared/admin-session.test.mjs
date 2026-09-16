@@ -35,10 +35,10 @@ function withEnv(vars, fn) {
 const WORKING = {
   ADMIN_PASSWORD: 'a-long-enough-passphrase-for-the-door',
   ADMIN_SESSION_SECRET: 'twenty-four-or-more-random-characters-here',
-  MAIL_USER: 'desk@createspacebrand.com',
+  MAIL_USER: 'desk@example.com',
   MAIL_PASSWORD: 'an-app-password',
-  SHOP_EMAIL: 'hello@createspacebrand.com',
-  ADMIN_EMAIL: 'austin@createspacetalent.com',
+  SHOP_EMAIL: 'hello@example.com',
+  ADMIN_EMAIL: 'owner@example.net',
   ADMIN_SECOND_FACTOR: undefined,
   ADMIN_PASSWORD_HASH: undefined,
   TITAN_EMAIL: undefined,
@@ -54,8 +54,8 @@ test('a fully configured door offers two factors and masks where the code goes',
     assert.equal(d.ok, true)
     assert.equal(d.secondFactor, true)
     assert.equal(d.secondFactorDisabled, false)
-    assert.match(d.sentTo, /@createspacetalent\.com$/)
-    assert.doesNotMatch(d.sentTo, /^austin@/, 'the address is masked at a login screen')
+    assert.match(d.sentTo, /@example\.net$/)
+    assert.doesNotMatch(d.sentTo, /^owner@/, 'the address is masked at a login screen')
   })
 })
 
@@ -123,7 +123,7 @@ test('switching the second factor off does NOT open a door that was already shut
 /* ── the address, masked ────────────────────────────────────────────────── */
 
 test('a masked address says the domain and hides the person', () => {
-  assert.equal(maskEmail('austin@createspacetalent.com'), 'au••••@createspacetalent.com')
+  assert.equal(maskEmail('owner@example.net'), 'ow•••@example.net')
   assert.equal(maskEmail('ab@x.co'), 'ab••@x.co')
   assert.equal(maskEmail('not-an-address'), '')
   assert.equal(maskEmail(''), '')
