@@ -65,6 +65,44 @@
   to = "/.netlify/functions/checkout"
   status = 200
 
+# ── Done-for-you services ─────────────────────────────────────────────────
+#
+# The shelf sells two kinds of thing now. A product is files: you pay, you
+# download, it is over in a second. A SERVICE is work: you pay, and a fortnight
+# later a team hands you a brand. The three doors below are that second kind.
+#
+# /api/services       — the shelf with live Stripe prices, cached 5 minutes.
+#                       Tier-04 services come back unpriced on purpose: the
+#                       catalog's rule is that no payment link exists until the
+#                       scope and the fee are agreed in writing.
+# /api/service-checkout — one service, one payment (full fee or the 50%
+#                       deposit, each its own Stripe price). Same Payment
+#                       Element, same page, same refusal to trust a browser
+#                       with an amount.
+# /api/scope-request  — the other door, for the tier-04 services. Not a contact
+#                       form: it opens a real engagement on the workspace desk
+#                       and the client's assessment reaches them in a minute.
+#
+# What happens after the payment lives in netlify/shared/commission.mjs: a
+# signed commission crosses to createspacebrand.online, which opens the
+# engagement, seeds its documents and writes to the client. If the bridge is
+# down the commission is HELD in a durable outbox and retried — a sale that
+# does not reach the workspace is the worst failure this repo can have.
+[[redirects]]
+  from = "/api/services"
+  to = "/.netlify/functions/services"
+  status = 200
+
+[[redirects]]
+  from = "/api/service-checkout"
+  to = "/.netlify/functions/service-checkout"
+  status = 200
+
+[[redirects]]
+  from = "/api/scope-request"
+  to = "/.netlify/functions/scope-request"
+  status = 200
+
 # One order read back from Stripe, for the confirmation page — by Stripe's
 # return parameters straight after paying, or by the receipt's permanent token
 # any time after.

@@ -3,10 +3,11 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "createspace · community + talent — public marketing site (createspacebrand.com)",
+  "description": "createspace \u00b7 community + talent \u2014 public marketing site (createspacebrand.com)",
   "scripts": {
     "dev": "npx -y serve public",
-    "dev:functions": "npx -y netlify-cli dev"
+    "dev:functions": "npx -y netlify-cli dev",
+    "test": "node --test netlify/shared/*.test.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^10.7.9",

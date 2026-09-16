@@ -16,7 +16,9 @@
 //     carries a `delivered` flag, so a replayed event re-sends nothing.
 import { clean, siteOrigin, stripeClient } from '../shared/catalog.mjs'
 import { deliverOrder } from '../shared/deliver.mjs'
-import { ensureOrder } from '../shared/storage.mjs'
+import { ensureOrder, markDelivered } from '../shared/storage.mjs'
+import { SERVICES } from '../shared/services.mjs'
+import { commissionFromOrder, deliverCommission, flushOutbox } from '../shared/commission.mjs'
 
 const HANDLED = new Set([
   'payment_intent.succeeded',
@@ -105,6 +107,68 @@ export default async (req) => {
       reason: intent.last_payment_error?.message,
     })
     return Response.json({ received: true, handled: true })
+  }
+
+  // A SERVICE, not a cart of files. Nothing to download and nothing to email a
+  // link to — what this payment bought is two weeks of a team's work, so the
+  // delivery is a commission crossing to the workspace, which opens the
+  // engagement and writes to the client itself.
+  //
+  // It lives here rather than inside deliverOrder because the two have nothing
+  // in common but the word: one mints download tokens, the other opens a
+  // fortnight of work. Sharing a function between them would have meant a
+  // branch at the top of every line of it.
+  if (meta.kind === 'service') {
+    const service = SERVICES[meta.service]
+    if (!service) {
+      console.error('stripe-webhook: a service payment naming a service we do not sell —', meta.service)
+      return Response.json({ received: true, handled: false, reason: 'unknown-service' })
+    }
+
+    const order = await ensureOrder(intent.id, {
+      reference: meta.reference || null,
+      email: intent.receipt_email || null,
+      name: meta.name || null,
+      handle: meta.handle || '',
+      platform: meta.platform || '',
+      niche: meta.niche || '',
+      notes: meta.notes || '',
+      joinCraft: meta.joinCraft === 'yes',
+      kind: 'service',
+      service: meta.service,
+      mode: meta.mode === 'deposit' ? 'deposit' : 'full',
+      items: [],
+      currency: intent.currency || 'usd',
+      amount: typeof intent.amount === 'number' ? intent.amount : 0,
+    })
+
+    if (order.delivered) {
+      console.log('stripe-webhook: service already commissioned', { reference: order.reference, intent: intent.id })
+      return Response.json({ received: true, handled: true, duplicate: true })
+    }
+
+    const answers = {}
+    if (order.niche) answers['Your niche, in your own words'] = order.niche
+    if (order.handle) answers['Your primary platform (and handle)'] = [order.platform, `@${order.handle}`].filter(Boolean).join(' · ')
+
+    const sent = await deliverCommission(
+      commissionFromOrder({ order, service, mode: order.mode, intent, answers, notes: order.notes || '' }),
+    )
+
+    if (sent.ok) {
+      // Marked delivered only once the workspace has it. A commission held in
+      // the outbox is NOT a delivered order, and must not be treated as one by
+      // the confirmation page or by a Stripe retry.
+      await markDelivered(intent.id, { via: 'webhook', engagement: sent.code || sent.engagementId || '' })
+      flushOutbox({ limit: 5 }).catch(() => {})
+      console.log('stripe-webhook: service commissioned', { reference: order.reference, service: meta.service, engagement: sent.code || '' })
+      return Response.json({ received: true, handled: true, engagement: sent.code || '' })
+    }
+
+    // Held. A 500 brings Stripe back, which is the cheapest retry available —
+    // and the outbox means the commission survives even if it never does.
+    console.error('stripe-webhook: service commission HELD —', sent.error)
+    return Response.json({ error: 'Commission held' }, { status: sent.retry === false ? 200 : 500 })
   }
 
   // The order was written at checkout, keyed by this intent, before the card

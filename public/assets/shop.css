@@ -721,7 +721,9 @@ a.prod-name:hover { color: var(--sage); }
 .back-link:hover { color: var(--seal); }
 
 /* ---------- Services ---------- */
-.svc-table { display: grid; grid-template-columns: 1.1fr 1.5fr auto auto; gap: 0 30px; }
+.svc-table { display: grid; grid-template-columns: 1fr 1.5fr auto auto; gap: 0 30px; }
+/* The rows are painted by /assets/services.js into a `display: contents`
+   wrapper, so they stay direct grid children and subgrid keeps working. */
 .svc-head {
   font-size: 10px;
   font-weight: 700;
@@ -740,6 +742,71 @@ a.prod-name:hover { color: var(--sage); }
 }
 .svc-row h3 { font-size: 19px; font-weight: 400; margin: 0; }
 .svc-row .btn { white-space: nowrap; }
+
+/* The shelf now carries a fee column and a short "what it delivers" list —
+   the two things a visitor needs before they will press Book it. */
+.svc-delivers {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.svc-delivers li {
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.5;
+  color: var(--muted);
+  padding-left: 15px;
+  position: relative;
+}
+.svc-delivers li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--sage);
+  opacity: 0.5;
+}
+.svc-price { display: grid; gap: 4px; align-content: center; white-space: nowrap; }
+.svc-price b { font-size: 19px; font-weight: 400; }
+.svc-dep, .svc-quote {
+  font-size: 11.5px;
+  font-weight: 300;
+  line-height: 1.4;
+  color: var(--faint);
+  white-space: normal;
+  max-width: 16em;
+}
+.svc-quote { font-size: 13px; color: var(--muted); }
+
+/* The two panels below the shelf: booking a build, and requesting a scope. */
+.svc-panel { scroll-margin-top: 90px; }
+.svc-modes { display: grid; gap: 10px; margin-bottom: 26px; max-width: 40em; }
+.svc-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 24px;
+  max-width: 52em;
+}
+.svc-fields .field-wide { grid-column: 1 / -1; }
+.svc-fields textarea {
+  -webkit-appearance: none;
+  font-family: 'Raleway', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14.5px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--seal);
+  background: var(--ivory);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 12px 14px;
+  resize: vertical;
+}
+.svc-fields textarea:focus { outline: none; border-color: var(--sage); }
 
 /* ---------- FAQ ---------- */
 .faq { border-bottom: 1px solid var(--hairline); }
@@ -1201,6 +1268,8 @@ textarea::placeholder { color: var(--faint); }
 
   /* The service table becomes a stack of rows on narrow screens —
      subgrid columns can't survive the fold. */
+  .svc-fields { grid-template-columns: 1fr; }
+  .svc-price { white-space: normal; }
   .svc-table { grid-template-columns: 1fr; }
   .svc-head { display: none; }
   .svc-row { grid-template-columns: 1fr; gap: 10px; }
