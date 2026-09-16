@@ -140,6 +140,7 @@ export default async (req) => {
       items: [],
       currency: intent.currency || 'usd',
       amount: typeof intent.amount === 'number' ? intent.amount : 0,
+      fullAmount: Number(meta.fullAmount) > 0 ? Number(meta.fullAmount) : 0,
     })
 
     if (order.delivered) {

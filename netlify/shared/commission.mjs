@@ -39,7 +39,35 @@ export function workspaceUrl() {
   return clean(process.env.WORKSPACE_URL || 'https://createspacebrand.online').replace(/\/+$/, '')
 }
 
-export const bridgeSecret = () => clean(process.env.SERVICE_BRIDGE_SECRET)
+/**
+ * The secret this site SIGNS with.
+ *
+ * `SERVICE_BRIDGE_SECRET` may hold several, comma- or whitespace-separated —
+ * that is what makes rotating one not an outage. But only the receiving side
+ * gets to try them all; a signature is made with exactly one key, and this is
+ * the side that makes it. So: **the first value in the list is the one we sign
+ * with, and the workspace accepts any of them.**
+ *
+ * Rotating, in order, with the bridge up throughout:
+ *   1. workspace:  SERVICE_BRIDGE_SECRET = "<old>, <new>"   (accepts both)
+ *   2. storefront: SERVICE_BRIDGE_SECRET = "<new>"          (signs with new)
+ *   3. workspace:  SERVICE_BRIDGE_SECRET = "<new>"          (drops old)
+ *
+ * Without the `[0]` below, a storefront holding "<new>, <old>" would sign with
+ * the literal string "<new>, <old>" — which is not a key the workspace tries,
+ * so EVERY commission would be refused with a 401 while both sites looked
+ * correctly configured. That is a sale reaching the outbox instead of the desk.
+ */
+export const bridgeSecret = () => secretList()[0] || ''
+
+/** Every secret configured here, in order. The first signs; the rest exist so
+    a value can be staged before it is switched to. */
+export function secretList() {
+  return clean(process.env.SERVICE_BRIDGE_SECRET)
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
 
 /** Is the bridge configured at all? The admin desk asks, so a misconfiguration
     is visible before a sale finds it rather than after. */
@@ -201,6 +229,10 @@ export function commissionFromOrder({ order, service, mode = 'full', intent, kin
     serviceName: service.name,
     tier: service.tier,
     amount: typeof order.amount === 'number' ? order.amount : 0,
+    // The whole fee, when this payment was only half of it. Stated rather than
+    // inferred: the workspace would otherwise double the deposit, which is
+    // right only while the deposit is exactly half.
+    fullAmount: typeof order.fullAmount === 'number' && order.fullAmount > 0 ? order.fullAmount : 0,
     currency: order.currency || 'usd',
     payment: mode === 'deposit' ? 'deposit' : 'full',
     paidAt: new Date().toISOString(),

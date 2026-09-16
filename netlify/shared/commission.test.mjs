@@ -8,7 +8,7 @@
 // nobody discovers it at 2am from a 401 in a webhook log.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { sign, SIGNATURE_HEADER, TIMESTAMP_HEADER, commissionFromOrder } from './commission.mjs'
+import { sign, secretList, bridgeSecret, bridgeReady, SIGNATURE_HEADER, TIMESTAMP_HEADER, commissionFromOrder } from './commission.mjs'
 import { SERVICES, SERVICE_IDS, BUYABLE, SCOPED, isBuyable, lookupKey, serviceForPrice, serviceLine, PAYMENT_MODES } from './services.mjs'
 import { readScopeRequest } from '../functions/scope-request.mjs'
 
@@ -40,6 +40,28 @@ test('the timestamp is signed material, not a header beside it', () => {
 
 test('one edited byte produces a different signature', () => {
   assert.notEqual(sign('{"amount":89500}', 'k', '1').signature, sign('{"amount":95}', 'k', '1').signature)
+})
+
+test('with several secrets configured, we sign with the FIRST — never the whole string', () => {
+  // The receiving side may try every value; a signature is made with exactly
+  // one. Signing with the literal "new, old" would be refused by a workspace
+  // that is correctly configured, which is the worst kind of failure: both
+  // dashboards look right and every sale lands in the outbox.
+  const before = process.env.SERVICE_BRIDGE_SECRET
+  try {
+    process.env.SERVICE_BRIDGE_SECRET = '  NEWKEY ,  OLDKEY  '
+    assert.deepEqual(secretList(), ['NEWKEY', 'OLDKEY'])
+    assert.equal(bridgeSecret(), 'NEWKEY')
+    assert.equal(sign('{}', bridgeSecret(), '1').signature, sign('{}', 'NEWKEY', '1').signature)
+    assert.notEqual(sign('{}', bridgeSecret(), '1').signature, sign('{}', 'NEWKEY ,  OLDKEY', '1').signature)
+
+    process.env.SERVICE_BRIDGE_SECRET = ''
+    assert.equal(bridgeSecret(), '')
+    assert.equal(bridgeReady(), false, 'no secret means the bridge is not ready, and the outbox holds')
+  } finally {
+    if (before === undefined) delete process.env.SERVICE_BRIDGE_SECRET
+    else process.env.SERVICE_BRIDGE_SECRET = before
+  }
 })
 
 test('the two sites agree on the header names', () => {
@@ -132,10 +154,22 @@ test('an order becomes a commission the workspace can open', () => {
   assert.equal(c.origin, 'stripe:pi_123')
 })
 
-test('a deposit travels as a deposit — the workspace opens at the full fee', () => {
-  const c = commissionFromOrder({ order: order({ amount: 44750 }), service: SERVICES['visual-brand-kit'], mode: 'deposit', intent: null })
+test('a deposit travels as a deposit, and states the whole fee beside it', () => {
+  const c = commissionFromOrder({ order: order({ amount: 44750, fullAmount: 89500 }), service: SERVICES['visual-brand-kit'], mode: 'deposit', intent: null })
   assert.equal(c.payment, 'deposit')
   assert.equal(c.amount, 44750)
+  assert.equal(c.fullAmount, 89500, 'the workspace records the agreed fee rather than doubling the deposit')
+})
+
+test('a deposit that is not exactly half still names the right fee', () => {
+  // $450 taken against an $895 build. Doubling would tell the workspace $900.
+  const c = commissionFromOrder({ order: order({ amount: 45000, fullAmount: 89500 }), service: SERVICES['visual-brand-kit'], mode: 'deposit' })
+  assert.equal(c.fullAmount, 89500)
+})
+
+test('an order with no stated fee carries zero, not a guess', () => {
+  const c = commissionFromOrder({ order: order({ amount: 44750 }), service: SERVICES['visual-brand-kit'], mode: 'deposit' })
+  assert.equal(c.fullAmount, 0)
 })
 
 test('what the buyer typed at the till travels as answers, so nothing is asked twice', () => {

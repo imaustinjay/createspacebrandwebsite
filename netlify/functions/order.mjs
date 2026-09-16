@@ -109,7 +109,7 @@ export default async (req) => {
     currency: intent.currency || 'usd',
     amount: typeof intent.amount === 'number' ? intent.amount : 0,
     kind: isService ? 'service' : isSetup ? 'membership' : 'one-time',
-    ...(isService ? { service: meta.service || '', mode: meta.mode === 'deposit' ? 'deposit' : 'full', platform: meta.platform || '', niche: meta.niche || '', notes: meta.notes || '' } : {}),
+    ...(isService ? { service: meta.service || '', mode: meta.mode === 'deposit' ? 'deposit' : 'full', platform: meta.platform || '', niche: meta.niche || '', notes: meta.notes || '', fullAmount: Number(meta.fullAmount) > 0 ? Number(meta.fullAmount) : 0 } : {}),
   })
 
   // The second door, for a SERVICE. Same reasoning as the one below it and

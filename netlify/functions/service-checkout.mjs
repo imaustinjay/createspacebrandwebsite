@@ -117,6 +117,11 @@ export default async (req, context) => {
   }
 
   const price = prices[id]?.[mode]
+  // The WHOLE fee, resolved here where both prices are already in hand. It
+  // travels with the commission so the workspace records the agreed fee rather
+  // than doubling a deposit — which is only right while the deposit is exactly
+  // half, and silently wrong the moment somebody rounds one to $450.
+  const fullAmount = prices[id]?.full?.amount || 0
   if (!price) {
     // A service on the shelf with no price behind it is our fault, not the
     // buyer's, and the scope door is a real thing to offer them instead.
@@ -144,6 +149,9 @@ export default async (req, context) => {
     platform: platform.slice(0, 200),
     niche: niche.slice(0, 400),
     notes: notes.slice(0, 480),
+    // Carried on the intent too, so the webhook can reconstruct the commission
+    // even for an order record it did not write.
+    fullAmount: String(fullAmount),
     source: 'createspacebrand.com/shop/services',
   }
 
@@ -186,6 +194,7 @@ export default async (req, context) => {
     lines: [{ id, amount: price.amount, recurring: false }],
     currency: price.currency,
     amount: price.amount,
+    fullAmount,
   })
 
   console.log('service-checkout: opened', { reference: orderRef, service: id, mode, intent: intent.id })
