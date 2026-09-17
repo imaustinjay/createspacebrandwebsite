@@ -1086,14 +1086,28 @@ One thing the crawl was wrong about. `/privacy/` was reported as having a
 references the quote that opened the value, which also lets an apostrophe live
 in alt text. The finding was the reader, not the page.
 
-Two findings are not the crawl's and remain open. **Search is sending 1% of
+The entity move in `seo-playbook.mjs` wants an Organization that names its own
+profiles, so Google can tell that account and this site are one entity rather
+than two — which is what points a knowledge panel here. The Organization node
+on `/` now carries `sameAs`, and Instagram is in it:
+
+```json
+"sameAs": ["https://www.instagram.com/createspacebrand/"]
+```
+
+**One node, on the homepage only.** Every other page references the
+Organization by `@id` rather than restating it, which is the whole point of a
+linked-data graph — add TikTok, YouTube or LinkedIn to that array and all 27
+pages inherit it. The signal is strongest when it is returned: the Instagram
+bio already links to createspacebrand.com, so the loop closes. Nothing on the
+site links out to the profile yet; a footer link would close it visibly too,
+and that is a design decision rather than a schema one.
+
+One finding is not the crawl's and remains open. **Search is sending 1% of
 the traffic** is a traffic measurement, and its three moves are
 striking-distance terms (needs Search Console connected), Search Console
 coverage, and the informational cluster — which is the `journal` entry below
-and has not been built. **Organization `sameAs`** is the other half of the
-entity move in `seo-playbook.mjs`: it wants every social profile URL, and
-there is not one anywhere in this repo to use. Both need a decision rather
-than a commit.
+and has not been built.
 
 ### Reading it locally
 
