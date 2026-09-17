@@ -14,7 +14,10 @@
 //
 // The upload is a raw body rather than multipart on purpose: no parser, no
 // dependency, and a browser can send a File straight down it.
-import { IDS, SHELF, clean, isFree, keyMismatch, keyMode, resolvePrices, siteOrigin, stripeClient } from '../shared/catalog.mjs'
+import {
+  clean, isFree, keyMismatch, keyMode, liveShelf, productLookupKey,
+  readProductDraft, resolvePrices, siteOrigin, stripeClient,
+} from '../shared/catalog.mjs'
 import { deliverOrder } from '../shared/deliver.mjs'
 import { mailbox } from '../shared/mail.mjs'
 import {
@@ -28,6 +31,9 @@ import {
   removeFile,
   safeName,
   setLinks,
+  customProducts,
+  putCustomProduct,
+  removeCustomProduct,
 } from '../shared/storage.mjs'
 
 // 40 MB. Netlify will stream a download of any size back out, but an upload
@@ -52,14 +58,14 @@ function unauthorised() {
 // This exists because setting the shop up means pasting five values into a
 // dashboard nobody can see from here, and "did that take?" should be a page
 // you look at rather than a purchase you risk.
-async function wiring() {
+async function wiring(shelf, ids) {
   const secret = clean(process.env.STRIPE_SECRET_KEY)
   const stripe = stripeClient()
   // Free products need nothing from Stripe, so counting them here would say
   // "1 of 7 priced" about an account holding nothing at all — a number that
   // implies Stripe did something it didn't. This panel is about the wiring,
   // and a free product has none.
-  const needsStripe = IDS.filter((id) => !isFree(id))
+  const needsStripe = ids.filter((id) => !shelf[id].free && !isFree(id))
   let priced = 0
   let found = null
   if (stripe) {
@@ -85,7 +91,7 @@ async function wiring() {
           lookupKey: price.lookup_key || null,
           // Whether this one is already claimed by a shelf id, so the panel
           // can show what's left over rather than what's already working.
-          claimed: Boolean(price.lookup_key && SHELF[price.lookup_key]),
+          claimed: Boolean(price.lookup_key && shelf[price.lookup_key]),
           name: (price.product && typeof price.product === 'object' && price.product.name) || 'Unnamed product',
           amount: typeof price.unit_amount === 'number' ? price.unit_amount : null,
           currency: price.currency,
@@ -131,7 +137,7 @@ async function wiring() {
 // webhook never arrived and the confirmation page had to cover for it. That
 // difference is the whole diagnosis, and it should be readable at a glance
 // rather than dug out of a function log in another dashboard.
-async function ledger() {
+async function ledger(shelf) {
   const orders = await recentOrders(25)
   return orders.map((o) => ({
     intentId: o.intentId,
@@ -142,7 +148,7 @@ async function ledger() {
     amount: typeof o.amount === 'number' ? o.amount : null,
     currency: o.currency || 'usd',
     kind: o.kind || 'one-time',
-    items: (Array.isArray(o.items) ? o.items : []).map((id) => (SHELF[id] ? SHELF[id].name : id)),
+    items: (Array.isArray(o.items) ? o.items : []).map((id) => (shelf[id] ? shelf[id].name : id)),
     delivered: Boolean(o.delivered),
     deliveredAt: o.deliveredAt || null,
     // false when the mailbox wasn't configured — the one case where an order
@@ -178,6 +184,12 @@ export default async (req) => {
 
   const params = new URL(req.url).searchParams
   const item = params.get('item') || ''
+
+  // The shelf as it is right now: the seven in code, plus everything added
+  // from this stockroom. Read once per request and passed down, rather than
+  // each branch reaching for the constant it used to.
+  const shelf = await liveShelf()
+  const ids = Object.keys(shelf)
 
   // --------------------------------------------------------- send it again
   // A receipt that didn't arrive is not a rare event — a mailbox that wasn't
@@ -236,27 +248,116 @@ export default async (req) => {
     }
 
     console.log('products: receipt re-sent', { reference: order.reference, to: order.email })
-    return Response.json({ ok: true, sent: order.email, orders: await ledger() }, { headers: NO_STORE })
+    return Response.json({ ok: true, sent: order.email, orders: await ledger(shelf) }, { headers: NO_STORE })
   }
 
   // ------------------------------------------------------------- read it
   if (req.method === 'GET') {
-    const shelves = await manifests(IDS)
-    const products = IDS.map((id) => ({
+    const shelves = await manifests(ids)
+    const products = ids.map((id) => ({
       id,
-      name: SHELF[id].name,
-      delivery: SHELF[id].delivery,
+      name: shelf[id].name,
+      delivery: shelf[id].delivery,
+      // The exact string `resolvePrices` looks for in Stripe. Printed rather
+      // than described, so what is pasted into the dashboard and what the
+      // shop resolves are the same call, not two copies of a convention.
+      lookupKey: productLookupKey(id),
+      free: Boolean(shelf[id].free),
+      // Which of these can be edited or deleted here. The seven in code have
+      // hand-built pages and photography; the stockroom must not offer to
+      // delete something it cannot put back.
+      custom: Boolean(shelf[id].custom),
+      tier: shelf[id].tier || '',
+      blurb: shelf[id].blurb || '',
+      inside: shelf[id].inside || [],
+      href: shelf[id].href || '',
       files: (shelves[id].files || []).map((f) => ({ ...f, readable: readableSize(f.size) })),
       links: shelves[id].links || [],
       ready: deliverableCount(shelves[id]) > 0,
     }))
     return Response.json(
-      { ok: true, products, maxUpload: MAX_UPLOAD, config: await wiring(), orders: await ledger() },
+      { ok: true, products, maxUpload: MAX_UPLOAD, config: await wiring(shelf, ids), orders: await ledger(shelf) },
       { headers: NO_STORE }
     )
   }
 
-  if (!SHELF[item]) {
+  // ------------------------------------------------- add, edit, remove one
+  //
+  // The reason a new product no longer needs a deploy. A record written here
+  // joins the shelf on the next read: it lists in the shop, adds to a cart,
+  // checks out, delivers its files and gets a page — all from the same code
+  // paths the seven hand-built products use, because they all read the merged
+  // shelf rather than the constant.
+  //
+  // The one thing it cannot do is invent a price. That stays Stripe's, as it
+  // is for everything else on this site, which is why the answer carries the
+  // lookup key: create the product here, paste that key onto a price there,
+  // and the shop resolves it within the catalog's five-minute cache.
+  const action = params.get('action') || ''
+  if (action) {
+    if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 })
+
+    let body = {}
+    try { body = await req.json() } catch { /* answered below */ }
+
+    if (action === 'delete') {
+      const id = String(body.id || '')
+      if (!shelf[id]) return Response.json({ error: 'Unknown product.' }, { status: 400, headers: NO_STORE })
+      if (!shelf[id].custom) {
+        return Response.json(
+          { error: `"${shelf[id].name}" is built in code, with a page and photography behind it. It cannot be deleted from here.`, reason: 'built-in' },
+          { status: 409, headers: NO_STORE }
+        )
+      }
+      // The files stay. Deleting a product is a listing decision; deleting
+      // somebody's paid-for download is a different one, and a buyer who
+      // already owns it keeps their link either way.
+      await removeCustomProduct(id)
+      console.log('products: removed from the shelf', { id })
+      return Response.json({ ok: true, removed: id }, { headers: NO_STORE })
+    }
+
+    if (action !== 'create' && action !== 'update') {
+      return Response.json({ error: 'Unknown action.' }, { status: 400, headers: NO_STORE })
+    }
+
+    const editing = action === 'update' ? String(body.id || '') : ''
+    if (editing) {
+      if (!shelf[editing]) return Response.json({ error: 'Unknown product.' }, { status: 400, headers: NO_STORE })
+      if (!shelf[editing].custom) {
+        return Response.json(
+          { error: `"${shelf[editing].name}" is built in code. Its words live in the repository, not here.`, reason: 'built-in' },
+          { status: 409, headers: NO_STORE }
+        )
+      }
+    }
+
+    const { product, error } = readProductDraft(
+      { ...body, ...(editing ? { id: editing, createdAt: shelf[editing].createdAt } : {}) },
+      shelf,
+      { editing }
+    )
+    if (error) return Response.json({ error }, { status: 400, headers: NO_STORE })
+
+    await putCustomProduct(product)
+    console.log(`products: ${action}d on the shelf`, { id: product.id, name: product.name })
+
+    return Response.json(
+      {
+        ok: true,
+        product,
+        lookupKey: productLookupKey(product.id),
+        // What is still owed before it can be sold, said plainly rather than
+        // left for somebody to discover at a checkout.
+        next: product.free
+          ? 'It is free, so there is no Stripe price to set. Upload its files and it is ready.'
+          : `Create a price in Stripe with the lookup key ${productLookupKey(product.id)}, then upload its files here.`,
+      },
+      { headers: NO_STORE }
+    )
+  }
+
+  if (!shelf[item]) {
     return Response.json({ error: 'Unknown product.' }, { status: 400, headers: NO_STORE })
   }
 

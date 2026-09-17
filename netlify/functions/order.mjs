@@ -11,7 +11,7 @@
 // The client secret is the capability, and it is checked: knowing an intent
 // id is not enough to read somebody's order. Stripe puts both on the return
 // URL, so the buyer has them and nobody else does.
-import { SHELF, money, siteOrigin, stripeClient } from '../shared/catalog.mjs'
+import { liveShelf, money, siteOrigin, stripeClient } from '../shared/catalog.mjs'
 import { deliverOrder } from '../shared/deliver.mjs'
 import { deliverableCount, ensureOrder, manifests, markDelivered, orderByToken, readableSize } from '../shared/storage.mjs'
 import { SERVICES } from '../shared/services.mjs'
@@ -217,9 +217,12 @@ async function present(record, { state, paid, nothingDueToday = false }) {
   // the order is readable while it clears; the files are not.
   const token = paid ? record.token : null
   const lineFor = (id) => (record.lines || []).find((l) => l.id === id)
+  // The live shelf, so a stockroom-added product is named on the confirmation
+  // page and in its download list like any other.
+  const live = await liveShelf()
 
   const items = ids.map((productId) => {
-    const shelf = SHELF[productId]
+    const shelf = live[productId]
     const entry = shelves[productId] || { files: [], links: [] }
     const line = lineFor(productId)
     const downloads = []

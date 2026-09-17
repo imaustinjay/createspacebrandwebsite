@@ -7,7 +7,7 @@
 //
 // Unconfigured is not zero and not free — it stays an em-dash. The same rule
 // the season doors follow: unknown is never rendered as an answer.
-import { IDS, SHELF, resolvePrices, stripeClient } from '../shared/catalog.mjs'
+import { liveShelf, resolvePrices, stripeClient } from '../shared/catalog.mjs'
 
 const CACHE_OK = 'public, max-age=0, s-maxage=300, stale-while-revalidate=600'
 const CACHE_FAIL = 'no-store'
@@ -36,8 +36,11 @@ export default async (req) => {
     )
   }
 
+  // The shelf as it is now, so a stockroom-added product is priced and
+  // named here exactly like one written in code.
+  const shelf = await liveShelf()
   const products = {}
-  for (const id of IDS) {
+  for (const id of Object.keys(shelf)) {
     const price = prices[id]
     if (!price) continue
     // Only what a price tag needs. The Stripe price id stays server-side —
@@ -48,7 +51,7 @@ export default async (req) => {
       currency: price.currency,
       display: price.display,
       recurring: price.recurring,
-      name: SHELF[id].name,
+      name: shelf[id].name,
     }
   }
 
@@ -64,7 +67,7 @@ export default async (req) => {
   }
 
   return Response.json(
-    { ok: true, products, resolved: found, of: IDS.length },
+    { ok: true, products, resolved: found, of: Object.keys(shelf).length },
     { headers: { 'Cache-Control': CACHE_OK } }
   )
 }

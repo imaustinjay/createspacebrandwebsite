@@ -69,6 +69,129 @@ export const SHELF = {
 
 export const IDS = Object.keys(SHELF)
 
+/**
+ * Read a product out of whatever the stockroom form posted.
+ *
+ * Pure, and the only place that decides what a stockroom product may be. It
+ * returns `{ product }` or `{ error }` — never a half-built record, because a
+ * product with an empty name is a card on the shop that says nothing and a
+ * checkout line item nobody can identify on a bank statement.
+ *
+ * `taken` is the live shelf. An id already in use is refused rather than
+ * merged: reusing one would inherit another product's uploaded files, its
+ * Stripe price and its page, which is the worst kind of wrong because
+ * everything keeps working while the money goes to the wrong thing.
+ */
+export function readProductDraft(body = {}, taken = {}, { editing = '' } = {}) {
+  const text = (v, max) => String(v ?? '').trim().slice(0, max)
+
+  const name = text(body.name, 80)
+  if (!name) return { error: 'Give it a name — it goes on the card, the page and the receipt.' }
+
+  const id = text(body.id, 48) || slugFor(name)
+  if (!id) return { error: 'That name has no letters or numbers in it, so there is nothing to build a web address from.' }
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) {
+    return { error: 'The id can hold lowercase letters, numbers and single hyphens — it becomes a web address and a Stripe lookup key.' }
+  }
+  if (id !== editing && taken[id]) {
+    return { error: `There is already a product at "${id}". Change the name, or edit that one instead.` }
+  }
+
+  const delivery = text(body.delivery, 160)
+  if (!delivery) return { error: 'Say what a buyer receives — "PDF guide + Notion template". It is the line under every card.' }
+
+  const blurb = text(body.blurb, 600)
+  if (blurb.length < 20) return { error: 'Write a sentence or two about it. Twenty characters is not a description.' }
+
+  const inside = (Array.isArray(body.inside) ? body.inside : [])
+    .map((l) => text(l, 160))
+    .filter(Boolean)
+    .slice(0, 12)
+
+  return {
+    product: {
+      id,
+      name,
+      // What the small caps line above the name says. Free-text on purpose:
+      // "Digital product", "Digital product · Flagship", "Template pack".
+      tier: text(body.tier, 60) || 'Digital product',
+      delivery,
+      blurb,
+      inside,
+      // A free product is added to the cart and checked out without a Stripe
+      // price at all, so it must never be waiting on a lookup key that will
+      // never exist.
+      free: body.free === true,
+      // Always derived. A product's page lives where its id says it does, and
+      // a stored href could disagree with that after a rename.
+      href: `/shop/products/${id}/`,
+      // What marks this as the stockroom's rather than the code's. Read by the
+      // page router, which serves a generated page only for these.
+      custom: true,
+      createdAt: text(body.createdAt, 40) || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+  }
+}
+
+// ── The live shelf: what is in code, plus what the stockroom added ────────
+//
+// SHELF above is the seven products written by hand, each with a page built
+// for it, its own photography and copy no form would have collected well.
+// `liveShelf()` is those PLUS everything added from the stockroom, which is
+// how a new product reaches the shop without a deploy.
+//
+// SHELF always wins a collision. A stockroom record can never shadow a
+// hand-built product — `create` refuses the id before it is written, and this
+// refuses it again at read time, because two guards on "the flagship silently
+// became something else" is the right number.
+//
+// Async, and that is the whole cost of this feature: every caller that used to
+// read a constant now awaits a read. They all run inside a request that was
+// already awaiting Stripe, so it costs nothing anybody can feel.
+export async function liveShelf() {
+  let custom = {}
+  try {
+    const { customProducts } = await import('./storage.mjs')
+    custom = await customProducts()
+  } catch (err) {
+    // A shelf that cannot read its own additions still sells what is in code.
+    console.error('catalog: custom shelf unreadable, falling back to SHELF —', err?.message || err)
+    return { ...SHELF }
+  }
+  return { ...custom, ...SHELF }
+}
+
+/**
+ * The Stripe lookup key for a product, which IS its id — `start-small`,
+ * `aesthetic-kit`. Services prefix theirs `svc-`; products never have.
+ *
+ * It exists as a function so the stockroom can print the exact string
+ * `resolvePrices` will look for, rather than a second copy of the convention
+ * that could drift from it. A key shown and a key resolved are the same call.
+ */
+export const productLookupKey = (id) => String(id || '').trim()
+
+/**
+ * A product id, from whatever a person typed as a name.
+ *
+ * It becomes a URL path, a Stripe lookup key and a Blobs key, so it is kept to
+ * the narrow set all three agree on. Generated once at creation and never
+ * regenerated: renaming a product must not silently orphan its files or its
+ * price.
+ */
+export function slugFor(name) {
+  return String(name || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48)
+    .replace(/-+$/g, '')
+}
+
+
 // Env values arrive however they were pasted — strip wrapping quotes and edge
 // whitespace, never interior content (same reasoning as enquiry.mjs).
 export function clean(v) {

@@ -23,7 +23,7 @@
 // buyer is asked for a card. The webhook doesn't need metadata archaeology
 // later; it looks the order up by the intent that paid for it.
 import { randomBytes } from 'node:crypto'
-import { SHELF, clean, isFree, keyMismatch, resolvePrices, siteOrigin, stripeClient } from '../shared/catalog.mjs'
+import { clean, isFree, keyMismatch, liveShelf, resolvePrices, siteOrigin, stripeClient } from '../shared/catalog.mjs'
 import { deliverOrder } from '../shared/deliver.mjs'
 import { ensureOrder } from '../shared/storage.mjs'
 
@@ -129,11 +129,13 @@ export default async (req, context) => {
   }
 
   // ------------------------------------------------------------- the cart
+  // The live shelf, so a stockroom-added product can be put in a cart.
+  const shelf = await liveShelf()
   const seen = new Set()
   const items = []
   for (const raw of Array.isArray(body.items) ? body.items : []) {
     const id = String(raw || '')
-    if (!SHELF[id] || seen.has(id)) continue
+    if (!shelf[id] || seen.has(id)) continue
     seen.add(id)
     items.push(id)
   }
@@ -272,7 +274,7 @@ export default async (req, context) => {
     // A product on the shelf with no price behind it is a configuration
     // fault, not the buyer's — say so plainly and name it in the log.
     console.error('checkout: no Stripe price for', missing.join(', '))
-    const names = missing.map((id) => SHELF[id].name).join(', ')
+    const names = missing.map((id) => shelf[id].name).join(', ')
     return Response.json(
       {
         error: `${names} isn't on sale yet — nothing was charged. Everything else in your cart still is.`,
@@ -370,7 +372,7 @@ export default async (req, context) => {
           // decided in the Stripe dashboard rather than hardcoded here.
           automatic_payment_methods: { enabled: true },
           receipt_email: email,
-          description: `createspace · ${items.map((id) => SHELF[id].name).join(', ')}`,
+          description: `createspace · ${items.map((id) => shelf[id].name).join(', ')}`,
           metadata,
         },
         { idempotencyKey: `intent:${orderRef}` }
