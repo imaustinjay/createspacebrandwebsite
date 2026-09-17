@@ -202,6 +202,50 @@
     return { amount: sum, currency: currency, display: money(sum, currency), recurring: recurring }
   }
 
+  // --------------------------------------------- the price, in the schema
+  // A product page carries a Product + Offer block, and that block ships
+  // without a price for the same reason nothing else on this site names one:
+  // the amount is Stripe's to state. Once /api/catalog has answered, the
+  // number the page is about to print is written into the Offer too, so the
+  // search result can show the same price the page shows — read once, from
+  // one place. Google renders the page before reading the block, so an Offer
+  // completed here is an Offer it sees.
+  //
+  // Nothing is invented when the catalog is unreachable: the block keeps its
+  // currency and availability and simply carries no price, which is a valid
+  // Offer and an honest one.
+  function priceTheSchema() {
+    var block = document.querySelector('script[type="application/ld+json"]')
+    if (!block || !PRICES) return
+    var graph
+    try {
+      graph = JSON.parse(block.textContent)
+    } catch (e) {
+      return
+    }
+    var product = null
+    ;(function find(node) {
+      if (!node || typeof node !== 'object' || product) return
+      if (Array.isArray(node)) return node.forEach(find)
+      if (node['@type'] === 'Product') { product = node; return }
+      find(node['@graph'])
+      find(node.mainEntity)
+    })(graph)
+    if (!product || !product.offers) return
+
+    // Which shelf id this page is selling, taken from the page's own buy
+    // button rather than from the URL — the button is what actually adds it.
+    var adder = document.querySelector('[data-add]')
+    var id = adder && adder.getAttribute('data-add')
+    var p = id && PRICES[id]
+    if (!p || typeof p.amount !== 'number') return
+
+    var minor = ZERO_DECIMAL.indexOf(String(p.currency || 'usd').toLowerCase()) >= 0
+    product.offers.price = minor ? String(p.amount) : (p.amount / 100).toFixed(2)
+    product.offers.priceCurrency = String(p.currency || 'usd').toUpperCase()
+    block.textContent = JSON.stringify(graph)
+  }
+
   function loadCatalog() {
     if (!window.fetch) { PRICES = {}; return }
     fetch('/api/catalog', { headers: { Accept: 'application/json' } })
@@ -213,7 +257,10 @@
         // Unreachable is not free: the em-dashes simply stay.
         PRICES = {}
       })
-      .then(function () { render() })
+      .then(function () {
+        render()
+        priceTheSchema()
+      })
   }
 
   // ------------------------------------------------------------ the drawer
@@ -413,37 +460,135 @@
   }
 
   // ------------------------------------------------------------- countdown
-  // One ticking clock feeds the bar's compact reading and the drop's cells.
+  // One ticking clock feeds the bar's compact reading and the drop's plate.
+  //
+  // The plate's digits are elements rather than text. A digit that has not
+  // changed is never touched; one that has rolls its old glyph out of the
+  // slot while the new one rolls in. So the seconds move every second and the
+  // days stand perfectly still — which is the whole difference between a
+  // clock that is alive and four numbers that flicker in unison.
+  //
+  // Everything here is decoration over a date that is also written out in
+  // prose next to it: with JS off, or with the interval stopped, the reader
+  // still learns when the drop lands. The cells are aria-hidden for the same
+  // reason — a screen reader should hear the sentence, not the ticking.
   var cdTargets = document.querySelectorAll('[data-countdown], [data-cd]')
   if (cdTargets.length) {
-    var stamp = document.body.getAttribute('data-drop-date') || '2026-09-14T09:00:00-04:00'
+    var stamp = document.body.getAttribute('data-drop-date') || '2026-10-26T09:00:00-04:00'
     var target = new Date(stamp).getTime()
+    // Where the runway began, for the meter under the plate. Absent, there is
+    // no honest denominator, so no meter is drawn rather than a made-up one.
+    var fromStamp = document.body.getAttribute('data-drop-from')
+    var opened = fromStamp ? new Date(fromStamp).getTime() : NaN
+    var plate = document.querySelector('[data-cd-plate]')
+    var meter = document.querySelector('[data-cd-meter]')
+    var live = document.querySelector('[data-cd-live]')
+    var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
     var pad = function (n) { return String(n).padStart(2, '0') }
 
+    // One digit, swapped. The outgoing glyph is taken out of flow so the two
+    // overlap for the length of the roll and the column never changes width.
+    function setGlyph(slot, ch) {
+      var current = slot.querySelector('.cd-g:not(.cd-out)')
+      if (current && current.textContent === ch) return
+      var next = document.createElement('b')
+      next.className = 'cd-g'
+      next.textContent = ch
+      if (!current || calm) {
+        slot.textContent = ''
+        slot.appendChild(next)
+        return
+      }
+      next.classList.add('cd-roll-in')
+      current.className = 'cd-g cd-out cd-roll-out'
+      slot.appendChild(next)
+      // The old glyph is removed on its own animation ending rather than on a
+      // timer, so a backgrounded tab that never ran the animation still tidies
+      // up the moment it is looked at again.
+      var drop = function () { if (current.parentNode) current.parentNode.removeChild(current) }
+      current.addEventListener('animationend', drop)
+      window.setTimeout(drop, 1200)
+    }
+
+    // A cell's glyph slots, minted once and then only ever rolled.
+    function setCell(el, text) {
+      if (!el.firstElementChild || !el.firstElementChild.classList.contains('cd-slot')) el.textContent = ''
+      while (el.children.length > text.length) el.removeChild(el.lastElementChild)
+      while (el.children.length < text.length) {
+        var slot = document.createElement('span')
+        slot.className = 'cd-slot'
+        el.appendChild(slot)
+      }
+      for (var i = 0; i < text.length; i++) setGlyph(el.children[i], text.charAt(i))
+    }
+
+    var timer = null
+    var landed = false
+
+    function land() {
+      if (landed) return
+      landed = true
+      if (timer) window.clearInterval(timer)
+      if (plate) plate.setAttribute('data-cd-landed', '')
+      if (live) live.hidden = false
+      if (meter) meter.style.width = '100%'
+      // A stopped clock reads zero, not the em-dashes it shipped with.
+      document.querySelectorAll('[data-cd]').forEach(function (el) { setCell(el, '00') })
+      document.querySelectorAll('[data-countdown]').forEach(function (el) { el.textContent = 'Live now' })
+    }
+
     var tick = function () {
-      var left = Math.max(0, target - Date.now())
+      var now = Date.now()
+      var left = Math.max(0, target - now)
+      if (!left) return land()
+
       var d = Math.floor(left / 864e5)
       var h = Math.floor(left / 36e5) % 24
       var m = Math.floor(left / 6e4) % 60
       var s = Math.floor(left / 1e3) % 60
-      var parts = { d: pad(d), h: pad(h), m: pad(m), s: pad(s) }
+
+      // The bar has one line to work with. Days, until there are none —
+      // then it counts the hours down, which is when it starts to matter.
       document.querySelectorAll('[data-countdown]').forEach(function (el) {
-        el.textContent = d + 'd ' + pad(h) + 'h ' + pad(m) + 'm'
+        el.textContent = d ? d + 'd ' + pad(h) + 'h ' + pad(m) + 'm' : pad(h) + 'h ' + pad(m) + 'm ' + pad(s) + 's'
       })
+
+      var parts = { d: pad(d), h: pad(h), m: pad(m), s: pad(s) }
       document.querySelectorAll('[data-cd]').forEach(function (el) {
-        el.textContent = parts[el.getAttribute('data-cd')]
+        setCell(el, parts[el.getAttribute('data-cd')] || '')
       })
+
+      if (meter && isFinite(opened) && target > opened) {
+        var run = (now - opened) / (target - opened)
+        meter.style.width = Math.max(0, Math.min(1, run)) * 100 + '%'
+      }
     }
+
     tick()
-    window.setInterval(tick, 1000)
+    timer = window.setInterval(tick, 1000)
+
+    // A phone that has been asleep wakes with a clock an hour behind. Reading
+    // it again on return costs nothing and is the difference between a live
+    // counter and one that visibly catches up.
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) tick()
+    })
   }
 
   // -------------------------------------------------------------- the FAQ
   // Native <details>, so it opens without JS and is findable by in-page
   // search. This only adds the design's accordion manner: one at a time.
-  var faq = document.querySelector('.faq')
-  if (faq) {
-    var panels = Array.prototype.slice.call(faq.querySelectorAll('details'))
+  //
+  // The questions sit in more than one .faq group now — they are grouped under
+  // headings, so a crawler has something to lift and a reader something to
+  // scan — but they are still one accordion, so a panel opening in the second
+  // group closes the one open in the first.
+  var groups = document.querySelectorAll('.faq')
+  if (groups.length) {
+    var panels = []
+    groups.forEach(function (faq) {
+      panels = panels.concat(Array.prototype.slice.call(faq.querySelectorAll('details')))
+    })
     panels.forEach(function (d) {
       d.addEventListener('toggle', function () {
         if (!d.open) return

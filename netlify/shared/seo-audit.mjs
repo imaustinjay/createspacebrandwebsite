@@ -54,22 +54,31 @@ function decode(value) {
     .replace(/&middot;/g, '·')
 }
 
+// An attribute value runs to the quote that opened it, and only that one. The
+// pattern used to be `["']([^"']*)["']`, which stops at either — so a
+// description reading `what it doesn't hold` was read as `what it doesn`, and
+// /privacy/ was reported as having a 52-character description it does not
+// have. A back-reference to the opening quote is the whole fix; it also lets
+// an apostrophe live in alt text, which is where prose in an attribute is
+// most common.
+const ATTR = String.raw`(["'])([\s\S]*?)\1`
+
 function meta(html, name) {
   const byName = html.match(
-    new RegExp(`<meta[^>]+name=["']${name}["'][^>]+content=["']([^"']*)["']`, 'i')
+    new RegExp(`<meta[^>]+name=["']${name}["'][^>]+content=${ATTR}`, 'i')
   )
-  if (byName) return decode(byName[1]).trim()
+  if (byName) return decode(byName[2]).trim()
   const reversed = html.match(
-    new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+name=["']${name}["']`, 'i')
+    new RegExp(`<meta[^>]+content=${ATTR}[^>]+name=["']${name}["']`, 'i')
   )
-  return reversed ? decode(reversed[1]).trim() : ''
+  return reversed ? decode(reversed[2]).trim() : ''
 }
 
 function property(html, prop) {
   const found = html.match(
-    new RegExp(`<meta[^>]+property=["']${prop}["'][^>]+content=["']([^"']*)["']`, 'i')
+    new RegExp(`<meta[^>]+property=["']${prop}["'][^>]+content=${ATTR}`, 'i')
   )
-  return found ? decode(found[1]).trim() : ''
+  return found ? decode(found[2]).trim() : ''
 }
 
 // The visible words, with everything that isn't prose taken out first. Used
@@ -97,7 +106,7 @@ function images(html) {
     // nothing a reader needs" — so it is not counted as missing. A missing
     // attribute is the fault.
     hasAlt: /\balt\s*=/i.test(img),
-    alt: (img.match(/\balt=["']([^"']*)["']/i) || [, ''])[1],
+    alt: (img.match(new RegExp(`\\balt=${ATTR}`, 'i')) || [, , ''])[2],
     lazy: /loading=["']lazy["']/i.test(img),
     sized: /\bwidth\s*=/i.test(img) && /\bheight\s*=/i.test(img),
     src: (img.match(/\bsrc=["']([^"']+)["']/i) || [, ''])[1],
