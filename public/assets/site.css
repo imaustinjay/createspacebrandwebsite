@@ -972,6 +972,42 @@ input::placeholder { color: var(--faint); }
 
 /* ---------- Footer ---------- */
 .site-footer { border-top: 1px solid var(--hairline); }
+
+/* ---------- The house's own profile ---------- */
+/* The Organization node on / names this account in `sameAs`, which is how
+   Google is told the profile and the site are one entity. That signal reads
+   best when it is returned in both directions — the bio links here, so here
+   links to the bio. It lives in site.css rather than shop.css because both
+   footers carry it and every page loads this file.
+
+   rel="me" is the same claim in the markup: this is another page about the
+   same person or organization, which is what the attribute is for. */
+.foot-social { margin-top: 22px; }
+.social-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 15px 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--muted);
+  transition:
+    color 0.25s var(--ease-ignite),
+    background 0.25s var(--ease-ignite),
+    border-color 0.25s var(--ease-ignite),
+    transform 0.25s var(--ease-spring);
+}
+.social-link svg { flex: none; }
+.social-link:hover {
+  color: var(--seal);
+  background: var(--dusk-tint);
+  border-color: rgba(214, 148, 164, 0.55);
+  transform: translateY(-1px);
+}
+.social-link:active { transform: none; }
 .foot-col { display: grid; gap: 9px; align-content: start; font-size: 13.5px; color: var(--muted); }
 .foot-col a { color: inherit; }
 .foot-col a:hover { color: var(--seal); }

@@ -1098,10 +1098,19 @@ on `/` now carries `sameAs`, and Instagram is in it:
 **One node, on the homepage only.** Every other page references the
 Organization by `@id` rather than restating it, which is the whole point of a
 linked-data graph — add TikTok, YouTube or LinkedIn to that array and all 27
-pages inherit it. The signal is strongest when it is returned: the Instagram
-bio already links to createspacebrand.com, so the loop closes. Nothing on the
-site links out to the profile yet; a footer link would close it visibly too,
-and that is a design decision rather than a schema one.
+pages inherit it.
+
+The signal is strongest when it is returned, so it is returned in the markup
+too. Both footers carry a `.social-link` pill — `rel="me"`, the handle, and the
+Instagram mark drawn inline rather than loaded, so it costs no request and
+takes the footer's own colour. It is defined in `site.css` rather than
+`shop.css` because both footers use it and every page loads that file, and it
+sits under the brand blurb in the first column of each. The two `/admin/`
+pages keep their own `portal-foot` and are deliberately left out; `404.html`
+has no footer at all.
+
+Together with the bio's link back to createspacebrand.com, that is the claim
+made in both directions and in both places a crawler looks.
 
 One finding is not the crawl's and remains open. **Search is sending 1% of
 the traffic** is a traffic measurement, and its three moves are
