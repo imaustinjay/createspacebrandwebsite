@@ -16,7 +16,7 @@
 //
 // Both converge on one order record, one download token, and one delivery,
 // because `claimDelivery` lets exactly one of them do the work.
-import { SHELF, money } from './catalog.mjs'
+import { liveShelf, money } from './catalog.mjs'
 import { mailbox, sendMail, table } from './mail.mjs'
 import { cardLine, receiptDate, receiptEmail } from './receipt.mjs'
 import { claimDelivery, deliverableCount, manifests, markDelivered, readableSize, releaseDelivery } from './storage.mjs'
@@ -26,8 +26,9 @@ import { claimDelivery, deliverableCount, manifests, markDelivered, readableSize
 // instead of a link that 404s.
 export async function orderLines(order, origin) {
   const shelves = await manifests(order.items || [])
+  const live = await liveShelf()
   return (order.items || []).map((id) => {
-    const shelf = SHELF[id] || { name: id, delivery: '' }
+    const shelf = live[id] || { name: id, delivery: '' }
     const entry = shelves[id] || { files: [], links: [] }
     const priced = (order.lines || []).find((l) => l.id === id)
     const links = [

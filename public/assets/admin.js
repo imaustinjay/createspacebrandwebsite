@@ -367,8 +367,147 @@
   // that was just written would vanish in the same tick. The message is
   // carried through the reload instead and printed by whichever card it
   // belongs to.
+  // ── Add a product without a deploy ─────────────────────────────────────
+  //
+  // The seven written into SHELF have a page built for them, their own
+  // photography and copy no form would have collected well. This is for the
+  // eighth thing you make: a name, what it delivers, a description, and the
+  // bullets for its card — enough for the shop to list it, sell it, deliver
+  // it and give it a page.
+  //
+  // What it deliberately cannot do is set a price. That stays Stripe's, as it
+  // is for everything else on this site, which is why the answer hands back
+  // the lookup key: create the product here, paste that key onto a price
+  // there, and the shop resolves it within the catalog's five-minute cache.
+  function newProductForm() {
+    var card = el('div', 'card')
+    card.style.cssText = '--pad: 24px 26px; margin-bottom: 26px;'
+
+    var head = el('p', 't-24', 'Add a product')
+    head.style.margin = '0 0 4px'
+    card.appendChild(head)
+    var lede = el('p', 'body-14', 'It appears in the shop, with a page of its own, as soon as you save it. Give its Stripe price the lookup key below and the price appears too.')
+    lede.style.cssText = 'margin: 0 0 18px; color: var(--muted);'
+    card.appendChild(lede)
+
+    var form = document.createElement('form')
+    form.noValidate = true
+    form.style.cssText = 'display: grid; gap: 14px;'
+
+    function field(label, name, placeholder, kind) {
+      var wrap = el('label', 'field')
+      wrap.appendChild(el('span', null, label))
+      var input = document.createElement(kind === 'area' ? 'textarea' : 'input')
+      if (kind !== 'area') input.type = 'text'
+      else input.rows = 3
+      input.name = name
+      input.placeholder = placeholder
+      wrap.appendChild(input)
+      form.appendChild(wrap)
+      return input
+    }
+
+    var nameIn = field('Name', 'name', 'the Caption Vault')
+    var tierIn = field('Label above the name (optional)', 'tier', 'Digital product')
+    var deliveryIn = field('What they receive', 'delivery', 'PDF + Notion board')
+    var blurbIn = field('Description', 'blurb', 'A sentence or two, the way you would say it out loud.', 'area')
+    var insideIn = field('What’s inside — one per line (optional)', 'inside', '300 captions, sorted by the job they do\nA Notion board you can duplicate', 'area')
+
+    var freeWrap = el('label', 'check')
+    var freeBox = document.createElement('input')
+    freeBox.type = 'checkbox'
+    freeBox.name = 'free'
+    freeWrap.appendChild(freeBox)
+    freeWrap.appendChild(el('span', null, 'It is free — no Stripe price needed'))
+    form.appendChild(freeWrap)
+
+    var slugLine = el('p', 'fine-12')
+    slugLine.style.cssText = 'margin: 0; color: var(--muted);'
+    form.appendChild(slugLine)
+
+    // The id, and therefore the address and the Stripe key, shown while it is
+    // still being typed — so nobody saves a product and then discovers what
+    // they have to paste into Stripe.
+    function preview() {
+      var id = slug(nameIn.value)
+      slugLine.textContent = id
+        ? 'Address /shop/products/' + id + '/ · Stripe lookup key ' + id
+        : 'The name becomes the address and the Stripe lookup key.'
+    }
+    nameIn.addEventListener('input', preview)
+    preview()
+
+    var errorLine = el('p', 'form-error')
+    errorLine.hidden = true
+    form.appendChild(errorLine)
+    var okLine = el('p', 'fine-12')
+    okLine.style.cssText = 'margin: 0; color: var(--sage);'
+    okLine.hidden = true
+    form.appendChild(okLine)
+
+    var submit = el('button', 'btn btn-primary', 'Add it to the shelf')
+    submit.type = 'submit'
+    submit.style.justifySelf = 'start'
+    form.appendChild(submit)
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault()
+      errorLine.hidden = true
+      okLine.hidden = true
+      submit.disabled = true
+      var was = submit.textContent
+      submit.textContent = 'Adding…'
+
+      api('?action=create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: nameIn.value,
+          tier: tierIn.value,
+          delivery: deliveryIn.value,
+          blurb: blurbIn.value,
+          inside: insideIn.value.split('\n'),
+          free: freeBox.checked,
+        }),
+      })
+        .then(function (data) {
+          form.reset()
+          preview()
+          okLine.textContent = data.next || 'Added.'
+          okLine.hidden = false
+          return load()
+        })
+        .catch(function (err) {
+          errorLine.textContent = err.message || 'That did not save.'
+          errorLine.hidden = false
+        })
+        .then(function () {
+          submit.disabled = false
+          submit.textContent = was
+        })
+    })
+
+    card.appendChild(form)
+    return card
+  }
+
+  // The same rule the server applies, so what is previewed while typing and
+  // what is stored on save are the same string. catalog.mjs's slugFor is the
+  // one that counts; this only has to agree with it.
+  function slug(name) {
+    return String(name || '')
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 48)
+      .replace(/-+$/g, '')
+  }
+
   function render(products, flash) {
     list.innerHTML = ''
+    list.appendChild(newProductForm())
     products.forEach(function (product) {
       var card = el('div', 'card')
       card.style.cssText = '--pad: 24px 26px; margin-bottom: 18px;'
@@ -393,8 +532,56 @@
       card.appendChild(flashLine)
 
       var note = el('p', 'body-14', product.delivery)
-      note.style.cssText = 'margin: 6px 0 18px; color: var(--muted);'
+      note.style.cssText = 'margin: 6px 0 8px; color: var(--muted);'
       card.appendChild(note)
+
+      // The exact string Stripe needs, on every product, printed rather than
+      // described. It is the server's own `productLookupKey` — the same call
+      // the shop resolves with — so what is copied here and what is looked up
+      // there cannot drift.
+      if (product.lookupKey && !product.free) {
+        var key = el('p', 'fine-12')
+        key.style.cssText = 'margin: 0 0 18px; color: var(--muted);'
+        key.appendChild(document.createTextNode('Stripe lookup key '))
+        var code = el('code', null, product.lookupKey)
+        code.style.cssText = 'font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: rgba(78,49,44,0.07); padding: 1px 6px; border-radius: 5px;'
+        key.appendChild(code)
+        card.appendChild(key)
+      } else {
+        var spacer = el('p', 'fine-12', product.free ? 'Free — no Stripe price needed.' : '')
+        spacer.style.cssText = 'margin: 0 0 18px; color: var(--muted);'
+        card.appendChild(spacer)
+      }
+
+      // Only what this room can put back. The seven written in code have a
+      // page and photography behind them; offering to delete one would be
+      // offering something the stockroom cannot undo.
+      if (product.custom) {
+        var remove = el('button', 'btn btn-secondary', 'Remove from the shelf')
+        remove.type = 'button'
+        remove.style.cssText = 'margin: 0 0 18px;'
+        remove.addEventListener('click', function () {
+          if (remove.getAttribute('data-sure') !== 'yes') {
+            remove.setAttribute('data-sure', 'yes')
+            remove.textContent = 'Really remove it? Click again'
+            return
+          }
+          remove.disabled = true
+          api('?action=delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: product.id }),
+          })
+            // Its files stay where they are. Removing a listing is a decision
+            // about the shop; a buyer who already owns it keeps their download.
+            .then(function () { return load({ item: product.id, message: 'Removed from the shelf. Its files are still here.' }) })
+            .catch(function (err) {
+              remove.disabled = false
+              remove.textContent = err.message || 'That did not remove.'
+            })
+        })
+        card.appendChild(remove)
+      }
 
       // ---------------------------------------------------------- files
       product.files.forEach(function (file) {

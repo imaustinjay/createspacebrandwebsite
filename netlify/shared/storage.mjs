@@ -6,6 +6,9 @@
 //   product-files    the bytes, keyed `<productId>/<filename>`
 //   product-shelf    one manifest per product — the files, their labels, and
 //                    any external links, so a page renders from a single read
+//   product-custom   products added from the stockroom rather than written
+//                    into SHELF by hand — one record per product, and the
+//                    reason a new product no longer needs a deploy
 //   orders           an order, written twice: once under the payment intent
 //                    that paid for it, once under the download token that
 //                    opens it. Blobs has no secondary index, so both.
@@ -65,7 +68,12 @@ async function writeJSON(storeName, key, value) {
 }
 
 // Blobs has no index, so "what orders are there" is a key listing. Only ever
-// asked from behind the admin token, and only for the order store.
+// asked from behind the admin token — for the order store, and for the
+// stockroom's own shelf of added products.
+//
+// `prefix` is required, not optional: the memory fallback builds its match
+// from it, and an undefined one would match nothing while the Blobs path
+// matched everything. Pass '' for the whole store.
 async function listKeys(storeName, prefix) {
   const store = await open(storeName)
   if (store) {
@@ -192,6 +200,41 @@ export async function setLinks(productId, links) {
   }))
   await writeJSON(SHELF_STORE, productId, entry)
   return entry
+}
+
+// ------------------------------------------------------- the custom shelf
+// A product somebody added from the stockroom. The seven in SHELF are written
+// in code because each has a hand-built page, bespoke photography and copy
+// nobody would want a form to collect. These are the others: everything the
+// shop needs to list one, sell it, deliver it and give it a page.
+//
+// Blobs has no index, so the whole shelf is a key listing plus a read each.
+// That is fine at this size — a shop with hundreds of products would want a
+// single manifest key instead, and this can become that without the callers
+// noticing, because they only ever see the merged object.
+const CUSTOM_STORE = 'product-custom'
+
+/** Every stockroom-added product, keyed by id, in the shape SHELF uses. */
+export async function customProducts() {
+  const keys = await listKeys(CUSTOM_STORE, '')
+  const out = {}
+  await Promise.all(
+    keys.map(async (key) => {
+      const row = await readJSON(CUSTOM_STORE, key)
+      if (row && row.id && row.name) out[row.id] = row
+    })
+  )
+  return out
+}
+
+export async function putCustomProduct(entry) {
+  await writeJSON(CUSTOM_STORE, entry.id, entry)
+  return entry
+}
+
+export async function removeCustomProduct(id) {
+  await removeKey(CUSTOM_STORE, id)
+  return { ok: true }
 }
 
 // ------------------------------------------------------------- the orders

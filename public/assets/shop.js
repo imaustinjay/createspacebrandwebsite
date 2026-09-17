@@ -77,6 +77,12 @@
     },
   }
 
+  // True once /api/catalog has told us the whole shelf. Until then CATALOG
+  // holds only the seven written above, and a cart carrying something added
+  // from the stockroom must not be filtered down to nothing on the way to
+  // finding that out.
+  var shelfReady = false
+
   var CART_KEY = 'cs.cart'
   var DETAILS_KEY = 'cs.checkout'
   var EMAIL_RE = /.+@.+\..+/
@@ -93,6 +99,10 @@
       var raw = window.localStorage.getItem(CART_KEY)
       var list = raw ? JSON.parse(raw) : []
       if (!Array.isArray(list)) return []
+      // Unknown ids are dropped only once we know what "known" means. Before
+      // the shelf lands, a stored cart is taken at its word; after it, an id
+      // that is genuinely gone is dropped as it always was.
+      if (!shelfReady) return list.filter(function (id) { return typeof id === 'string' && id })
       return list.filter(function (id) { return Object.prototype.hasOwnProperty.call(CATALOG, id) })
     } catch (e) {
       return []
@@ -246,18 +256,132 @@
     block.textContent = JSON.stringify(graph)
   }
 
+  // ── Cards for the products this file did not ship with ─────────────────
+  //
+  // The seven hand-built products have their card written into
+  // /shop/products/index.html, with their own photography and copy. A product
+  // added from the stockroom has neither, so its card is built here from the
+  // shelf — plainer on purpose, and replaced the moment somebody writes a real
+  // one into the page, because this only ever adds ids the page does not
+  // already carry.
+  //
+  // Nodes, never innerHTML from data: a product's words come from a form and a
+  // blob store, and a shop grid is the wrong place to start trusting a string.
+  function addShelfCards() {
+    var grid = document.querySelector('.prod-grid')
+    if (!grid) return
+
+    var already = {}
+    grid.querySelectorAll('[data-add]').forEach(function (b) { already[b.getAttribute('data-add')] = true })
+
+    Object.keys(CATALOG).forEach(function (id) {
+      var p = CATALOG[id]
+      if (!p || !p.custom || already[id]) return
+
+      var card = document.createElement('article')
+      card.className = 'prod-card'
+      card.setAttribute('data-shelf-card', id)
+
+      var body = document.createElement('div')
+      body.className = 'prod-body'
+
+      var tier = document.createElement('span')
+      tier.className = 'shop-eyebrow'
+      tier.textContent = p.tier || 'Digital product'
+      body.appendChild(tier)
+
+      var name = document.createElement('a')
+      name.className = 'prod-name'
+      name.href = p.href || ('/shop/products/' + id + '/')
+      name.textContent = p.name || id
+      body.appendChild(name)
+
+      var blurb = document.createElement('p')
+      blurb.className = 'body-14'
+      blurb.style.margin = '0 0 18px'
+      blurb.textContent = p.blurb || p.delivery || ''
+      body.appendChild(blurb)
+
+      var inside = Array.isArray(p.inside) ? p.inside : []
+      if (inside.length) {
+        var wrap = document.createElement('div')
+        wrap.className = 'prod-inside'
+        var head = document.createElement('span')
+        head.className = 'shop-eyebrow'
+        head.style.display = 'block'
+        head.style.marginBottom = '13px'
+        head.textContent = "What's inside"
+        wrap.appendChild(head)
+        var ul = document.createElement('ul')
+        ul.className = 'dot-list'
+        ul.style.cssText = 'list-style: none; margin: 0; padding: 0;'
+        inside.forEach(function (line) {
+          var li = document.createElement('li')
+          li.textContent = line
+          ul.appendChild(li)
+        })
+        wrap.appendChild(ul)
+        body.appendChild(wrap)
+      }
+
+      // Hidden until a real amount arrives, exactly like every tag that
+      // shipped with the page. render() fills it from the same PRICES read.
+      var price = document.createElement('p')
+      price.className = 'prod-price'
+      price.setAttribute('data-price', id)
+      price.hidden = true
+      price.textContent = '\u2014'
+      body.appendChild(price)
+
+      var actions = document.createElement('div')
+      actions.className = 'prod-actions'
+      var add = document.createElement('button')
+      add.className = 'btn btn-primary'
+      add.type = 'button'
+      add.setAttribute('data-add', id)
+      add.textContent = p.free ? 'Get it free' : 'Add to cart'
+      actions.appendChild(add)
+      var details = document.createElement('a')
+      details.className = 'btn btn-secondary'
+      details.href = p.href || ('/shop/products/' + id + '/')
+      details.textContent = 'Details'
+      actions.appendChild(details)
+      body.appendChild(actions)
+
+      var member = document.createElement('p')
+      member.className = 'prod-member'
+      member.textContent = 'Member pricing applies'
+      body.appendChild(member)
+
+      card.appendChild(body)
+      grid.appendChild(card)
+    })
+  }
+
   function loadCatalog() {
     if (!window.fetch) { PRICES = {}; return }
     fetch('/api/catalog', { headers: { Accept: 'application/json' } })
       .then(function (res) { return res.json() })
       .then(function (data) {
         PRICES = data && data.ok && data.products ? data.products : {}
+        // The shelf travels whether or not the prices resolved, because a
+        // product is a thing we sell before it is an amount. Anything the
+        // server knows and this file does not is added; the seven written
+        // above are never overwritten by it.
+        var shelf = data && data.shelf
+        if (shelf) {
+          Object.keys(shelf).forEach(function (id) {
+            if (!CATALOG[id]) CATALOG[id] = shelf[id]
+          })
+          shelfReady = true
+        }
       })
       .catch(function () {
         // Unreachable is not free: the em-dashes simply stay.
         PRICES = {}
       })
       .then(function () {
+        addShelfCards()
         render()
         priceTheSchema()
       })
@@ -436,15 +560,20 @@
 
   // Every "Add to cart" on the site, wherever it sits. data-then="checkout"
   // is the design's "Buy it now" — add, then go straight to the desk.
-  document.querySelectorAll('[data-add]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      addToCart(btn.getAttribute('data-add'))
-      if (btn.getAttribute('data-then') === 'checkout') {
-        window.location.href = '/shop/checkout/'
-        return
-      }
-      setDrawer(true)
-    })
+  //
+  // DELEGATED, not bound per button. The buttons on a stockroom-added
+  // product — its card on the index, its generated page — do not exist when
+  // this file runs, and a button bound at load is a button that only works
+  // for the markup that shipped with the page.
+  document.addEventListener('click', function (e) {
+    var btn = e.target && e.target.closest && e.target.closest('[data-add]')
+    if (!btn) return
+    addToCart(btn.getAttribute('data-add'))
+    if (btn.getAttribute('data-then') === 'checkout') {
+      window.location.href = '/shop/checkout/'
+      return
+    }
+    setDrawer(true)
   })
 
   document.querySelectorAll('[data-checkout]').forEach(function (btn) {

@@ -13,7 +13,7 @@
 // confirmed one gets this far, because an unconfirmed address would let a
 // stranger read — and download — somebody else's orders. Signed in but
 // unconfirmed is answered honestly as its own state, never with data.
-import { SHELF, money, stripeClient, subscriptionInvoice } from '../shared/catalog.mjs'
+import { liveShelf, money, stripeClient, subscriptionInvoice } from '../shared/catalog.mjs'
 import { requireUser, accountCookie } from '../shared/customer-auth.mjs'
 import { deliverableCount, manifests, recentOrders } from '../shared/storage.mjs'
 
@@ -76,6 +76,9 @@ async function ownedOrders(email) {
 
   const ids = [...new Set(mine.flatMap((r) => (Array.isArray(r.items) ? r.items : [])))]
   const shelves = await manifests(ids)
+  // The live shelf, so a stockroom-added product is named in somebody's
+  // purchases rather than showing as its bare id.
+  const live = await liveShelf()
 
   return mine.map((record) => ({
     reference: record.reference || null,
@@ -92,8 +95,8 @@ async function ownedOrders(email) {
     permalink: record.token ? `/shop/order/?token=${encodeURIComponent(record.token)}` : null,
     items: (Array.isArray(record.items) ? record.items : []).map((id) => ({
       id,
-      name: SHELF[id] ? SHELF[id].name : id,
-      tier: SHELF[id] ? SHELF[id].tier : '',
+      name: live[id] ? live[id].name : id,
+      tier: live[id] ? live[id].tier : '',
       ready: deliverableCount(shelves[id]) > 0,
     })),
   }))

@@ -10,7 +10,7 @@
 // The site promises "links don't expire", so they don't. What they do carry is
 // a counter — a link handed round a group chat is visible in the log rather
 // than invisible, and past a generous ceiling it stops.
-import { SHELF } from '../shared/catalog.mjs'
+import { liveShelf } from '../shared/catalog.mjs'
 import { getFile, manifest, orderByToken, saveOrder, safeName } from '../shared/storage.mjs'
 
 const MAX_PER_ORDER = 200
@@ -45,7 +45,8 @@ export default async (req) => {
 
   // The entitlement check, and the only one that matters: this order bought
   // this product. A valid token for order A can never reach order B's files.
-  if (!SHELF[item] || !(order.items || []).includes(item)) {
+  const shelf = await liveShelf()
+  if (!shelf[item] || !(order.items || []).includes(item)) {
     console.warn('download: token asked for something it did not buy', { reference: order.reference, item })
     return plain(403, "That file isn't part of this order.")
   }
