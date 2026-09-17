@@ -2,15 +2,17 @@
 //
 // The sibling of /api/catalog, and the same promise: every price on the page
 // is an em-dash until this answers, so a missing Stripe key shows NO price
-// rather than a wrong one. Tier-04 services come back priced `null` on
-// purpose — the catalog's rule is that no payment link exists until the scope
-// and the fee are agreed in writing, and a figure on that row would be the
-// site quietly breaking the house's own promise.
+// rather than a wrong one. A service comes back priced `null` until Stripe
+// holds a price for it — which is the catalog's own rule kept honestly: no
+// payment link until the scope and the fee are agreed in writing. Creating
+// the price IS that agreement, written where the money comes from.
 //
 // Cached five minutes at the CDN, like the product catalog. A price change in
-// Stripe is live on the site within five minutes without a deploy.
+// Stripe is live on the site within five minutes without a deploy — and so is
+// a service becoming bookable at all, because that is the same thing: give a
+// price a lookup key and the row grows a button.
 import { stripeClient } from '../shared/catalog.mjs'
-import { SERVICES, SERVICE_IDS, resolveServicePrices } from '../shared/services.mjs'
+import { SERVICES, SERVICE_IDS, resolveServicePrices, bookable } from '../shared/services.mjs'
 import { bridgeReady } from '../shared/commission.mjs'
 
 export default async (req) => {
@@ -28,7 +30,12 @@ export default async (req) => {
       turnaround: s.turnaround,
       blurb: s.blurb,
       delivers: s.delivers,
-      buyable: s.tier === '03',
+      // Whether it can be bought TODAY, which is whether Stripe holds a price
+      // for it — not which tier the catalog files it under. A tier-04
+      // engagement whose fee has been settled and given a lookup key sells
+      // here; a tier-03 build whose price is missing falls back to the scope
+      // door rather than showing a button that cannot charge.
+      buyable: bookable(id, prices),
       price: prices[id]?.full || null,
       deposit: prices[id]?.deposit || null,
     }

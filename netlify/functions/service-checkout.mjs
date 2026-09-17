@@ -20,7 +20,7 @@
 // debugging both at 2am should find the same furniture in the same places.
 import { randomBytes } from 'node:crypto'
 import { clean, keyMismatch, siteOrigin, stripeClient } from '../shared/catalog.mjs'
-import { SERVICES, isBuyable, resolveServicePrices, serviceLine, serviceReference } from '../shared/services.mjs'
+import { SERVICES, isBuyable, lookupKey, resolveServicePrices, serviceLine, serviceReference } from '../shared/services.mjs'
 import { ensureOrder } from '../shared/storage.mjs'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -66,15 +66,10 @@ export default async (req, context) => {
   const service = SERVICES[id]
 
   if (!service) return Response.json({ error: "That isn't a service we sell." }, { status: 400 })
-  if (!isBuyable(id)) {
-    // Tier 04. Refused here rather than quietly priced, because the catalog's
-    // rule — no payment link until the scope and the fee are agreed in writing
-    // — is a promise the site makes on the page above this one.
-    return Response.json(
-      { error: `${service.name} is scoped in writing before any payment. Request the scope of work and we'll open it today.`, reason: 'scoped', scopeUrl: '/shop/services/#scope' },
-      { status: 409 },
-    )
-  }
+  // No tier gate here any more. Whether this can be paid for is decided by
+  // whether Stripe holds a price for it, and that is not known until the
+  // prices resolve below — where the refusal already lives, and where it can
+  // tell a fee nobody has set apart from a price that failed to load.
 
   const name = str(body.name, 120)
   const email = str(body.email, 200).toLowerCase()
@@ -118,11 +113,29 @@ export default async (req, context) => {
   // half, and silently wrong the moment somebody rounds one to $450.
   const fullAmount = prices[id]?.full?.amount || 0
   if (!price) {
-    // A service on the shelf with no price behind it is our fault, not the
-    // buyer's, and the scope door is a real thing to offer them instead.
-    console.error(`service-checkout: no Stripe price for ${id} (${mode}) — expected lookup key svc-${id}${mode === 'deposit' ? '-deposit' : ''}`)
+    // Two different things, and the buyer deserves to be told which.
+    //
+    // A tier-04 engagement with no price is the catalog working as written:
+    // its fee is a range, a floor, or set on a call, and no payment link
+    // exists until it is agreed. Nothing is wrong and nobody needs to
+    // apologise — the scope door is the actual next step.
+    //
+    // A tier-03 build with no price is OUR mistake: the catalog publishes a
+    // fee for it and the lookup key is missing or typo'd. It is logged as an
+    // error so it shows up in the function log, and the buyer is still handed
+    // the scope door rather than a dead end.
+    const scoped = !isBuyable(id)
+    if (!scoped) {
+      console.error(`service-checkout: no Stripe price for ${id} (${mode}) — expected lookup key ${lookupKey(id, mode)}`)
+    }
     return Response.json(
-      { error: `${service.name} isn't open for direct booking yet — nothing was charged. Request the scope and we'll open it today.`, reason: 'no-price', scopeUrl: '/shop/services/#scope' },
+      {
+        error: scoped
+          ? `${service.name} is scoped in writing before any payment. Request the scope of work and we'll open it today.`
+          : `${service.name} isn't open for direct booking yet — nothing was charged. Request the scope and we'll open it today.`,
+        reason: scoped ? 'scoped' : 'no-price',
+        scopeUrl: '/shop/services/#scope',
+      },
       { status: 409 },
     )
   }
