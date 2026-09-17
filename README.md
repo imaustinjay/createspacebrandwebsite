@@ -87,6 +87,7 @@ and deploys separately; the brand context this site is built from is
     assets/collection.js  live cycle state + notify list, from /api/cohort-status
     assets/reveal.js      below-fold sections settle in (house motion verb)
     assets/motion.js      mobile nav, word-staggered headlines, rotating proof line
+    assets/elevate.js     read line, docked header, pointer light, scroll depth
     assets/fonts/         self-hosted Raleway + Lora italic (variable woff2)
     assets/og.png         share-preview card (dark stage + lockup)
     404.html · robots.txt · sitemap.xml · favicon.svg
@@ -356,6 +357,32 @@ button at the end of the nav whose panel lists the rest of the site. The panel
 is a house component in `site.css`, so it renders identically on pages that
 never load `shop.css`; the storefront adds only the cart control and the
 announcement bar.
+
+### Simple Edits — the Fall Drop, and the counter
+
+The drop lands **Monday 26 October 2026, 9am ET**, and is named **Simple
+Edits**. One attribute pair on `<body>` decides that, on every page that shows
+a counter:
+
+```html
+<body data-drop-date="2026-10-26T09:00:00-04:00"
+      data-drop-from="2026-08-17T09:00:00-04:00">
+```
+
+`data-drop-date` is what the clock counts to. `data-drop-from` is where the
+runway began — the brand's own launch day — and it exists only so the meter
+under the plate is a fraction of two real dates rather than a decoration. Move
+the drop and both attributes move together, in every page's `<body>`; the
+anchor stays `#fall-drop` so every link to it still lands.
+
+The plate on `/shop/` is drawn by `shop.js`. Each digit is its own element in
+its own clipped slot: a digit that has not changed is never touched, and one
+that has rolls its old glyph out while the new one rolls in, so the seconds
+move every second and the days stand still. Reduced motion swaps the glyph
+without the roll. The cells are `aria-hidden` and the date is written out in
+prose beside them inside a `<time>` — a screen reader should hear the sentence,
+not the ticking, and with JavaScript off the sentence is all there is. At zero
+the interval stops, the plate dims, and the announcement bar reads *Live now*.
 
 ### Stripe — the checkout
 
@@ -1026,6 +1053,71 @@ a question. Every page sells something, and almost all search volume in this
 category is people asking how to do something — see the `journal` entry in
 `seo-playbook.mjs`.
 
+### What the crawl found, and what was done about it
+
+The 2026-09-17 pass cleared every finding the crawl could raise. Before: 86
+average, 32 warnings, 32 notes, no page completely clean. After: 100, and 27
+of 27 clean. The work, in the order the portal ranked it:
+
+| Finding | Where | What was done |
+|---|---|---|
+| Pages carrying no structured data | 25 | One JSON-LD `@graph` per page: `BreadcrumbList` everywhere, `Product` + `Offer` on each product, `FAQPage` on `/shop/faq/`, `Service` on `/talent/`, `/brands/`, `/creators/` and the shop's service pages, `Course` on `/collection/`, a typed `WebPage` on the rest |
+| Titles cut off in the result | 6 | Rewritten to 50–60 characters, term first, brand last |
+| Meta descriptions past the snippet | 16 | Rewritten to 140–165, each one different |
+| Long pages with no subheadings | 13 | Real `h2` sections, phrased as the question the reader asked |
+| `/` is where most visits end | 1 | The page used to end on a link that leaves the site; it now ends on three that do not |
+
+The **Product** blocks deliberately ship without a price. Price is Stripe's to
+state — the rule the whole storefront is built on — so `shop.js` writes the
+resolved amount into the page's `Offer` once `/api/catalog` answers, from the
+same read that prints it on the page. Google renders before it reads, so the
+Offer it sees is complete; when the catalog is unreachable the block keeps its
+currency and availability and simply carries no price, which is a valid Offer
+and an honest one. The free product is the one exception and says `0.00`
+outright, because that is not a price Stripe holds.
+
+`sitemap.xml` gained `/shop/products/creator-audit/`, which was indexable,
+linked and missing from it.
+
+One thing the crawl was wrong about. `/privacy/` was reported as having a
+52-character description; it has a 139-character one. `meta()` matched
+`["']([^"']*)["']`, which stops at *either* quote — so a description reading
+`what it doesn't hold` was read as far as the apostrophe. It now back-
+references the quote that opened the value, which also lets an apostrophe live
+in alt text. The finding was the reader, not the page.
+
+The entity move in `seo-playbook.mjs` wants an Organization that names its own
+profiles, so Google can tell that account and this site are one entity rather
+than two — which is what points a knowledge panel here. The Organization node
+on `/` now carries `sameAs`, and Instagram is in it:
+
+```json
+"sameAs": ["https://www.instagram.com/createspacebrand/"]
+```
+
+**One node, on the homepage only.** Every other page references the
+Organization by `@id` rather than restating it, which is the whole point of a
+linked-data graph — add TikTok, YouTube or LinkedIn to that array and all 27
+pages inherit it.
+
+The signal is strongest when it is returned, so it is returned in the markup
+too. Both footers carry a `.social-link` pill — `rel="me"`, the handle, and the
+Instagram mark drawn inline rather than loaded, so it costs no request and
+takes the footer's own colour. It is defined in `site.css` rather than
+`shop.css` because both footers use it and every page loads that file, and it
+sits under the brand blurb in the first column of each. The two `/admin/`
+pages keep their own `portal-foot` and are deliberately left out; `404.html`
+has no footer at all.
+
+Together with the bio's link back to createspacebrand.com, that is the claim
+made in both directions and in both places a crawler looks.
+
+One finding is not the crawl's and remains open. **Search is sending 1% of
+the traffic** is a traffic measurement, and its three moves are
+striking-distance terms (needs Search Console connected), Search Console
+coverage, and the informational cluster — which is the `journal` entry below
+and has not been built.
+
 ### Reading it locally
 
 `netlify dev` is required — the portal is four serverless functions and a
@@ -1052,6 +1144,35 @@ the whole of `/assets/*` revalidates.
 The `?v=` query on the asset links is the second guard: **bump it in the same
 change whenever a stylesheet or script changes.** A changed URL can never be
 served from any cache, whatever the header rules happen to do.
+
+## Motion — the elevation layer
+
+`assets/elevate.js` is the only script that runs on every public page purely
+for depth, and it never animates anything. It reports four facts to CSS and
+stops there: how far down the page the reader is (`--scroll-depth`, and the
+width of the read line under the header), whether the page has left the top
+(`[data-scrolled]` on the header), where the pointer is over a lifted surface
+(`--px` / `--py` and `[data-lit]` on that surface), and nothing else. Every
+visual decision — how bright the sheen is, how far the header tightens, how
+much the dark stage's orbs lag the scroll — lives in `site.css` under
+`html.elevated`, so the look changes without the script changing.
+
+Three things follow from that split, and are worth keeping:
+
+- **`prefers-reduced-motion` returns before any listener is attached.** The
+  reduced-motion reader gets the plain site, not the elevated one with its
+  transitions stripped; `html.elevated` is never added, so none of the rules
+  apply at all.
+- **The pointer light is `(hover: hover) and (pointer: fine)` only.** A thumb
+  has no position to follow, and a large blurred repaint per touch-move is the
+  most expensive thing a phone can be asked to do.
+- **The sheen is a background layer, never an overlay.** It paints under the
+  words, so it can never wash out a line of text — which also means a surface
+  that already owns its `background-image` (the dark door, the countdown
+  plate) has to restate its own layers when it takes the light. Both do.
+
+The scroll listener is coalesced onto a frame; the pointer light is delegated
+from the document, because the storefront mints cards after this file has run.
 
 ## Browser support
 

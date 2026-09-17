@@ -192,33 +192,209 @@ html.js [data-settle].settled {
   filter: none;
 }
 
-/* Children of a settling section arrive one at a time — cards, list rows and
-   steps stagger in behind their section. */
-html.js [data-settle] :is(.two, .grid3) > *,
+/* Children of a settling section arrive one at a time — cards, list rows,
+   steps, product tiles, FAQ panels and service rows stagger in behind their
+   section, so a section reads as a hand dealing rather than a curtain. */
+html.js [data-settle] :is(.two, .grid3, .prod-grid) > *,
 html.js [data-settle] .rows > div,
-html.js [data-settle] .step {
+html.js [data-settle] .step,
+html.js [data-settle] .faq details,
+html.js [data-settle] .svc-row {
   opacity: 0;
   transform: translateY(14px);
-  transition: opacity 0.5s var(--ease-settle), transform 0.5s var(--ease-settle);
+  /* transition is one property, so arming a stagger on a card replaces the
+     card's own hover transition entirely — the lift and the shadow would
+     snap. The two the lifted surfaces use are restated here, at their own
+     timings, so a child of a settling section keeps the hover it had. */
+  transition:
+    opacity 0.5s var(--ease-settle),
+    transform 0.3s var(--ease-spring),
+    box-shadow 0.25s var(--ease-ignite),
+    border-color 0.25s var(--ease-ignite),
+    --lit 0.35s var(--ease-settle);
 }
-html.js [data-settle].settled :is(.two, .grid3) > *,
+html.js [data-settle].settled :is(.two, .grid3, .prod-grid) > *,
 html.js [data-settle].settled .rows > div,
-html.js [data-settle].settled .step {
+html.js [data-settle].settled .step,
+html.js [data-settle].settled .faq details,
+html.js [data-settle].settled .svc-row {
   opacity: 1;
   transform: none;
 }
-html.js [data-settle].settled :is(.two, .grid3) > :nth-child(1),
-html.js [data-settle].settled :is(.rows > div, .step):nth-child(1) { transition-delay: 0.08s; }
-html.js [data-settle].settled :is(.two, .grid3) > :nth-child(2),
-html.js [data-settle].settled :is(.rows > div, .step):nth-child(2) { transition-delay: 0.16s; }
-html.js [data-settle].settled :is(.two, .grid3) > :nth-child(3),
-html.js [data-settle].settled :is(.rows > div, .step):nth-child(3) { transition-delay: 0.24s; }
-html.js [data-settle].settled :is(.two, .grid3) > :nth-child(4),
-html.js [data-settle].settled :is(.rows > div, .step):nth-child(4) { transition-delay: 0.32s; }
-html.js [data-settle].settled :is(.two, .grid3) > :nth-child(5),
-html.js [data-settle].settled :is(.rows > div, .step):nth-child(5) { transition-delay: 0.4s; }
-html.js [data-settle].settled :is(.two, .grid3) > :nth-child(6),
-html.js [data-settle].settled :is(.rows > div, .step):nth-child(6) { transition-delay: 0.48s; }
+html.js [data-settle].settled :is(.two, .grid3, .prod-grid) > :nth-child(1),
+html.js [data-settle].settled :is(.rows > div, .step, .faq details, .svc-row):nth-child(1) { transition-delay: 0.08s; }
+html.js [data-settle].settled :is(.two, .grid3, .prod-grid) > :nth-child(2),
+html.js [data-settle].settled :is(.rows > div, .step, .faq details, .svc-row):nth-child(2) { transition-delay: 0.16s; }
+html.js [data-settle].settled :is(.two, .grid3, .prod-grid) > :nth-child(3),
+html.js [data-settle].settled :is(.rows > div, .step, .faq details, .svc-row):nth-child(3) { transition-delay: 0.24s; }
+html.js [data-settle].settled :is(.two, .grid3, .prod-grid) > :nth-child(4),
+html.js [data-settle].settled :is(.rows > div, .step, .faq details, .svc-row):nth-child(4) { transition-delay: 0.32s; }
+html.js [data-settle].settled :is(.two, .grid3, .prod-grid) > :nth-child(5),
+html.js [data-settle].settled :is(.rows > div, .step, .faq details, .svc-row):nth-child(5) { transition-delay: 0.40s; }
+html.js [data-settle].settled :is(.two, .grid3, .prod-grid) > :nth-child(6),
+html.js [data-settle].settled :is(.rows > div, .step, .faq details, .svc-row):nth-child(6) { transition-delay: 0.48s; }
+html.js [data-settle].settled :is(.two, .grid3, .prod-grid) > :nth-child(7),
+html.js [data-settle].settled :is(.rows > div, .step, .faq details, .svc-row):nth-child(7) { transition-delay: 0.56s; }
+html.js [data-settle].settled :is(.two, .grid3, .prod-grid) > :nth-child(8),
+html.js [data-settle].settled :is(.rows > div, .step, .faq details, .svc-row):nth-child(8) { transition-delay: 0.64s; }
+
+/* Those delays belong to the arrival and nothing else. Left in place they are
+   also the delay on every later transition — so the sixth card in a grid took
+   nearly half a second to begin lifting under the cursor. reveal.js marks a
+   section done once its stagger has run, and the delay goes with it. */
+html.js [data-settle].settled.settled-done :is(.two, .grid3, .prod-grid) > *,
+html.js [data-settle].settled.settled-done :is(.rows > div, .step, .faq details, .svc-row) {
+  transition-delay: 0s;
+}
+
+/* ---------- The elevation layer ---------- */
+/* Driven by assets/elevate.js, which only ever reports facts: how far down the
+   page the reader is, where their pointer is, and whether the header has left
+   the top of the document. Everything below is this stylesheet's answer to
+   those, so the look can be changed here without touching the script.
+
+   All of it hangs off html.elevated, which that script adds only when the
+   reader has not asked for reduced motion — so the reduced-motion case is the
+   plain site rather than the elevated one with its transitions stripped. */
+
+/* A custom property has to be registered before it can be animated. Without
+   this the sheen still works; it simply arrives rather than fades, which is
+   the right thing to lose on a browser that can't do it. Every use carries a
+   var() fallback so an unregistered --lit can never invalidate a background. */
+@property --lit {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
+/* The read line. A hairline across the foot of the header that fills as the
+   page is read — the one piece of chrome on the site that says how much is
+   left, which is the question a long page always raises. */
+.read-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--sage), var(--dusk) 78%, var(--dusk));
+  box-shadow: 0 0 10px rgba(214, 148, 164, 0.45);
+  pointer-events: none;
+}
+
+/* The header docks. Once the page has moved, it tightens, deepens its blur and
+   casts the faintest shadow — the cue that it is now floating over the page
+   rather than sitting at the top of it. */
+html.elevated .site-header {
+  transition:
+    background 0.35s var(--ease-settle),
+    box-shadow 0.35s var(--ease-settle),
+    border-color 0.35s var(--ease-settle);
+}
+html.elevated .nav-row {
+  transition: padding 0.35s var(--ease-settle);
+}
+html.elevated .site-header[data-scrolled] {
+  background: rgba(255, 255, 240, 0.86);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  border-bottom-color: transparent;
+  box-shadow: 0 10px 30px -22px rgba(78, 49, 44, 0.45);
+}
+html.elevated .site-header[data-scrolled] .nav-row {
+  padding-top: 11px;
+  padding-bottom: 11px;
+}
+
+/* Pointer light. A soft dusk highlight that sits where the cursor is, painted
+   as a background layer rather than an overlay — so it is always under the
+   words and can never wash out a line of text.
+
+   Each surface re-declares the layers it already had, because background-image
+   is one property: adding a sheen to a surface means restating its own. */
+html.elevated :is(.card, .prod-card, .vig, .form-card, .band-sage, .panel-tint, .door) {
+  --lit: 0;
+  background-image: radial-gradient(
+    360px circle at var(--px, 50%) var(--py, 50%),
+    rgba(214, 148, 164, var(--lit, 0)),
+    transparent 62%
+  );
+  /* Same trap as the stagger above: these surfaces already transition their
+     own lift, border and ground, and one transition property holds all of it. */
+  transition:
+    --lit 0.35s var(--ease-settle),
+    transform 0.25s var(--ease-spring),
+    box-shadow 0.25s var(--ease-ignite),
+    border-color 0.25s var(--ease-ignite),
+    background-color 0.4s var(--ease-ignite);
+}
+html.elevated :is(.card, .prod-card, .vig, .form-card, .band-sage, .panel-tint)[data-lit] { --lit: 0.075; }
+
+/* The two front doors. The dark one carries the house's warm stage as its own
+   background image, so its sheen has to be layered above it by name. */
+html.elevated .door[data-lit] { --lit: 0.10; }
+html.elevated .door.dark {
+  background-image:
+    radial-gradient(560px circle at var(--px, 50%) var(--py, 50%), rgba(214, 148, 164, var(--lit, 0)), transparent 60%),
+    var(--dark-stage);
+}
+html.elevated .door.dark[data-lit] { --lit: 0.16; }
+
+/* The countdown plate keeps its own inner highlight underneath the sheen. */
+html.elevated .cd {
+  --lit: 0;
+  background-image:
+    radial-gradient(420px circle at var(--px, 50%) var(--py, 50%), rgba(214, 148, 164, var(--lit, 0)), transparent 62%),
+    linear-gradient(180deg, rgba(255, 255, 240, 0.075), rgba(255, 255, 240, 0.028));
+  transition: --lit 0.35s var(--ease-settle);
+}
+html.elevated .cd[data-lit] { --lit: 0.14; }
+
+/* A lit surface also rises. The card's own hover already lifts it two pixels;
+   this is the shadow that makes the lift read as height rather than as a
+   nudge, and it is the same shape on every surface that takes the light. */
+@media (hover: hover) and (pointer: fine) {
+  html.elevated :is(.card, .prod-card, .vig, .form-card, .band-sage, .panel-tint)[data-lit] {
+    box-shadow:
+      0 1px 2px rgba(78, 49, 44, 0.05),
+      0 14px 30px -16px rgba(78, 49, 44, 0.13),
+      0 40px 70px -34px rgba(78, 49, 44, 0.24);
+  }
+}
+
+/* Depth on the dark stage. The drifting orbs take a slow fraction of the
+   scroll distance on top of their own drift, so the dark sections have a back
+   wall that moves at a different rate to the text in front of it. */
+html.elevated .dark::before,
+html.elevated .dark::after {
+  translate: 0 calc(var(--scroll-depth, 0px) * -1);
+}
+
+/* The primary buttons catch a light as the pointer crosses them — the same
+   move as the cards, at the scale of a control. */
+@media (hover: hover) and (pointer: fine) {
+  html.elevated :is(.btn-primary, .btn-ivory) {
+    position: relative;
+    overflow: hidden;
+  }
+  /* The gleam crosses over the label rather than behind it. A pseudo-element
+     behind the button's own opaque background would never be seen at all, and
+     the button's label is a bare text node with nothing to lift above it. */
+  html.elevated :is(.btn-primary, .btn-ivory)::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 240, 0.22) 50%, transparent 62%);
+    transform: translateX(-120%);
+    transition: transform 0.6s var(--ease-settle);
+  }
+  html.elevated .btn-ivory::after {
+    background: linear-gradient(105deg, transparent 38%, rgba(214, 148, 164, 0.35) 50%, transparent 62%);
+  }
+  html.elevated :is(.btn-primary, .btn-ivory):hover::after { transform: translateX(120%); }
+}
 
 /* ---------- Layout ---------- */
 .shell {
@@ -626,6 +802,21 @@ h1, h2, h3 { margin: 0; }
       inset 0 -1px 0 rgba(78, 49, 44, 0.02);
   }
 }
+a.card {
+  display: block;
+  color: var(--seal);
+}
+a.card:hover { color: var(--seal); }
+.card-next {
+  display: block;
+  margin-top: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--sage);
+}
+a.card:hover .card-next { color: var(--seal); }
+
 .card-flat {
   background: var(--ivory);
   border: 1px solid var(--hairline);
@@ -781,6 +972,42 @@ input::placeholder { color: var(--faint); }
 
 /* ---------- Footer ---------- */
 .site-footer { border-top: 1px solid var(--hairline); }
+
+/* ---------- The house's own profile ---------- */
+/* The Organization node on / names this account in `sameAs`, which is how
+   Google is told the profile and the site are one entity. That signal reads
+   best when it is returned in both directions — the bio links here, so here
+   links to the bio. It lives in site.css rather than shop.css because both
+   footers carry it and every page loads this file.
+
+   rel="me" is the same claim in the markup: this is another page about the
+   same person or organization, which is what the attribute is for. */
+.foot-social { margin-top: 22px; }
+.social-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 15px 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--muted);
+  transition:
+    color 0.25s var(--ease-ignite),
+    background 0.25s var(--ease-ignite),
+    border-color 0.25s var(--ease-ignite),
+    transform 0.25s var(--ease-spring);
+}
+.social-link svg { flex: none; }
+.social-link:hover {
+  color: var(--seal);
+  background: var(--dusk-tint);
+  border-color: rgba(214, 148, 164, 0.55);
+  transform: translateY(-1px);
+}
+.social-link:active { transform: none; }
 .foot-col { display: grid; gap: 9px; align-content: start; font-size: 13.5px; color: var(--muted); }
 .foot-col a { color: inherit; }
 .foot-col a:hover { color: var(--seal); }
@@ -969,9 +1196,11 @@ input::placeholder { color: var(--faint); }
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
   html.js [data-settle],
-  html.js [data-settle] :is(.two, .grid3) > *,
+  html.js [data-settle] :is(.two, .grid3, .prod-grid) > *,
   html.js [data-settle] .rows > div,
-  html.js [data-settle] .step {
+  html.js [data-settle] .step,
+  html.js [data-settle] .faq details,
+  html.js [data-settle] .svc-row {
     opacity: 1;
     transform: none;
     filter: none;

@@ -257,6 +257,26 @@
   color: var(--faint);
 }
 
+/* A section label that is also a heading. The storefront draws its section
+   labels as small-caps eyebrows, and the pages that grew subheadings needed
+   those labels to be h2s rather than spans — a crawler has nothing else to
+   lift into a jump-to link, and a reader should not see the page change to
+   pay for it. So the eyebrow keeps its exact type and the heading keeps its
+   semantics. */
+h2.shop-eyebrow,
+h3.shop-eyebrow {
+  margin: 0 0 16px;
+  font-family: 'Raleway', 'Helvetica Neue', Arial, sans-serif;
+}
+.shop-q {
+  margin: 0 0 8px;
+  font-size: 16.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--seal);
+}
+.dark .shop-q, .shop-q-dark { color: var(--ivory); }
+
 /* Dot-led lists — the design's recurring "what's inside" rhythm. */
 .dot-list { display: grid; gap: 12px; }
 .dot-list > li {
@@ -409,35 +429,175 @@
   gap: 72px;
   align-items: end;
 }
+/* The countdown plate.
+
+   One lifted surface rather than four boxes — the columns are divided by
+   hairlines, the way a departures board is, and the whole thing sits on a
+   dusk bloom that breathes under it. Every digit is its own glyph in its own
+   slot, so a changing digit rolls while its neighbours hold still; the slots
+   are overflow-clipped and the figures tabular, so nothing shifts as the
+   numbers change. */
+.cd {
+  position: relative;
+  margin-bottom: 28px;
+  padding: clamp(20px, 2.6vw, 28px) clamp(16px, 2.2vw, 26px) clamp(16px, 2vw, 20px);
+  border: 1px solid rgba(255, 255, 240, 0.16);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 240, 0.075), rgba(255, 255, 240, 0.028)),
+    rgba(46, 27, 21, 0.28);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 240, 0.17),
+    0 18px 40px -26px rgba(0, 0, 0, 0.7),
+    0 42px 80px -54px rgba(214, 148, 164, 0.5);
+}
+/* The bloom. Behind the plate, never over it. */
+.cd::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -14% -8% -26%;
+  border-radius: 50%;
+  background: radial-gradient(60% 60% at 50% 55%, rgba(214, 148, 164, 0.20), transparent 72%);
+  filter: blur(34px);
+  pointer-events: none;
+  animation: cdBloom 7.5s var(--ease-settle) infinite alternate;
+}
+@keyframes cdBloom {
+  from { opacity: 0.55; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1.04); }
+}
+
 .cd-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 28px;
 }
 .cd-cell {
-  border: 1px solid rgba(255, 255, 240, 0.20);
-  border-radius: 12px;
-  padding: 18px 6px;
+  position: relative;
   text-align: center;
+  padding: 2px 4px 4px;
 }
-.cd-cell b {
-  display: block;
-  font-size: clamp(28px, 4vw, 40px);
+.cd-cell + .cd-cell::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 12%;
+  bottom: 28%;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 240, 0.18), transparent);
+}
+.cd-num {
+  display: flex;
+  justify-content: center;
+  font-size: clamp(30px, 4.4vw, 46px);
   font-weight: 300;
-  line-height: 1;
+  line-height: 1.04;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+  color: var(--ivory);
+}
+/* One digit's window. Clipped, so a glyph rolling through it is only ever
+   seen inside the line it belongs to. */
+.cd-slot {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  min-width: 0.62em;
+}
+.cd-g { display: block; }
+.cd-g.cd-out { position: absolute; inset: 0; }
+.cd-roll-in  { animation: cdRollIn 0.52s var(--ease-settle) both; }
+.cd-roll-out { animation: cdRollOut 0.52s var(--ease-settle) both; }
+@keyframes cdRollIn {
+  from { transform: translateY(105%); opacity: 0; filter: blur(3px); }
+  to   { transform: none; opacity: 1; filter: none; }
+}
+@keyframes cdRollOut {
+  from { transform: none; opacity: 1; filter: none; }
+  to   { transform: translateY(-105%); opacity: 0; filter: blur(3px); }
 }
 .cd-cell i {
   display: block;
-  margin-top: 7px;
+  margin-top: 9px;
   font-style: normal;
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.18em;
-  color: rgba(255, 255, 240, 0.5);
+  text-transform: uppercase;
+  color: rgba(255, 255, 240, 0.46);
 }
-.cd-sec b { color: var(--dusk); }
+.cd-sec .cd-num { color: var(--dusk); }
+.cd-sec i { color: rgba(214, 148, 164, 0.72); }
+
+/* The runway. How much of the wait between the announcement and the drop has
+   already gone — a real fraction of two real dates, or nothing at all. */
+.cd-meter {
+  height: 2px;
+  margin: clamp(16px, 2vw, 22px) 2px 0;
+  border-radius: 2px;
+  background: rgba(255, 255, 240, 0.12);
+  overflow: hidden;
+}
+.cd-meter span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, rgba(214, 148, 164, 0.45), var(--dusk));
+  box-shadow: 0 0 12px rgba(214, 148, 164, 0.55);
+  transition: width 0.9s linear;
+}
+
+.cd-when {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 14px 2px 0;
+  font-size: 12.5px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: rgba(255, 255, 240, 0.58);
+}
+.cd-when time { color: rgba(255, 255, 240, 0.86); font-weight: 400; }
+.cd-pulse {
+  flex: none;
+  /* Sits on the first line rather than in the middle of a wrapped one. */
+  margin-top: 7px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dusk);
+  box-shadow: 0 0 0 0 rgba(214, 148, 164, 0.55);
+  animation: cdPulse 2.6s var(--ease-settle) infinite;
+}
+@keyframes cdPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(214, 148, 164, 0.5); }
+  70%  { box-shadow: 0 0 0 9px rgba(214, 148, 164, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(214, 148, 164, 0); }
+}
+
+/* Landed. The clock stops, the plate holds its last reading, and the line
+   underneath becomes the only thing worth reading. */
+.cd[data-cd-landed] .cd-grid { opacity: 0.32; }
+.cd[data-cd-landed] .cd-when { display: none; }
+.cd-live {
+  margin: 14px 2px 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ivory);
+}
+.cd-live a {
+  color: var(--dusk);
+  border-bottom: 1px solid rgba(214, 148, 164, 0.5);
+  padding-bottom: 1px;
+}
+.cd-live a:hover { color: var(--ivory); border-bottom-color: var(--ivory); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cd-meter span { transition: none; }
+}
 
 /* The inline email capture the drop, careers and workshop pages share. */
 .catch { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -1348,7 +1508,11 @@ textarea::placeholder { color: var(--faint); }
 }
 
 @media (max-width: 560px) {
-  .cd-grid { grid-template-columns: repeat(2, 1fr); }
+  /* Four across still fits at 390px and reads as one instrument; two rows of
+     two reads as a form. The type tightens instead. */
+  .cd { padding: 18px 12px 14px; }
+  .cd-num { font-size: 27px; }
+  .cd-cell i { font-size: 8.5px; letter-spacing: 0.14em; }
   .band-sage-aside { padding: 30px 24px; }
   .form-card { padding: 26px 22px 24px; }
   .prod-body { padding: 22px 22px 24px; }
