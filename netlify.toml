@@ -11,6 +11,22 @@
   command = "echo 'static site — nothing to build'"
   publish = "public"
   functions = "netlify/functions"
+  # Netlify runs this before every build, on every context — production,
+  # branch and deploy preview. Exit 0 and the build is skipped; exit 1 and it
+  # proceeds. `git diff --quiet` does exactly that, and nothing else.
+  #
+  # There is no compile step here, but a build is never free: Netlify installs
+  # the 57 packages in package-lock.json (55MB, because the functions need
+  # Stripe and nodemailer) and esbuild bundles twenty functions, thirteen of
+  # which carry the Stripe SDK. A commit that touches only the README, the
+  # tests or product-art/ — the PNG masters that are never deployed — used to
+  # pay all of that to publish a byte-identical site.
+  #
+  # The paths listed are everything a deploy is actually made of. Add to this
+  # list, never trim it: a path left out is a change that silently never ships.
+  # On a first build, or after the cache is cleared, CACHED_COMMIT_REF is empty
+  # and git exits non-zero — which builds. That is the safe direction to fail.
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- public netlify netlify.toml package.json package-lock.json"
 
 [build.environment]
   NODE_VERSION = "22"
@@ -228,6 +244,22 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
     Access-Control-Allow-Origin = "*"
+
+# Product art never changes under a given filename either. Every shot is named
+# for what it is and how wide it is — 01-cover-600.webp — and a re-shoot is a
+# new name, not new bytes at the old one. So it earns the same treatment as
+# the fonts, by the same mechanism: a trailing-splat rule under /assets/ that
+# wins over the revalidate default below. It is 1.3MB across the shelf and
+# ~112KB on a single product page, which is the heaviest thing a repeat
+# visitor currently re-checks on every visit.
+#
+# This deliberately stops short of the CSS and JS. Those revalidate on purpose
+# — see the note below — and no saving is worth the third occurrence of that
+# particular failure.
+[[headers]]
+  for = "/assets/products/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
 
 # Everything else under /assets revalidates on every visit. This used to be
 # split into /assets/*.css and /assets/*.js revalidation rules over a
