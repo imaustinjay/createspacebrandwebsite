@@ -7,6 +7,12 @@
 //
 // Unconfigured is not zero and not free — it stays an em-dash. The same rule
 // the season doors follow: unknown is never rendered as an answer.
+//
+// It also carries the SHELF itself, which is not a price and so is sent
+// whatever Stripe says. The browser keeps the seven hand-built products inline
+// (so a card renders before this answers) and learns the stockroom's additions
+// from here — otherwise a product added without a deploy would list nowhere,
+// and the cart would silently drop it as an id it did not recognise.
 import { liveShelf, resolvePrices, stripeClient } from '../shared/catalog.mjs'
 
 const CACHE_OK = 'public, max-age=0, s-maxage=300, stale-while-revalidate=600'
@@ -17,10 +23,28 @@ export default async (req) => {
     return new Response('Method Not Allowed', { status: 405 })
   }
 
+  // Read before Stripe is even asked, and sent on every path below. A shop
+  // that cannot reach its payment processor still knows what it sells.
+  const shelf = await liveShelf()
+  const catalogue = {}
+  for (const [id, p] of Object.entries(shelf)) {
+    catalogue[id] = {
+      name: p.name,
+      tier: p.tier || '',
+      delivery: p.delivery || '',
+      href: p.href || `/shop/products/${id}/`,
+      free: Boolean(p.free),
+      // Only the stockroom's own carry these; the seven in code keep their
+      // words in the page that was built for them.
+      ...(p.custom ? { custom: true, blurb: p.blurb || '', inside: p.inside || [] } : {}),
+      ...(p.art ? { art: p.art } : {}),
+    }
+  }
+
   const stripe = stripeClient()
   if (!stripe) {
     return Response.json(
-      { ok: false, reason: 'not-configured' },
+      { ok: false, reason: 'not-configured', shelf: catalogue },
       { headers: { 'Cache-Control': CACHE_FAIL } }
     )
   }
@@ -31,14 +55,11 @@ export default async (req) => {
   } catch (err) {
     console.error('catalog: read failed —', err?.message || err)
     return Response.json(
-      { ok: false, reason: 'unreachable' },
+      { ok: false, reason: 'unreachable', shelf: catalogue },
       { status: 502, headers: { 'Cache-Control': CACHE_FAIL } }
     )
   }
 
-  // The shelf as it is now, so a stockroom-added product is priced and
-  // named here exactly like one written in code.
-  const shelf = await liveShelf()
   const products = {}
   for (const id of Object.keys(shelf)) {
     const price = prices[id]
@@ -61,13 +82,13 @@ export default async (req) => {
     // the prices carry a lookup key. Say which, in the private log.
     console.error('catalog: Stripe is connected but no shelf price resolved')
     return Response.json(
-      { ok: false, reason: 'no-prices' },
+      { ok: false, reason: 'no-prices', shelf: catalogue },
       { headers: { 'Cache-Control': CACHE_FAIL } }
     )
   }
 
   return Response.json(
-    { ok: true, products, resolved: found, of: Object.keys(shelf).length },
+    { ok: true, products, shelf: catalogue, resolved: found, of: Object.keys(shelf).length },
     { headers: { 'Cache-Control': CACHE_OK } }
   )
 }

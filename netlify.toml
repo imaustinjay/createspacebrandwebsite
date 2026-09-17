@@ -231,6 +231,25 @@
   to = "/collection/"
   status = 301
 
+# A product added from the stockroom gets a page without a deploy.
+#
+# NOT forced, and that is the entire design. Netlify matches a static file
+# before an unforced rewrite, so every hand-built product page —
+# /shop/products/start-small/index.html and its six siblings — wins this rule
+# outright and is served exactly as before. Only an id with no file of its own
+# reaches the generated template, which fills itself from the shelf that
+# /api/catalog carries.
+#
+# It also means a generated product can be promoted to a hand-built one at any
+# time by adding its file. Nothing migrates and no rule changes: the file
+# simply starts winning. An id that is on no shelf at all renders the
+# template's own "not on the shelf" state rather than a 404, because by the
+# time we know it is missing the page has already been served.
+[[redirects]]
+  from = "/shop/products/:id/"
+  to = "/shop/products/generated/"
+  status = 200
+
 # Fonts never change under a given filename — cache them hard.
 #
 # They're also readable cross-origin, which is not a leak (they're already
