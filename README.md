@@ -1174,6 +1174,56 @@ Three things follow from that split, and are worth keeping:
 The scroll listener is coalesced onto a frame; the pointer light is delegated
 from the document, because the storefront mints cards after this file has run.
 
+## What a deploy costs
+
+Netlify bills the build, not the site sitting there. This repo has no compile
+step, but a build is still an `npm install` of 57 packages (55MB — the
+functions need Stripe and nodemailer) and an esbuild pass over twenty
+functions, thirteen of which carry the Stripe SDK. Every push to a branch with
+an open pull request builds a deploy preview, and every push to `main` builds
+production, so a five-commit afternoon is ten builds.
+
+Two rules keep that honest:
+
+**Builds are skipped when nothing deployable changed.** `[build] ignore` runs
+`git diff --quiet` over the paths a deploy is actually made of — `public`,
+`netlify`, `netlify.toml`, `package.json`, `package-lock.json`. A commit
+touching only the README, the tests or `product-art/` (the 7.3MB of PNG
+masters that are never published) now costs nothing. **Add to that path list,
+never trim it**: a path left out is a change that silently never ships. On a
+first build `CACHED_COMMIT_REF` is empty and git exits non-zero, which builds
+— the safe direction to fail.
+
+**Product art is immutable.** Every shot is named for what it is and how wide
+it is, and a re-shoot is a new name rather than new bytes at the old one — so
+`/assets/products/*` is cached for a year like the fonts, instead of being
+revalidated on every visit. It is the heaviest thing on the site: 1.3MB across
+the shelf, ~112KB on one product page.
+
+The CSS and JS deliberately stay on `max-age=0, must-revalidate`. See the
+caching section above for the two deploys that earned that rule; no saving is
+worth its third occurrence.
+
+### What is not worth optimising
+
+The beacon sends two function invocations per page view — one on arrival, one
+on leaving with the dwell time, scroll depth and whether the visit ended
+there. At the traffic the portal actually reports (235 views in 28 days) that
+is around 470 invocations a month, against a free-tier allowance of 125,000.
+Folding the two into one would blind the exit-page and scroll-depth findings
+to save four tenths of one percent of a number nobody is near. It stays.
+
+The same goes for `/api/catalog` and `/api/seasons` — both already CDN-cached
+for five minutes — and for the portal's self-crawl, which only runs when
+somebody presses **Refresh** and is held for an hour afterwards.
+
+If credits are still going somewhere, the answer is in **Netlify → Billing →
+Usage**, which breaks the number down by resource. Build minutes and this
+repo's push rate are the only line this repository can plausibly dominate.
+Deploy previews can be turned off entirely under **Site configuration → Build
+& deploy → Deploy Previews**, which halves the build count on any day with an
+open pull request.
+
 ## Browser support
 
 Targets current Chrome, Safari, Firefox and Edge, degrading rather than
