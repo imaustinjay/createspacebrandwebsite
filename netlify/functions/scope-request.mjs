@@ -14,10 +14,10 @@
 // The guards are the inquiry form's, because they work: a honeypot, a minimum
 // fill time, and a per-IP ceiling.
 import { randomBytes } from 'node:crypto'
-import { SERVICES } from '../shared/services.mjs'
+import { SERVICES, bookable, resolveServicePrices } from '../shared/services.mjs'
 import { deliverCommission, flushOutbox } from '../shared/commission.mjs'
 import { sendMail, mailbox, esc } from '../shared/mail.mjs'
-import { clean } from '../shared/catalog.mjs'
+import { clean, stripeClient } from '../shared/catalog.mjs'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const str = (v, max) => String(v ?? '').trim().slice(0, max)
@@ -53,8 +53,25 @@ function reference() {
   return `CS-SCOPE-${new Date().getUTCFullYear()}-${tail}`
 }
 
-/** Validate and shape. Pure, so the shape is testable without a request. */
-export function readScopeRequest(body = {}) {
+/**
+ * Validate and shape. Pure, so the shape is testable without a request.
+ *
+ * `prices` is what Stripe answered, and it decides the one redirect this makes:
+ * a service you can already BOOK should not be sent down the scoping road, and
+ * the honest test for that is whether a price exists — not which tier the
+ * catalog files it under. Gating on the tier was wrong in both directions. A
+ * tier-03 build whose lookup key was missing appeared in the scope dropdown
+ * (the page lists anything unpriced) and was then refused on submit with "it
+ * is already scoped and priced — you can book it directly", which was the one
+ * thing it was not: there was no price to book at. And a tier-04 engagement
+ * whose fee HAS been settled and given a lookup key could not be scoped by
+ * hand for a client who wanted something different.
+ *
+ * Called with no prices — from a test, or when Stripe cannot be reached — it
+ * redirects nobody and accepts the request. A client asking to be scoped is
+ * never turned away because a payment API was down.
+ */
+export function readScopeRequest(body = {}, prices = null) {
   const request = {
     service: str(body.service, 64),
     name: str(body.name, 120),
@@ -67,11 +84,10 @@ export function readScopeRequest(body = {}) {
     budget: str(body.budget, 60),
   }
   if (!SERVICES[request.service]) return { error: 'Choose which service you would like scoped.' }
-  if (SERVICES[request.service].tier !== '04') {
-    // A tier-03 build has a published price and a checkout. Sending somebody
-    // down the scoping road for one would be slower for them and no more
-    // honest for us.
-    return { error: `${SERVICES[request.service].name} is already scoped and priced — you can book it directly.`, buyable: true }
+  if (prices && bookable(request.service, prices)) {
+    // It has a price and a checkout. Sending somebody down the scoping road
+    // for one would be slower for them and no more honest for us.
+    return { error: `${SERVICES[request.service].name} is already priced — you can book it directly.`, buyable: true }
   }
   if (!request.name) return { error: 'Add your name — the scope is written for a person.' }
   if (!EMAIL_RE.test(request.email)) return { error: "That email doesn't look complete — it's where the scope goes." }
@@ -91,7 +107,18 @@ export default async (req, context) => {
   const elapsed = Number(body.elapsed)
   if (Number.isFinite(elapsed) && elapsed < 3000) return Response.json({ ok: true })
 
-  const { request, error, buyable } = readScopeRequest(body)
+  // What Stripe holds decides whether this one is bookable instead. Read
+  // before the guards so the redirect is the first thing a bookable service
+  // hears; a failure here is not the client's problem, so it degrades to "no
+  // prices known", which accepts the request.
+  let prices = null
+  try {
+    prices = await resolveServicePrices(stripeClient())
+  } catch (err) {
+    console.error('scope-request: price read failed, accepting the request anyway —', err?.message || err)
+  }
+
+  const { request, error, buyable } = readScopeRequest(body, prices)
   if (error) return Response.json({ error, buyable: Boolean(buyable) }, { status: 400 })
 
   const ip = context?.ip || req.headers.get('x-nf-client-connection-ip') || req.headers.get('x-forwarded-for') || 'unknown'

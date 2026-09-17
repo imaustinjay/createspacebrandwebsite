@@ -158,9 +158,33 @@ export const SERVICES = {
 }
 
 export const SERVICE_IDS = Object.keys(SERVICES)
+// What the CATALOG publishes a price for. Tier 03 is sold at a published fee;
+// tier 04 is scoped in writing first, because its fee is a range, a floor, or
+// set on a call ($1,200–$2,200 for Personal Brand Architecture, "from $895"
+// for Organizational Systems, "complimentary or paid" for the Engagement
+// Action Plan).
+//
+// These are facts about the catalog, and they are no longer the gate. What
+// decides whether a thing can be bought today is whether a PRICE FOR IT EXISTS
+// IN STRIPE — see `bookable` below. That is the same rule the catalog states
+// in its own terms: "No payment link is issued until the scope and the fee are
+// agreed in writing." Creating the Stripe price IS that agreement, written
+// down in the one place the money actually comes from. So a tier-04 engagement
+// whose fee the house has settled on can be sold by giving its price a lookup
+// key, with no deploy; and a tier-03 build whose price is missing or typo'd
+// falls back to the scope door instead of offering a button that cannot charge.
 export const BUYABLE = SERVICE_IDS.filter((id) => SERVICES[id].tier === '03')
 export const SCOPED = SERVICE_IDS.filter((id) => SERVICES[id].tier === '04')
+/** Does the CATALOG publish a fee for this? Not "can it be bought" — that is `bookable`. */
 export const isBuyable = (id) => SERVICES[id]?.tier === '03'
+
+/**
+ * Can this be booked right now? True when a full-fee price resolved from
+ * Stripe. The deposit is not required: half of a fee nobody has set is not a
+ * number this code is allowed to invent, so a service with only a full price
+ * sells at the full price and the deposit button simply is not offered.
+ */
+export const bookable = (id, prices = {}) => Boolean(prices?.[id]?.full)
 
 /**
  * Two ways to point a service at a Stripe price, checked in this order —
@@ -196,16 +220,22 @@ function shape(id, mode, price) {
  * a typo'd env var costs that service its button, not the whole page.
  *
  * Returns `{ 'visual-brand-kit': { full: {...}, deposit: {...} } }`, with
- * whichever modes actually resolved. A tier-04 service is never asked for —
- * it has no price by design, and asking Stripe for one that does not exist
- * would fill the logs with errors about a working configuration.
+ * whichever modes actually resolved.
+ *
+ * EVERY service is asked for, tier-04 included. It used to ask only for the
+ * tier-03 five, which made the tier the gate: a scoped engagement could not be
+ * sold on the site however settled its fee had become, because nothing ever
+ * looked for its price. Now the presence of the price is the gate, and the
+ * absence of one costs nothing — the lookup-key read is a single `prices.list`
+ * for every key at once, so asking for nine services instead of five is the
+ * same one call, and a key that matches nothing is simply not in the answer.
  */
 export async function resolveServicePrices(stripe) {
   const out = {}
   if (!stripe) return out
 
   const wanted = []
-  for (const id of BUYABLE) for (const mode of PAYMENT_MODES) wanted.push({ id, mode })
+  for (const id of SERVICE_IDS) for (const mode of PAYMENT_MODES) wanted.push({ id, mode })
 
   const explicit = []
   const byLookup = []

@@ -9,7 +9,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { sign, secretList, bridgeSecret, bridgeReady, SIGNATURE_HEADER, TIMESTAMP_HEADER, commissionFromOrder } from './commission.mjs'
-import { SERVICES, SERVICE_IDS, BUYABLE, SCOPED, isBuyable, lookupKey, serviceForPrice, serviceLine, PAYMENT_MODES } from './services.mjs'
+import { SERVICES, SERVICE_IDS, BUYABLE, SCOPED, isBuyable, bookable, lookupKey, resolveServicePrices, serviceForPrice, serviceLine, PAYMENT_MODES } from './services.mjs'
 import { readScopeRequest } from '../functions/scope-request.mjs'
 
 /* ── the wire ───────────────────────────────────────────────────────────── */
@@ -94,21 +94,65 @@ test('the nine services the workspace sells are the nine this shelf offers', () 
   )
 })
 
-test('tier 03 is buyable and tier 04 is scoped — the catalog’s rule, in code', () => {
+test('the catalog publishes a fee for five and scopes four — the catalog’s own shape', () => {
   assert.equal(BUYABLE.length, 5)
   assert.equal(SCOPED.length, 4)
   for (const id of BUYABLE) assert.equal(SERVICES[id].tier, '03', id)
-  for (const id of SCOPED) {
-    assert.equal(SERVICES[id].tier, '04', id)
-    assert.equal(isBuyable(id), false, `${id} has no checkout — no payment link until the scope is agreed`)
-  }
+  for (const id of SCOPED) assert.equal(SERVICES[id].tier, '04', id)
+  // `isBuyable` is a fact about the CATALOG, not permission to charge. It used
+  // to be the gate, which meant a scoped engagement could never be sold on the
+  // site however settled its fee had become.
+  for (const id of SCOPED) assert.equal(isBuyable(id), false, `${id} has no published fee in the catalog`)
+})
+
+test('the PRICE is the gate, not the tier — that is the catalog’s rule kept honestly', () => {
+  // "No payment link is issued until the scope and the fee are agreed in
+  // writing." Creating the Stripe price IS that agreement.
+  assert.equal(bookable('social-strategy-sprint', {}), false, 'no price, no button — however much we would like to sell it')
+  assert.equal(
+    bookable('social-strategy-sprint', { 'social-strategy-sprint': { full: { amount: 59500 } } }),
+    true,
+    'a tier-04 engagement whose fee is settled and keyed sells, with no deploy',
+  )
+  assert.equal(
+    bookable('visual-brand-kit', {}),
+    false,
+    'and a tier-03 build whose key is missing does NOT — better the scope door than a button that cannot charge',
+  )
+  // A deposit alone is never enough: half of a fee nobody set is not a number
+  // this code may invent.
+  assert.equal(bookable('brand-architecture', { 'brand-architecture': { deposit: { amount: 60000 } } }), false)
+  assert.equal(bookable('brand-architecture', null), false)
+  assert.equal(bookable('nothing-we-sell', { 'nothing-we-sell': { full: { amount: 1 } } }), true, 'the shelf decides what exists; this only reads prices')
 })
 
 test('the lookup keys are stable — they are typed into a Stripe dashboard by hand', () => {
   assert.equal(lookupKey('visual-brand-kit'), 'svc-visual-brand-kit')
   assert.equal(lookupKey('visual-brand-kit', 'deposit'), 'svc-visual-brand-kit-deposit')
-  const keys = BUYABLE.flatMap((id) => PAYMENT_MODES.map((m) => lookupKey(id, m)))
+  // ALL NINE, both modes. Every one of these eighteen is a string somebody
+  // types into Stripe by hand, and two services sharing one would sell the
+  // wrong engagement at the right price.
+  const keys = SERVICE_IDS.flatMap((id) => PAYMENT_MODES.map((m) => lookupKey(id, m)))
+  assert.equal(keys.length, 18)
   assert.equal(new Set(keys).size, keys.length, 'no two prices share a lookup key')
+  for (const key of keys) {
+    assert.match(key, /^svc-[a-z0-9-]+$/, `${key} is safe to type and safe to read back`)
+  }
+  // A deposit key is its full key plus a suffix, and nothing else. serviceForPrice
+  // reads these back from a webhook, so the shape is load-bearing.
+  for (const id of SERVICE_IDS) {
+    assert.equal(lookupKey(id, 'deposit'), `${lookupKey(id)}-deposit`, id)
+  }
+})
+
+test('every one of the nine reads back from its lookup key, scoped ones included', () => {
+  // resolveServicePrices used to ask only for the tier-03 five. serviceForPrice
+  // always read all nine — so a tier-04 price could be paid and recognised
+  // while the shelf that offered it insisted it had none.
+  for (const id of SERVICE_IDS) {
+    assert.deepEqual(serviceForPrice({ lookup_key: lookupKey(id) }), { id, mode: 'full' }, id)
+    assert.deepEqual(serviceForPrice({ lookup_key: lookupKey(id, 'deposit') }), { id, mode: 'deposit' }, id)
+  }
 })
 
 test('a Stripe price reads back to the service and the half of the fee it was', () => {
@@ -208,10 +252,28 @@ test('a complete scope request reads back normalised', () => {
   assert.equal(request.handle, 'mayacooks', 'the @ is stored once, by the renderer')
 })
 
-test('a tier-03 build is sent to its checkout rather than down the scoping road', () => {
-  const r = readScopeRequest(scope({ service: 'visual-brand-kit' }))
+test('a service with a price is sent to its checkout rather than down the scoping road', () => {
+  const priced = { 'visual-brand-kit': { full: { amount: 89500 } } }
+  const r = readScopeRequest(scope({ service: 'visual-brand-kit' }), priced)
   assert.equal(r.buyable, true)
-  assert.match(r.error, /already scoped and priced/)
+  assert.match(r.error, /already priced/)
+})
+
+test('a service with NO price is scoped, whatever tier it is — including a tier-03 whose key is missing', () => {
+  // The bug this replaces: the page lists anything unpriced in the scope
+  // dropdown, so a tier-03 build with a missing lookup key was offered for
+  // scoping and then refused on submit with "already scoped and priced" — the
+  // one thing it was not.
+  assert.equal(readScopeRequest(scope({ service: 'visual-brand-kit' }), {}).error, undefined)
+  assert.equal(readScopeRequest(scope({ service: 'social-strategy-sprint' }), {}).error, undefined)
+})
+
+test('with no prices known at all, nobody is turned away', () => {
+  // Stripe unreachable. A client asking to be scoped is never refused because
+  // a payment API was down.
+  for (const id of SERVICE_IDS) {
+    assert.equal(readScopeRequest(scope({ service: id })).error, undefined, id)
+  }
 })
 
 test('the scope form asks for the four things a scope cannot be written without', () => {
@@ -223,4 +285,73 @@ test('the scope form asks for the four things a scope cannot be written without'
 
 test('an unknown service is refused rather than opened as something else', () => {
   assert.match(readScopeRequest(scope({ service: 'a-thing-we-do-not-sell' })).error, /which service/)
+})
+
+/* ── which prices the shelf actually asks Stripe for ────────────────────── */
+
+/** A Stripe that holds exactly the lookup keys it is given. */
+function fakeStripe(held = {}) {
+  const asked = []
+  return {
+    asked,
+    prices: {
+      async list({ lookup_keys }) {
+        asked.push(...lookup_keys)
+        return {
+          data: lookup_keys
+            .filter((k) => k in held)
+            .map((k) => ({ id: `price_${k}`, lookup_key: k, unit_amount: held[k], currency: 'usd' })),
+        }
+      },
+      async retrieve(id) {
+        return { id, unit_amount: held[id] ?? 1000, currency: 'usd' }
+      },
+    },
+  }
+}
+
+test('the shelf asks Stripe for all nine, both modes — not only the tier-03 five', async () => {
+  // It used to ask only for BUYABLE, which made the tier the gate: a scoped
+  // engagement could not be sold however settled its fee had become, because
+  // nothing ever looked for its price.
+  const stripe = fakeStripe({})
+  await resolveServicePrices(stripe)
+  assert.equal(stripe.asked.length, 18, 'nine services, two modes each')
+  for (const id of SERVICE_IDS) {
+    assert.ok(stripe.asked.includes(lookupKey(id)), `${id} full`)
+    assert.ok(stripe.asked.includes(lookupKey(id, 'deposit')), `${id} deposit`)
+  }
+  // And it is one call, so asking for nine costs what asking for five did.
+  assert.ok(SCOPED.every((id) => stripe.asked.includes(lookupKey(id))))
+})
+
+test('a tier-04 engagement with a price in Stripe comes back priced and bookable', async () => {
+  // The founder's ask, end to end: give Social Strategy Sprint's price the
+  // lookup key svc-social-strategy-sprint and it sells, with no deploy.
+  const stripe = fakeStripe({ 'svc-social-strategy-sprint': 59500, 'svc-social-strategy-sprint-deposit': 29750 })
+  const prices = await resolveServicePrices(stripe)
+  assert.equal(prices['social-strategy-sprint'].full.amount, 59500)
+  assert.equal(prices['social-strategy-sprint'].deposit.amount, 29750)
+  assert.equal(bookable('social-strategy-sprint', prices), true)
+  // Its neighbours, un-keyed, stay scoped. One price does not open the shelf.
+  assert.equal(bookable('brand-architecture', prices), false)
+  assert.equal(bookable('engagement-action-plan', prices), false)
+  assert.equal(bookable('visual-brand-kit', prices), false)
+})
+
+test('a full price alone is enough to sell; a deposit alone is not', async () => {
+  const fullOnly = await resolveServicePrices(fakeStripe({ 'svc-organizational-systems': 89500 }))
+  assert.equal(bookable('organizational-systems', fullOnly), true)
+  assert.equal(fullOnly['organizational-systems'].deposit, undefined, 'the deposit button is simply not offered')
+
+  const depositOnly = await resolveServicePrices(fakeStripe({ 'svc-organizational-systems-deposit': 44750 }))
+  assert.equal(bookable('organizational-systems', depositOnly), false, 'half of a fee nobody set is not a number we may invent')
+})
+
+test('a price that resolves reads back to its own service, both ways', async () => {
+  const prices = await resolveServicePrices(fakeStripe({ 'svc-brand-architecture': 120000 }))
+  const byKey = serviceForPrice({ lookup_key: 'svc-brand-architecture' }, prices)
+  const byId = serviceForPrice({ id: 'price_svc-brand-architecture' }, prices)
+  assert.deepEqual(byKey, { id: 'brand-architecture', mode: 'full' })
+  assert.deepEqual(byId, { id: 'brand-architecture', mode: 'full' })
 })
