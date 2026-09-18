@@ -230,9 +230,14 @@ function shape(id, mode, price) {
  * for every key at once, so asking for nine services instead of five is the
  * same one call, and a key that matches nothing is simply not in the answer.
  */
-export async function resolveServicePrices(stripe) {
+export async function resolveServicePrices(stripe, report = null) {
   const out = {}
   if (!stripe) return out
+  // A read that fails is logged and SAID: `report.errors` lets the shelf's
+  // door tell the difference between "Stripe holds no price for this" (a
+  // configuration state, cacheable) and "Stripe did not answer" (a moment,
+  // never to be cached or shown as if it were the catalog's rule).
+  const failed = (msg) => { console.error(msg); if (report && Array.isArray(report.errors)) report.errors.push(String(msg)) }
 
   const wanted = []
   for (const id of SERVICE_IDS) for (const mode of PAYMENT_MODES) wanted.push({ id, mode })
@@ -263,7 +268,7 @@ export async function resolveServicePrices(stripe) {
             if (hit) put(hit.id, hit.mode, shape(hit.id, hit.mode, price))
           }
         })
-        .catch((err) => console.error('services: lookup-key read failed —', err?.message || err)),
+        .catch((err) => failed(`services: lookup-key read failed — ${err?.message || err}`)),
     )
   }
 
@@ -272,7 +277,7 @@ export async function resolveServicePrices(stripe) {
       stripe.prices
         .retrieve(priceId)
         .then((price) => put(id, mode, shape(id, mode, price)))
-        .catch((err) => console.error(`services: ${id} (${mode}) → ${priceId} failed —`, err?.message || err)),
+        .catch((err) => failed(`services: ${id} (${mode}) → ${priceId} failed — ${err?.message || err}`)),
     )
   }
 

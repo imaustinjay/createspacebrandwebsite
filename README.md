@@ -232,6 +232,16 @@ The derivation, if you add a service later: the env name is
 `STRIPE_PRICE_SVC_` + the service key uppercased with `-` → `_`, plus
 `_DEPOSIT`; the lookup key is `svc-` + the service key, plus `-deposit`.
 
+**A read Stripe did not answer is never cached.** `/api/services` says
+`pricesLive: false` and sends `no-store` when Stripe is configured but a price
+read failed (a timeout, a rate limit, a cold start), so no edge node holds "no
+prices" for five minutes and hands it to every phone that asks while a laptop
+that asked a minute earlier still shows the fees. The page (`assets/services.js`)
+asks again, past every cache, up to three times; while it waits a fixed-price
+build reads "Fetching the fee…" with its button held, never "scoped in writing"
+— that phrase is the tier-04 rule, and a tier-03 build without a price after
+the retries reads "Fixed price · fee on request" instead.
+
 **A deposit need not be exactly half.** The storefront resolves both prices and
 sends the whole fee with the commission, so the workspace records the agreed
 figure rather than doubling whatever was taken.

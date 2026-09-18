@@ -30,7 +30,11 @@
   var listEl = root.querySelector('[data-service-list]')
   var panel = document.querySelector('[data-book]')
   var scopePanel = document.querySelector('[data-scope]')
-  var state = { services: [], intakeLive: false, chosen: null, mode: 'full', intent: null, stripe: null, elements: null, element: null, opened: 0 }
+  // `settling`: the shelf arrived but Stripe had not answered for it (the door
+  // says so with pricesLive: false). The page asks again, past every cache,
+  // before it lets a fixed-price build read as if it were scoped.
+  var state = { services: [], intakeLive: false, pricesLive: true, stripeConfigured: true, settling: false, chosen: null, mode: 'full', intent: null, stripe: null, elements: null, element: null, opened: 0 }
+  var SETTLE_TRIES = 3
 
   /* ── the shelf ───────────────────────────────────────────────────────── */
 
@@ -50,14 +54,25 @@
       .map(function (s) {
         // A tier-03 row whose Stripe price has not resolved shows the scope
         // door rather than a dead button. A configuration gap on our side
-        // should cost us a click, never cost the visitor the journey.
+        // should cost us a click, never cost the visitor the journey. But a
+        // read Stripe simply did not answer is not a gap: while the page is
+        // still asking, the fee is "on its way", and a fixed-price build is
+        // never called "scoped in writing" — that phrase is the tier-04 rule.
         var priced = s.buyable && s.price
+        var fixed = s.tier === '03'
+        var waiting = !priced && fixed && state.settling
         var action = priced
           ? '<button class="btn btn-primary" type="button" data-choose="' + esc(s.id) + '">Book it</button>'
-          : '<button class="btn btn-secondary" type="button" data-scope-for="' + esc(s.id) + '">Request the scope</button>'
+          : waiting
+            ? '<button class="btn btn-primary" type="button" disabled aria-disabled="true">Book it</button>'
+            : '<button class="btn btn-secondary" type="button" data-scope-for="' + esc(s.id) + '">Request the scope</button>'
         var figure = priced
           ? '<b>' + esc(money(s.price)) + '</b>' + (s.deposit ? '<span class="svc-dep">or ' + esc(money(s.deposit)) + ' today, the balance on delivery</span>' : '')
-          : '<span class="svc-quote">Scoped in writing</span>'
+          : waiting
+            ? '<span class="svc-quote" aria-live="polite">Fetching the fee…</span>'
+            : fixed
+              ? '<span class="svc-quote">Fixed price · fee on request</span>'
+              : '<span class="svc-quote">Scoped in writing</span>'
         return (
           '<div class="svc-row" id="svc-' + esc(s.id) + '">' +
           '<div><h3>' + esc(s.name) + '</h3><p class="fine-13" style="margin:6px 0 0;color:var(--faint)">Tier ' + esc(s.tier) + ' · ' + esc(s.turnaround) + '</p></div>' +
@@ -71,15 +86,23 @@
       .join('')
   }
 
-  function load() {
-    fetch('/api/services', { headers: { accept: 'application/json' } })
+  function load(attempt) {
+    attempt = attempt || 0
+    // A retry goes past the browser's copy and the edge's: `reload` sends the
+    // request with no-cache, and the door itself never caches a failed read.
+    fetch('/api/services', { headers: { accept: 'application/json' }, cache: attempt ? 'reload' : 'default' })
       .then(function (r) { return r.json() })
       .then(function (data) {
         state.services = (data && data.services) || []
         state.intakeLive = Boolean(data && data.intakeLive)
+        // An older door that does not say is taken at its word.
+        state.pricesLive = !(data && data.pricesLive === false)
+        state.stripeConfigured = !(data && data.stripeConfigured === false)
+        state.settling = !state.pricesLive && state.stripeConfigured && attempt < SETTLE_TRIES
         render()
         fillScopeChoices()
         if (location.hash) jumpTo(location.hash.slice(1))
+        if (state.settling) setTimeout(function () { load(attempt + 1) }, 1200 * (attempt + 1))
       })
       .catch(function () {
         if (listEl) {
@@ -94,6 +117,7 @@
     var s = state.services.filter(function (x) { return x.id === id })[0]
     if (!s) return
     if (s.buyable && s.price) choose(id)
+    else if (state.settling && s.tier === '03') return // the fee is on its way; the next answer decides
     else openScope(id)
   }
 
