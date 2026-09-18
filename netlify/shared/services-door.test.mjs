@@ -5,7 +5,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { resolveServicePrices, bookable } from './services.mjs'
+import { resolveServicePrices, bookable, lookupKey, SERVICE_IDS, LOOKUP_KEYS_PER_CALL } from './services.mjs'
 import { shelfPayload } from '../functions/services.mjs'
 
 const good = () => ({
@@ -27,7 +27,7 @@ test('a read Stripe did not answer is reported, not swallowed', async () => {
   const report = { errors: [] }
   const prices = await resolveServicePrices(down(), report)
   assert.deepEqual(prices, {})
-  assert.equal(report.errors.length, 1)
+  assert.equal(report.errors.length, 2, 'eighteen keys go in two batches of ten, and each batch fails alone')
   assert.match(report.errors[0], /rate limited/)
   // And the old callers, which pass no report, still get their shelf.
   const quiet = await resolveServicePrices(down())
@@ -70,4 +70,35 @@ test('the page asks again past every cache before a fixed-price build reads as s
   assert.match(src, /Fetching the fee/, 'while settling, the fee is on its way')
   assert.match(src, /Fixed price · fee on request/, 'a tier-03 row without a price is never called "scoped in writing"')
   assert.match(src, /if \(state\.settling && s\.tier === '03'\) return/, 'a deep link to a fixed-price build waits for the answer rather than opening the scope door')
+})
+
+test('the lookup-key read never asks Stripe for more than ten keys in one call', async () => {
+  // Stripe's rule, mirrored: a list call with more than ten lookup_keys is
+  // refused whole. Asking for nine services in two modes is eighteen keys,
+  // and before the read was batched that single refusal emptied the shelf —
+  // every fixed-price build read "scoped in writing" while its fee sat in
+  // Stripe, and checkout, which resolves the same way, could not find it.
+  const held = { 'svc-storefront-buildout': 59500, 'svc-storefront-buildout-deposit': 29750, 'svc-brand-architecture': 120000 }
+  const calls = []
+  const stripe = {
+    prices: {
+      async list({ lookup_keys }) {
+        calls.push(lookup_keys.length)
+        if (lookup_keys.length > 10) throw new Error('You may only specify up to 10 lookup_keys')
+        return { data: lookup_keys.filter((k) => k in held).map((k) => ({ id: `price_${k}`, lookup_key: k, unit_amount: held[k], currency: 'usd' })) }
+      },
+      async retrieve(id) { return { id, unit_amount: 1000, currency: 'usd' } },
+    },
+  }
+  const report = { errors: [] }
+  const prices = await resolveServicePrices(stripe, report)
+  assert.equal(LOOKUP_KEYS_PER_CALL, 10)
+  assert.ok(calls.length >= 2 && calls.every((n) => n <= 10), `calls of ${calls.join(', ')} keys`)
+  assert.equal(calls.reduce((a, b) => a + b, 0), SERVICE_IDS.length * 2, 'every service, both modes, asked for exactly once')
+  assert.deepEqual(report.errors, [])
+  assert.equal(prices['storefront-buildout'].full.amount, 59500)
+  assert.equal(prices['storefront-buildout'].deposit.amount, 29750)
+  assert.equal(prices['brand-architecture'].full.amount, 120000, 'a tier-04 fee in the second batch resolves too')
+  assert.equal(bookable('storefront-buildout', prices), true)
+  assert.ok(Object.values(held).length === 3 && lookupKey('storefront-buildout') === 'svc-storefront-buildout')
 })

@@ -321,7 +321,8 @@ test('the shelf asks Stripe for all nine, both modes — not only the tier-03 fi
     assert.ok(stripe.asked.includes(lookupKey(id)), `${id} full`)
     assert.ok(stripe.asked.includes(lookupKey(id, 'deposit')), `${id} deposit`)
   }
-  // And it is one call, so asking for nine costs what asking for five did.
+  // Two calls of at most ten keys each — Stripe's ceiling — so asking for
+  // nine services costs one call more than asking for five did, not the shelf.
   assert.ok(SCOPED.every((id) => stripe.asked.includes(lookupKey(id))))
 })
 

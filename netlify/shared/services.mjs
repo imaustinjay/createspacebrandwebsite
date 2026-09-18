@@ -215,6 +215,9 @@ function shape(id, mode, price) {
   }
 }
 
+/** Stripe: "You can specify up to 10 lookup_keys" on a price list. */
+export const LOOKUP_KEYS_PER_CALL = 10
+
 /**
  * Resolve every price we can, and never let one bad id take the rest with it:
  * a typo'd env var costs that service its button, not the whole page.
@@ -226,9 +229,9 @@ function shape(id, mode, price) {
  * tier-03 five, which made the tier the gate: a scoped engagement could not be
  * sold on the site however settled its fee had become, because nothing ever
  * looked for its price. Now the presence of the price is the gate, and the
- * absence of one costs nothing — the lookup-key read is a single `prices.list`
- * for every key at once, so asking for nine services instead of five is the
- * same one call, and a key that matches nothing is simply not in the answer.
+ * absence of one costs nothing — the lookup-key read is `prices.list` in
+ * batches of ten keys (Stripe's ceiling per call), and a key that matches
+ * nothing is simply not in the answer.
  */
 export async function resolveServicePrices(stripe, report = null) {
   const out = {}
@@ -257,18 +260,24 @@ export async function resolveServicePrices(stripe, report = null) {
   }
 
   const work = []
-  if (byLookup.length) {
-    const keys = byLookup.map((w) => lookupKey(w.id, w.mode))
+  // Stripe's price list takes at most ten lookup keys per call. Nine services
+  // in two modes is eighteen, so the read goes in batches of ten — asked for
+  // in one call, Stripe refuses the whole thing and every service comes back
+  // unpriced, which is the shelf saying "scoped in writing" for fees that are
+  // sitting in Stripe. Each batch fails alone, like each explicit id does.
+  for (let i = 0; i < byLookup.length; i += LOOKUP_KEYS_PER_CALL) {
+    const batch = byLookup.slice(i, i + LOOKUP_KEYS_PER_CALL)
+    const keys = batch.map((w) => lookupKey(w.id, w.mode))
     work.push(
       stripe.prices
         .list({ lookup_keys: keys, active: true, limit: 100 })
         .then((list) => {
           for (const price of list.data) {
-            const hit = byLookup.find((w) => lookupKey(w.id, w.mode) === price.lookup_key)
+            const hit = batch.find((w) => lookupKey(w.id, w.mode) === price.lookup_key)
             if (hit) put(hit.id, hit.mode, shape(hit.id, hit.mode, price))
           }
         })
-        .catch((err) => failed(`services: lookup-key read failed — ${err?.message || err}`)),
+        .catch((err) => failed(`services: lookup-key read failed (${keys[0]}…) — ${err?.message || err}`)),
     )
   }
 

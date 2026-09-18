@@ -212,6 +212,9 @@ below). Every application flow itself lives on createspacebrand.online.
 
 Two Stripe prices per tier-03 service: the full fee, and the 50% deposit. Tag
 each with its lookup key and the shelf resolves itself — no env vars needed.
+The read asks Stripe in batches of ten keys (its ceiling per `prices.list`
+call): nine services in two modes is eighteen, and asked for at once Stripe
+refuses the whole call and the shelf goes unpriced.
 Tier 04 gets no price at all, by design: the catalog's rule is that no payment
 link exists until the scope and the fee are agreed in writing.
 
