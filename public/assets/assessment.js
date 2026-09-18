@@ -135,7 +135,7 @@ function boot() {
 
     // The fit is theirs the moment they press the button. The copy, the desk
     // and the list follow in the background, and the status line says how.
-    showResult(local, { email, consent })
+    showResult(local, { email })
 
     fetch('/api/assessment', {
       method: 'POST',
@@ -164,7 +164,7 @@ function boot() {
   function setStatus(text) { const s = $('[data-fit-status]'); s.textContent = text; s.hidden = false }
 
   /* ── the result ───────────────────────────────────────────────────────── */
-  function showResult(r, { email, consent }) {
+  function showResult(r, { email }) {
     const top = SERVICE_COPY[r.recommended]
     const second = SERVICE_COPY[r.secondary]
     state.phase = 'result'
@@ -189,7 +189,7 @@ function boot() {
     const a = document.createElement('a'); a.href = servicePath(r.secondary); a.textContent = second.name
     sec.appendChild(a)
     sec.appendChild(document.createTextNode(` — ${second.blurb}`))
-    setStatus(consent ? `Saving your copy for ${email}…` : `Saving your copy for ${email}…`)
+    setStatus(`Saving your copy for ${email}…`)
     result.setAttribute('tabindex', '-1')
     result.focus({ preventScroll: true })
     root.scrollIntoView({ block: 'start', behavior: 'smooth' })
