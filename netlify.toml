@@ -48,6 +48,17 @@
   to = "/.netlify/functions/inquiry"
   status = 200
 
+# The service-fit assessment on /assessment/ — seven answers scored against
+# the nine done-for-you services (public/assets/assessment-core.mjs, the same
+# file the page scores with). Result to the person, a copy to the desk, and —
+# with their tick — the person onto the workspace's mailing list across the
+# signed bridge (netlify/shared/list.mjs; held in an outbox if the workspace
+# can't take it yet). Same guards as the inquiry.
+[[redirects]]
+  from = "/api/assessment"
+  to = "/.netlify/functions/assessment"
+  status = 200
+
 # The shop desk — contact, careers and workshop alerts, internship
 # applications, the Fall Drop first-look list, and the Collection Program's
 # notify list when the workspace can't take it. One handler, one destination
@@ -293,6 +304,15 @@
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
+
+# The one ES module under /assets (the assessment's scoring rules, shared with
+# the function). A module script is refused unless it arrives as JavaScript,
+# and nosniff (below) makes the browser strict about it — so the type is set
+# here rather than left to a guess from the extension.
+[[headers]]
+  for = "/assets/*.mjs"
+  [headers.values]
+    Content-Type = "text/javascript; charset=utf-8"
 
 # The portal. The page already carries a noindex meta tag; this says the same
 # thing in a header, which is the version a crawler sees before it parses any

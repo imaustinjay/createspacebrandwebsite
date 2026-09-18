@@ -56,6 +56,7 @@ and deploys separately; the brand context this site is built from is
     terms/index.html      Terms of service — the house rules, plainly
     contact/index.html    Contact — a person, not a queue
     inquire/index.html    Work with us — the new client service inquiry (intake form)
+    assessment/index.html Find your fit — the service-fit assessment (seven questions → one service, onto the list)
     collection/           The Collection Program — the paid Community cohort
     partnerships/         Partnerships — collaborations, sponsorship, tools
     careers/              Careers — no open roles, plus the alert list
@@ -115,6 +116,44 @@ Arriving with `?via=card` (what the tap card on the workspace links to) shows a 
 pre-selects "We met in person", and tags the desk email as *from the tap
 card*. Linked from every nav menu and footer as **Work with us**, from the
 brands page, and in the sitemap.
+
+## The service-fit assessment (`/assessment/`)
+
+The public way in for somebody who does not yet know which of the nine
+done-for-you services is theirs. Seven questions, one at a time on the dark
+stage, a card per answer; then a name, an email and an optional handle; then
+the fit — the service with the most weight, the runner-up, the reasons
+quoted back from their own answers, and the first step (book it, or request
+the scope). Deliberately unlike the client intake on the workspace, which is
+a document a paying client fills in: this is a conversation with a result.
+
+The rules are one file, `public/assets/assessment-core.mjs` — plain ESM the
+page loads as a module and the function bundles — so the browser can show the
+result the instant the last answer is in while the desk scores the same
+answers again and trusts only its own result. `netlify/shared/assessment.test.mjs`
+walks every combination of answers and asserts every service is somebody's
+fit, and that the copy mirrors the catalog in `netlify/shared/services.mjs`.
+
+Handler: `netlify/functions/assessment.mjs` at `/api/assessment`, same guards
+as the inquiry (honeypot, min-fill-time, 8/hour per IP). It does three things,
+in this order, and the first is the one that matters:
+
+1. **The list.** With the person's tick (a literal `true`, never a default —
+   the words beside the box are `CONSENT_TEXT` in `netlify/shared/list.mjs`,
+   byte-identical to the workspace's), the signup crosses the same signed
+   bridge a sale does (`netlify/shared/list.mjs`, HMAC over the bytes with the
+   timestamp inside, `SERVICE_BRIDGE_SECRET`) to the workspace's
+   `/api/list-signup`, carrying the fit and the answers. If the workspace
+   cannot take it — bridge down, or the table not yet on its database (it
+   answers 503 for that on purpose) — the signup is HELD in the `list-signups`
+   outbox and flushed by the next signup. Nothing crosses without the tick.
+2. **The desk copy** to `INQUIRY_EMAIL` (falling back to the house mailbox),
+   with every answer, the fit, and whether the list took them.
+3. **Their copy** — the fit, why, the first step, the runner-up.
+
+Mail is best-effort: the result on the page and the row on the list are the
+two things the door exists for, and neither waits on SMTP. Linked from every
+nav menu and footer as **Find your fit**, and in the sitemap.
 
 ## The tap card lives on the workspace, not here
 
