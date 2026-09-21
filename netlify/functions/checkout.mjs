@@ -24,6 +24,7 @@
 // later; it looks the order up by the intent that paid for it.
 import { randomBytes } from 'node:crypto'
 import { clean, isFree, keyMismatch, liveShelf, resolvePrices, siteOrigin, stripeClient } from '../shared/catalog.mjs'
+import { requireUser } from '../shared/customer-auth.mjs'
 import { deliverOrder } from '../shared/deliver.mjs'
 import { ensureOrder } from '../shared/storage.mjs'
 
@@ -302,6 +303,22 @@ export default async (req, context) => {
   const orderRef = reference()
   const origin = siteOrigin(req)
 
+  // Who is buying, when we can prove it.
+  //
+  // SIGNAL's webhook needs to attach a subscription to a Supabase account,
+  // and an email address is a weaker claim on one than an id: addresses are
+  // shared, changed, and typed wrong at checkout. So the signed-in account is
+  // stamped here, where it is already proven, rather than guessed at later.
+  //
+  // Best effort on purpose. A signed-out buyer still checks out exactly as
+  // before — this must never become a reason a sale fails — and the webhook
+  // falls back to the customer's address for them.
+  let buyer = ''
+  try {
+    const who = await requireUser(req)
+    if (who.ok && who.user?.id) buyer = who.user.id
+  } catch { /* signed out, or the auth door is having a moment. Sell anyway. */ }
+
   const metadata = {
     reference: orderRef,
     cart: items.join(','),
@@ -309,6 +326,7 @@ export default async (req, context) => {
     handle: handle.slice(0, 400),
     joinCraft: joinCraft ? 'yes' : 'no',
     source: 'createspacebrand.com/shop/checkout',
+    ...(buyer ? { cs_user: buyer } : {}),
   }
 
   let secret = ''

@@ -19,6 +19,10 @@ import { deliverOrder } from '../shared/deliver.mjs'
 import { ensureOrder, markDelivered, orderByIntent } from '../shared/storage.mjs'
 import { SERVICES } from '../shared/services.mjs'
 import { commissionFromOrder, deliverCommission, flushOutbox } from '../shared/commission.mjs'
+import {
+  signalItem, entitlementRow, eventTime, userByEmail, workspaceForUser,
+  writeEntitlement, entitlementWritable,
+} from '../shared/signal-entitlement.mjs'
 
 const HANDLED = new Set([
   'payment_intent.succeeded',
@@ -29,6 +33,14 @@ const HANDLED = new Set([
   // reach the desk the same way a card does, or the one purchase path the
   // agency uses most is the one the automation never sees.
   'invoice.paid',
+  // SIGNAL's paywall. These three are the ONLY thing that opens the product
+  // to a subscriber and the only thing that closes it again, so a
+  // subscription that changes state without one of these landing is a
+  // creator either locked out of what they paid for or using what they
+  // stopped paying for.
+  'customer.subscription.created',
+  'customer.subscription.updated',
+  'customer.subscription.deleted',
 ])
 
 // `pi_00000000000000` and friends — the object Stripe's dashboard sends when
@@ -118,6 +130,11 @@ export default async (req) => {
   // which are written for a PaymentIntent: the object has a different shape,
   // a different id space, and — most importantly — no order record behind it.
   if (event.type === 'invoice.paid') return invoicePaid(intent)
+
+  // A SUBSCRIPTION changed. Handled apart from everything below for the
+  // same reason invoice.paid is: the object is not a PaymentIntent, has a
+  // different id space, and buys reach rather than files.
+  if (event.type.startsWith('customer.subscription.')) return subscriptionChanged(event)
 
   // A SERVICE, not a cart of files. Nothing to download and nothing to email a
   // link to — what this payment bought is two weeks of a team's work, so the
@@ -364,4 +381,143 @@ export async function invoicePaid(inv) {
   // outbox keeps the commission even if Stripe never returns.
   console.error('stripe-webhook: invoice commission HELD —', sent.error, reference)
   return Response.json({ error: 'Commission held' }, { status: sent.retry === false ? 200 : 500 })
+}
+
+// ── A subscription, as reach into SIGNAL ──────────────────────────────────
+//
+// SIGNAL is a paid workspace and this is the door. Nothing else in either
+// repo can open it: the table these write has no insert or update policy at
+// all, so a creator session cannot set its own tier, period end or expiry.
+//
+// Every guard below exists because without it something specific goes wrong:
+//
+//   · The craft membership is a subscription too, and so is every future one
+//     this account sells. Without the tier guard, a $29 craft renewal would
+//     mint a SIGNAL workspace and hand over the product.
+//   · The bundle sells SIGNAL pro under `tier: bundle`, which is not a tier
+//     the matrix knows. Without `signal_tier`, a bundle subscriber pays $59
+//     and reaches nothing.
+//   · Stripe does not promise webhooks in order. Without the freshness check
+//     a retried `updated` landing after a `deleted` reopens a cancelled
+//     subscription.
+//
+// There is deliberately no event ledger. §13 asks that a replay change
+// nothing, and the row is keyed on workspace — a replayed event rewrites
+// identical values rather than stacking a second entitlement — so the shape
+// of the table satisfies it without remembering every event id.
+/**
+ * The decision, pure: is this event SIGNAL's, and what should be written?
+ *
+ * Returns `{ reason }` for every subscription that should pass through
+ * untouched, or `{ tier, row, eventAt, userId, customer }` for one that moves
+ * the paywall. Separated from the writing so the guards — which are the whole
+ * value of this branch — can be tested without a network, a Stripe, or a
+ * Supabase.
+ */
+export function signalSubscription(event = {}) {
+  const sub = event?.data?.object || {}
+  if (!sub.id) return { reason: 'not-a-subscription' }
+
+  // The craft, and anything else this account sells by subscription, is not
+  // SIGNAL and must reach none of this.
+  const matched = signalItem(sub)
+  if (!matched) return { reason: 'not-signal' }
+  const { tier, item } = matched
+
+  // The matched item is passed through so the period comes from SIGNAL's own
+  // line rather than whichever line happened to be first.
+  const row = entitlementRow(sub, tier, item)
+  // A SIGNAL price created without its tier metadata (§13 requires it). Loud
+  // on the first test purchase rather than quiet at the first renewal.
+  if (!row?.tier) return { reason: 'no-tier-metadata' }
+  if (!row.status) return { reason: 'no-status' }
+
+  return {
+    tier,
+    row,
+    eventAt: eventTime(event),
+    // Stamped at checkout when the buyer is signed in — the direct link, and
+    // the only one that cannot be confused by a shared or changed address.
+    userId: clean(sub.metadata?.cs_user || ''),
+    customer: row.stripe_customer_id,
+  }
+}
+
+export async function subscriptionChanged(event) {
+  const decided = signalSubscription(event)
+  if (decided.reason) {
+    if (decided.reason === 'no-tier-metadata') {
+      // Someone is paying for SIGNAL against a price that cannot say which
+      // tier they bought. Nothing can be granted, and no retry fixes a
+      // missing metadata field — so say it where it will be seen.
+      console.error('stripe-webhook: a SIGNAL price with no tier metadata — see §13', {
+        subscription: event?.data?.object?.id,
+      })
+    }
+    return Response.json({ received: true, handled: false, reason: decided.reason })
+  }
+
+  if (!entitlementWritable()) {
+    // A missing environment variable, not a blip: retrying for days changes
+    // nothing. But a subscriber is now paying for something they cannot
+    // reach, so this is an error and not a shrug.
+    console.error('stripe-webhook: SIGNAL subscription with nowhere to write it — SUPABASE_SERVICE_ROLE_KEY missing', {
+      subscription: decided.row.stripe_sub_id,
+    })
+    return Response.json({ received: true, handled: false, reason: 'not-configured' })
+  }
+
+  // Who bought it. The metadata link first; the customer's address only as a
+  // fallback, because an address is a weaker claim on an account than an id.
+  let userId = decided.userId
+  if (!userId && decided.customer) {
+    const stripe = stripeClient()
+    if (!stripe) return Response.json({ received: true, handled: false, reason: 'not-configured' })
+    try {
+      const customer = await stripe.customers.retrieve(decided.customer)
+      if (!customer?.deleted) userId = (await userByEmail(customer.email)) || ''
+    } catch (err) {
+      console.error('stripe-webhook: could not read the customer behind a SIGNAL subscription —', err?.message || err)
+      return Response.json({ error: 'Customer unreadable' }, { status: 500 })
+    }
+  }
+
+  if (!userId) {
+    // Paid, with no account to attach it to. The worst outcome available
+    // here, and no retry produces an account that does not exist — so it is
+    // logged to be found and fixed by hand rather than swallowed.
+    console.error('stripe-webhook: a SIGNAL subscription with no account behind it', {
+      subscription: decided.row.stripe_sub_id,
+      customer: decided.customer,
+    })
+    return Response.json({ received: true, handled: false, reason: 'no-account' })
+  }
+
+  const workspaceId = await workspaceForUser(userId, { name: '' })
+  if (!workspaceId) {
+    // Supabase was reachable enough to try and not enough to finish. A retry
+    // is worth having.
+    console.error('stripe-webhook: could not reach a workspace for a SIGNAL subscriber', { user: userId })
+    return Response.json({ error: 'Workspace unavailable' }, { status: 500 })
+  }
+
+  const wrote = await writeEntitlement(workspaceId, decided.row, {
+    eventAt: decided.eventAt,
+    reason: event.type,
+  })
+
+  if (!wrote.ok) {
+    console.error('stripe-webhook: SIGNAL entitlement NOT written —', wrote.reason, { workspace: workspaceId })
+    return wrote.retry
+      ? Response.json({ error: 'Entitlement write failed' }, { status: 500 })
+      : Response.json({ received: true, handled: false, reason: wrote.reason })
+  }
+
+  console.log('stripe-webhook: SIGNAL entitlement written', {
+    workspace: workspaceId,
+    tier: decided.tier,
+    status: decided.row.status,
+    wrote: wrote.wrote !== false,
+  })
+  return Response.json({ received: true, handled: true, tier: decided.tier, stale: wrote.reason === 'stale-event' })
 }
