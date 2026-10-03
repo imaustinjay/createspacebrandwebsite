@@ -22,6 +22,8 @@ and deploys separately; the brand context this site is built from is
     storage.mjs           product files, their manifests, and orders (Blobs)
     admin-session.mjs     the portal's login — hash, mailed code, signed cookie
     invoice-mail.mjs      the brand's invoice email — the house's own
+    invoice-commission.mjs a paid invoice → the engagement; the desk notice when it isn't
+    webhook-coverage.mjs  which events Stripe's endpoint actually sends (invoice.paid?)
     customer-auth.mjs     the customer door — Supabase Auth, HttpOnly cookie
     analytics.mjs         the site's own visit counters (Blobs, day-sharded)
     searchconsole.mjs     real search terms, via a Google service account
@@ -508,10 +510,14 @@ follows within five minutes, with no deploy.
    `setup_intent.succeeded` and `invoice.paid`. Payload style **Snapshot** —
    the thin style sends a stub this webhook can't read. `invoice.paid` is the
    one that turns a paid agency invoice into an engagement on the desk; leave
-   it unselected and an invoiced client is never commissioned, silently. It is
-   safe to select on an existing endpoint: craft membership renewals and $0
-   trial invoices are filtered out on arrival, and an invoice with no service
-   tagged on it passes through untouched. Put its signing secret in
+   it unselected and an invoiced client is never commissioned. **The wiring
+   panel at `/shop/admin/` reads the endpoint's event list back from Stripe
+   and says which of the four are missing**, so this is a row to look at, not
+   a payment to find out from. It is safe to select on an existing endpoint:
+   craft membership renewals and $0 trial invoices are filtered out on
+   arrival, and an invoice with no service tagged on it opens nothing — but
+   the desk is emailed about it, with the button that opens it (see [the
+   billing desk](#the-billing-desk--invoicing-a-brand-from-admin)). Put its signing secret in
    `STRIPE_WEBHOOK_SECRET`. **Nothing is delivered without this** — the
    webhook is what emails the files. Test and live need one endpoint each;
    `STRIPE_WEBHOOK_SECRET` holds both secrets at once, comma-separated.
@@ -884,6 +890,49 @@ outstanding, and per-invoice: open, PDF, resend the email, void a mistake.
 If the mailbox isn't configured the invoice is still created and the desk
 says so plainly, with the hosted link ready to copy — an unsent email is
 recoverable; a swallowed invoice is not.
+
+#### An invoice that is a service — and the one that was paid and opened nothing
+
+The form carries an optional **Is this a done-for-you service?** picker. Pick
+one and the invoice is tagged with it (service, whole fee or deposit, and a
+`CS-SVC-` reference minted on the spot), and when it goes **paid**, the
+webhook's `invoice.paid` opens the engagement on the workspace's desk — the
+same door a card checkout comes through. A balance invoice for a job already
+under way takes the first invoice's reference and stays one engagement. The
+picker's options travel with the ledger, behind the same session; they used
+to come from the public shelf, which asks Stripe for prices first, and when
+that read failed the picker was hidden and the invoice went out as an
+ordinary one whatever it was for.
+
+A paid invoice with no service on it — the picker left on *No*, an invoice
+raised in the Stripe dashboard, one issued before the picker existed — opens
+nothing, on purpose: an engagement is never opened on a guess. What it no
+longer does is vanish. Three things happen instead:
+
+- **The desk is emailed** the moment it is paid: *Paid, not opened · invoice
+  CS-0051 — Natalie Phoon*, the amount, the memo, and the one action that
+  fixes it. (Renewals and $0 trials stay silent; they are not news.)
+- **The ledger says so** on the card — *Paid, and no engagement was opened* —
+  and counts them at the top: *2 paid with no engagement opened*.
+- **The card carries the fix**: pick the service, whole fee or deposit,
+  **Open the engagement**. The function reads the invoice back from Stripe
+  (paid, not a subscription cycle, money actually collected), writes the same
+  tag `issue` would have written plus the date it was added, and sends the
+  commission through the webhook's own decision function. The reference is
+  minted once, onto the invoice, so pressing it twice — or Stripe replaying
+  the event later — finds the engagement already open and says so.
+
+A tagged, paid invoice whose commission the bridge would not take (the secret
+differs, the workspace was down) is **held in the outbox** and the desk is
+emailed the actual reason; its card carries **Send to the desk again**, which
+is the retry. The workspace holds the reference as a primary key, so the
+button is safe to press on a healthy invoice too — it answers *Already open on
+the desk as CS-SVC-012*.
+
+`POST /api/billing { action: 'commission', id, service?, mode?, reference?,
+name? }` is the door. `service`/`mode` are needed only for an untagged
+invoice; `reference` continues an engagement already open; `name` overrides
+the contact when Stripe's customer is the company rather than the person.
 
 ## The free product
 

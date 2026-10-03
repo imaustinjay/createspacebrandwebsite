@@ -20,6 +20,7 @@ import {
 } from '../shared/catalog.mjs'
 import { deliverOrder } from '../shared/deliver.mjs'
 import { mailbox } from '../shared/mail.mjs'
+import { webhookCoverage } from '../shared/webhook-coverage.mjs'
 import {
   deliverableCount,
   manifest,
@@ -58,9 +59,23 @@ function unauthorised() {
 // This exists because setting the shop up means pasting five values into a
 // dashboard nobody can see from here, and "did that take?" should be a page
 // you look at rather than a purchase you risk.
-async function wiring(shelf, ids) {
+async function wiring(shelf, ids, origin) {
   const secret = clean(process.env.STRIPE_SECRET_KEY)
   const stripe = stripeClient()
+  // Which events the endpoint in Stripe actually sends. The secret being set
+  // says a secret was pasted; it says nothing about the tick-boxes, and
+  // `invoice.paid` — the one that opens an engagement off a paid invoice —
+  // was added to this webhook after most endpoints were created. Read, never
+  // assumed. null when Stripe could not be asked.
+  let hooks = null
+  if (stripe) {
+    try {
+      const { data } = await stripe.webhookEndpoints.list({ limit: 20 })
+      hooks = webhookCoverage(data, { origin })
+    } catch (err) {
+      console.error('products: could not list the webhook endpoints —', err?.message || err)
+    }
+  }
   // Free products need nothing from Stripe, so counting them here would say
   // "1 of 7 priced" about an account holding nothing at all — a number that
   // implies Stripe did something it didn't. This panel is about the wiring,
@@ -102,7 +117,7 @@ async function wiring(shelf, ids) {
       }
     }
   }
-  const hooks = clean(process.env.STRIPE_WEBHOOK_SECRET).split(/[\s,]+/).filter(Boolean).length
+  const secrets = clean(process.env.STRIPE_WEBHOOK_SECRET).split(/[\s,]+/).filter(Boolean).length
   return {
     secretKey: Boolean(secret),
     publishableKey: Boolean(clean(process.env.STRIPE_PUBLISHABLE_KEY)),
@@ -111,10 +126,14 @@ async function wiring(shelf, ids) {
     // A live secret paired with a test publishable key (or the reverse) is
     // the classic go-live slip, and it fails at the worst possible moment.
     keyMismatch: keyMismatch(),
-    webhookSecret: hooks > 0,
+    webhookSecret: secrets > 0,
     // More than one is normal and deliberate: test and live are separate
     // endpoints with separate secrets, and both can be held at once.
-    webhookSecrets: hooks,
+    webhookSecrets: secrets,
+    // What Stripe's endpoint for this site is subscribed to — see
+    // shared/webhook-coverage.mjs. `events.invoicePaid` false means a paid
+    // agency invoice never reaches this site, and the panel says so.
+    events: hooks,
     mail: Boolean(mailbox()),
     priced,
     of: needsStripe.length,
@@ -276,7 +295,7 @@ export default async (req) => {
       ready: deliverableCount(shelves[id]) > 0,
     }))
     return Response.json(
-      { ok: true, products, maxUpload: MAX_UPLOAD, config: await wiring(shelf, ids), orders: await ledger(shelf) },
+      { ok: true, products, maxUpload: MAX_UPLOAD, config: await wiring(shelf, ids, siteOrigin(req)), orders: await ledger(shelf) },
       { headers: NO_STORE }
     )
   }

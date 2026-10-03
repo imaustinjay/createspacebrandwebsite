@@ -19,6 +19,8 @@
 // directory is deliberately outside the one Netlify scans.
 import test from 'node:test'
 import assert from 'node:assert/strict'
+// Imported through the webhook on purpose: the function must keep exporting
+// the decision it acts on, so the test reads the same thing the log does.
 import { invoiceCommission } from '../netlify/functions/stripe-webhook.mjs'
 import { subscriptionInvoice } from '../netlify/shared/catalog.mjs'
 
@@ -86,9 +88,13 @@ test('a $0 invoice opens nothing — a trial is not a purchase', () => {
   }
 })
 
-test('an ordinary invoice passes through in silence', () => {
+test('an ordinary invoice opens nothing', () => {
   // Raised by hand at the billing desk with no service picked, or raised in
-  // the Stripe dashboard with no metadata at all. Neither is an error.
+  // the Stripe dashboard with no metadata at all. Neither is an error, and
+  // neither opens an engagement on a guess — but neither is silent any more:
+  // the webhook emails the desk about a paid one (invoice-commission.test.mjs
+  // covers the notice), because this is exactly the invoice that used to be
+  // paid, pass through, and leave a client waiting on nobody.
   assert.deepEqual(invoiceCommission(serviceInvoice({ metadata: {} })), { reason: 'not-a-service' })
   assert.deepEqual(invoiceCommission({ id: 'in_x', amount_paid: 12000 }), { reason: 'not-a-service' })
   // Called with nothing at all it still answers rather than throwing — a

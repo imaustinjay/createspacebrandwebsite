@@ -187,6 +187,23 @@
             : 'Payments will be delivered'
           : 'Set STRIPE_WEBHOOK_SECRET — without it nothing is emailed, ever',
       ],
+      // Which events the endpoint in Stripe actually sends. A secret proves a
+      // secret was pasted; this reads the tick-boxes back. `invoice.paid` is
+      // the one that opens an engagement off a paid agency invoice, and an
+      // endpoint created before the site handled it will not have it ticked —
+      // the invoice is paid, the client waits, and nothing arrives to say so.
+      [
+        'Webhook events',
+        Boolean(config.events && config.events.ours && !config.events.missing.length),
+        !config.events
+          ? "Couldn't read the endpoint from Stripe — check the events by hand in Stripe → Developers → Webhooks"
+          : !config.events.ours
+            ? 'No endpoint in Stripe points at /api/stripe-webhook in ' + (config.mode || 'this') + ' mode — add one, Snapshot payload style'
+            : config.events.missing.length
+              ? 'Not sent by the endpoint: ' + config.events.missing.join(', ') +
+                (config.events.invoicePaid === false ? ' — a paid agency invoice never reaches this site until invoice.paid is ticked' : '')
+              : 'All four events the site handles are sent, invoice.paid included',
+      ],
       ['Mailbox', config.mail, config.mail ? 'Receipts and files can be sent' : 'Set MAIL_USER and MAIL_PASSWORD — no files can be delivered'],
     ]
 
