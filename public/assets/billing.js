@@ -1,8 +1,9 @@
 // The billing desk — the Billing tab of /admin/.
 //
 // Issue an invoice to a brand with nothing but a name and an email, read the
-// ledger back, resend the branded email, void a mistake. Everything talks to
-// /api/billing, which sits behind the same session cookie the rest of the
+// ledger back, resend the branded email, void a mistake — and, for a PAID
+// invoice that opened nothing on the desk, open the engagement by hand.
+// Everything talks to /api/billing, which sits behind the same session cookie the rest of the
 // portal already holds — this file never handles a credential of its own.
 //
 // Like the rest of the portal: no innerHTML from data, everything built with
@@ -21,6 +22,9 @@
   var serviceBlock = null
   var serviceSelect = null
   var serviceExtra = null
+  // The catalog, as the ledger sends it: [{ id, name }]. Fills the issue
+  // form's picker and every paid-but-unopened card's picker from one read.
+  var services = []
 
   tab.addEventListener('click', function () {
     if (booted) return
@@ -177,11 +181,14 @@
   // desk — the same door a card checkout comes through, for the clients who
   // are invoiced instead.
   //
-  // The options are fetched rather than hardcoded, because the catalog lives
-  // in one place and a second copy here would drift. All nine appear: the
-  // storefront's own picker filters to the ones without a published price,
-  // which is right for a scoping form and wrong for a billing desk — the whole
-  // point of invoicing is that the fee was agreed off the shelf.
+  // The options come with the ledger rather than being hardcoded, because the
+  // catalog lives in one place and a second copy here would drift. All nine
+  // appear: the storefront's own picker filters to the ones without a
+  // published price, which is right for a scoping form and wrong for a billing
+  // desk — the whole point of invoicing is that the fee was agreed off the
+  // shelf. (They used to come from the public /api/services, which asks Stripe
+  // for prices first; when that read failed this block stayed hidden and the
+  // invoice went out as an ordinary one, whatever it was for.)
   function buildServiceBlock() {
     serviceBlock = el('div', 'bill-service')
     serviceBlock.hidden = true
@@ -190,9 +197,6 @@
     pick.appendChild(el('span', null, 'Is this a done-for-you service? (optional)'))
     serviceSelect = el('select')
     serviceSelect.name = 'service'
-    var none = el('option', null, 'No — an ordinary invoice')
-    none.value = ''
-    serviceSelect.appendChild(none)
     pick.appendChild(serviceSelect)
     serviceBlock.appendChild(pick)
 
@@ -225,24 +229,36 @@
       serviceExtra.hidden = !serviceSelect.value
     })
 
-    api('/api/services')
-      .then(function (data) {
-        var list = (data && data.services) || []
-        if (!list.length) return
-        list.forEach(function (s) {
-          var o = el('option', null, s.name)
-          o.value = s.id
-          serviceSelect.appendChild(o)
-        })
-        serviceBlock.hidden = false
-      })
-      .catch(function () {
-        // The shelf is unreachable. An empty picker would be worse than none,
-        // and an ordinary invoice does not need it.
-        serviceBlock.hidden = true
-      })
+    // Filled now if the ledger has already answered, and again by readLedger
+    // when it does: the catalog travels with the ledger, behind the same
+    // session, so the picker never depends on a second request.
+    fillPicker(serviceSelect, services)
+    serviceBlock.hidden = !services.length
 
     return serviceBlock
+  }
+
+  // One picker, built the same way everywhere it appears. The first option is
+  // the honest default: most invoices are ordinary and nothing should fire.
+  function fillPicker(select, list, firstLabel) {
+    while (select.firstChild) select.removeChild(select.firstChild)
+    var none = el('option', null, firstLabel || 'No — an ordinary invoice')
+    none.value = ''
+    select.appendChild(none)
+    list.forEach(function (s) {
+      var o = el('option', null, s.name)
+      o.value = s.id
+      select.appendChild(o)
+    })
+  }
+
+  function fillServices(list) {
+    services = Array.isArray(list) ? list : []
+    if (!serviceSelect || !serviceBlock) return
+    var keep = serviceSelect.value
+    fillPicker(serviceSelect, services)
+    serviceSelect.value = keep
+    serviceBlock.hidden = !services.length
   }
 
   function value(name) {
@@ -336,9 +352,13 @@
   // ------------------------------------------------------------ the ledger
   function readLedger() {
     api('/api/billing').then(function (data) {
-      statLine.textContent = data.openCount
-        ? data.openCount + ' awaiting payment · ' + data.outstanding + ' outstanding'
-        : 'Nothing outstanding.'
+      fillServices(data.services)
+      var parts = []
+      if (data.openCount) parts.push(data.openCount + ' awaiting payment · ' + data.outstanding + ' outstanding')
+      // Said first and said plainly: a paid invoice with no engagement behind
+      // it is a client waiting on work nobody has started.
+      if (data.unopened) parts.push(data.unopened + ' paid with no engagement opened — see below')
+      statLine.textContent = parts.length ? parts.join(' · ') : 'Nothing outstanding.'
       while (ledgerBox.firstChild) ledgerBox.removeChild(ledgerBox.firstChild)
       if (!data.invoices.length) {
         ledgerBox.appendChild(el('p', 'bill-fine', 'No invoices yet. The first one you issue appears here, alongside whether it has been paid.'))
@@ -368,9 +388,43 @@
     ].filter(Boolean).join(' · ')
     if (whenLine) box.appendChild(el('p', 'bill-meta', whenLine))
 
+    // What the invoice is for, as the desk will see it. A paid invoice with no
+    // tag is the one state that needs a person, so it is said in words and
+    // given the form that fixes it.
+    var tag = inv.service
+    if (tag) {
+      var tagLine = (tag.known ? 'Tagged ' + tag.name : 'Tagged "' + tag.id + '" — not a service we sell') +
+        (tag.mode === 'deposit' ? ' (deposit)' : '') +
+        (tag.reference ? ' · ' + tag.reference : '')
+      if (inv.status === 'paid' && tag.known && tag.reference) tagLine += ' — the engagement opens on the desk when paid; if it did not, send it again below.'
+      else if (inv.status === 'open' && tag.known) tagLine += ' — opens on the desk when paid.'
+      box.appendChild(el('p', 'bill-meta bill-tag', tagLine))
+    } else if (inv.status === 'paid') {
+      box.appendChild(el('p', 'bill-meta bill-tag bill-tag-missing', 'Paid, and no engagement was opened — this invoice carries no service.'))
+    }
+
     var row = el('p', 'bill-actions')
     if (inv.href) row.appendChild(link(inv.href, 'Open'))
     if (inv.pdf) row.appendChild(link(inv.pdf, 'PDF'))
+    if (inv.status === 'paid') {
+      if (tag && tag.known && tag.reference) {
+        // Idempotent: the desk answers a reference it already holds with the
+        // engagement it opened, so pressing this on a healthy invoice is safe
+        // and pressing it on a held one is the retry.
+        row.appendChild(action('Send to the desk again', function (btn) {
+          btn.disabled = true
+          btn.textContent = 'Sending…'
+          api('/api/billing', { action: 'commission', id: inv.id }).then(function (data) {
+            btn.textContent = data.duplicate
+              ? 'Already open on the desk' + (data.engagement ? ' as ' + data.engagement : '')
+              : 'Opened on the desk' + (data.engagement ? ' as ' + data.engagement : '')
+          }).catch(function (err) {
+            btn.disabled = false
+            btn.textContent = err.message || 'Send to the desk again'
+          })
+        }))
+      }
+    }
     if (inv.status === 'open') {
       row.appendChild(action('Resend email', function (btn) {
         btn.disabled = true
@@ -391,6 +445,60 @@
       }))
     }
     box.appendChild(row)
+    if (inv.status === 'paid' && !(tag && tag.known && tag.reference)) box.appendChild(openForm(inv, tag))
+    return box
+  }
+
+  // The fix, in place: pick the service, say whether this invoice was the
+  // whole fee or a deposit, and open it. The server tags the invoice (so a
+  // Stripe replay afterwards finds the reference) and sends the commission
+  // through the same door a payment does.
+  function openForm(inv, tag) {
+    var box = el('form', 'bill-open')
+    box.noValidate = true
+    var pick = el('select')
+    pick.name = 'service'
+    fillPicker(pick, services, 'Which service did this pay for?')
+    if (tag && tag.known) pick.value = tag.id
+    box.appendChild(pick)
+    var mode = el('select')
+    mode.name = 'mode'
+    ;[['full', 'The whole fee'], ['deposit', 'A deposit']].forEach(function (opt) {
+      var o = el('option', null, opt[1])
+      o.value = opt[0]
+      if (tag && tag.mode === opt[0]) o.selected = true
+      mode.appendChild(o)
+    })
+    box.appendChild(mode)
+    var go = el('button', 'btn btn-primary', 'Open the engagement')
+    go.type = 'submit'
+    box.appendChild(go)
+    var said = el('p', 'bill-fine')
+    said.hidden = true
+    box.appendChild(said)
+    box.addEventListener('submit', function (e) {
+      e.preventDefault()
+      said.hidden = true
+      if (!pick.value) {
+        said.textContent = 'Pick the service this invoice paid for.'
+        said.hidden = false
+        return
+      }
+      go.disabled = true
+      go.textContent = 'Opening…'
+      api('/api/billing', { action: 'commission', id: inv.id, service: pick.value, mode: mode.value }).then(function (data) {
+        said.textContent = (data.duplicate ? 'Already open on the desk' : 'Opened on the desk') +
+          (data.engagement ? ' as ' + data.engagement : '') +
+          (data.reference ? ' · ' + data.reference : '') + '.'
+        said.hidden = false
+        readLedger()
+      }).catch(function (err) {
+        go.disabled = false
+        go.textContent = 'Open the engagement'
+        said.textContent = err.message || 'That did not go through.'
+        said.hidden = false
+      })
+    })
     return box
   }
 

@@ -5,6 +5,7 @@
 //   POST { action: 'issue' }     → create one, finalize it, email it — ours
 //   POST { action: 'resend' }    → send the branded email again
 //   POST { action: 'void' }      → cancel an open invoice, permanently
+//   POST { action: 'commission' }→ a PAID invoice → the engagement, by hand
 //
 // Stripe holds the invoice, takes the payment on its hosted page, and pays
 // the balance out with everything else the site earns. What Stripe does NOT
@@ -23,7 +24,8 @@
 // number, which is an owner's act, not an uploader's.
 import { randomBytes } from 'node:crypto'
 import { money, stripeClient, subscriptionInvoice } from '../shared/catalog.mjs'
-import { SERVICES, isServiceReference, serviceReference } from '../shared/services.mjs'
+import { SERVICES, SERVICE_IDS, isServiceReference, serviceReference } from '../shared/services.mjs'
+import { commissionPaidInvoice, retagMetadata, serviceTag } from '../shared/invoice-commission.mjs'
 import { readSession } from '../shared/admin-session.mjs'
 import { brandInvoiceEmail } from '../shared/invoice-mail.mjs'
 import { sendMail } from '../shared/mail.mjs'
@@ -59,6 +61,7 @@ export default async (req, context) => {
   if (action === 'issue') return issue(stripe, body, req)
   if (action === 'resend') return resend(stripe, body, req)
   if (action === 'void') return voidOne(stripe, body)
+  if (action === 'commission') return commission(stripe, body)
   return say({ ok: false, error: 'Unknown action.' }, 400)
 }
 
@@ -86,6 +89,18 @@ async function ledger(stripe) {
     invoices,
     outstanding: money(open.reduce((sum, i) => sum + i.amountDueCents, 0), 'usd'),
     openCount: open.length,
+    // The services the desk can tag an invoice with — every one, priced or
+    // not. It used to come from the public /api/services, which asks Stripe
+    // for prices first, and when that read was slow or failed the picker was
+    // hidden altogether: an invoice issued in that moment was an ordinary
+    // invoice whatever it was for. The catalog is a constant; it is sent with
+    // the ledger, behind the same session, and the picker never depends on
+    // Stripe answering.
+    services: SERVICE_IDS.map((id) => ({ id, name: SERVICES[id].name })),
+    // Paid, and opened nothing on the desk: the rows that need a person. The
+    // page shows the count at the top so it is read before the form, not
+    // found under it.
+    unopened: invoices.filter((i) => i.status === 'paid' && !i.service).length,
   })
 }
 
@@ -104,6 +119,11 @@ function present(inv) {
     paidAt: iso(inv.status_transitions?.paid_at),
     href: inv.hosted_invoice_url || null,
     pdf: inv.invoice_pdf || null,
+    // What the invoice is tagged with, if anything — the service, how much of
+    // it this invoice covers, and the reference the desk files it under. Null
+    // for an ordinary invoice, which is what a paid one with no engagement
+    // behind it looks like, and the page says so.
+    service: serviceTag(inv),
   }
 }
 
@@ -254,6 +274,83 @@ async function issue(stripe, body, req) {
     console.error('billing: issue failed —', err?.message || err)
     return say({ ok: false, error: 'Stripe refused that: ' + (err?.message || 'no reason given.') }, 502)
   }
+}
+
+// ------------------------------------------------------------- after the fact
+//
+// A paid invoice that opened no engagement. Three ways it happens, one fix:
+//
+//   · issued here with the service picker left on "No", or before the picker
+//     existed, or while it was hidden because the shelf would not load;
+//   · raised in the Stripe dashboard, which knows nothing about services;
+//   · tagged correctly, paid, and the bridge was down — the commission is in
+//     the outbox, and this is the button that sends it again.
+//
+// The invoice is read back from Stripe, never trusted from the browser: it
+// has to be paid, it has to not be a subscription cycle, and the money has to
+// have actually been collected. An untagged one is tagged now — the same
+// metadata `issue` would have written, with the date it was added after the
+// fact — so the webhook's own decision function reads it exactly as it would
+// have read a tagged invoice at payment. The reference is minted once, onto
+// the invoice, so pressing the button twice (or Stripe replaying the event
+// afterwards) finds the engagement already open and says so.
+async function commission(stripe, body) {
+  const id = String(body?.id || '')
+  if (!/^in_[A-Za-z0-9]+$/.test(id)) return say({ ok: false, error: 'That is not an invoice id.' }, 400)
+
+  let invoice
+  try {
+    invoice = await stripe.invoices.retrieve(id)
+  } catch (err) {
+    console.error('billing: commission read failed —', err?.message || err)
+    return say({ ok: false, error: 'Stripe refused that: ' + (err?.message || 'no reason given.') }, 502)
+  }
+
+  if (invoice.status !== 'paid') return say({ ok: false, error: 'Only a paid invoice can open an engagement — this one is ' + (invoice.status || 'not paid') + '.' }, 400)
+  if (subscriptionInvoice(invoice)) return say({ ok: false, error: 'That is a membership cycle, not a brand invoice.' }, 400)
+  if (!(Number(invoice.amount_paid) > 0)) return say({ ok: false, error: 'Nothing was collected on that invoice, so there is nothing to open.' }, 400)
+
+  const already = serviceTag(invoice)
+  if (!already || !already.known || !already.reference) {
+    // Untagged, or tagged with something the catalog does not know: write the
+    // tag now. A pasted reference continues an engagement already open (a
+    // balance after a deposit); blank mints a new one.
+    const given = String(body?.reference || '').trim().toUpperCase()
+    const drafted = retagMetadata(invoice, {
+      service: body?.service,
+      mode: body?.mode,
+      reference: given || (already?.reference || ''),
+      contact: String(body?.name || '').trim().slice(0, 120),
+      bytes: randomBytes(6),
+      year: new Date().getUTCFullYear(),
+    })
+    if (drafted.error) return say({ ok: false, error: drafted.error }, 400)
+    try {
+      invoice = await stripe.invoices.update(id, { metadata: drafted.metadata })
+    } catch (err) {
+      console.error('billing: could not tag the invoice —', err?.message || err)
+      return say({ ok: false, error: 'Stripe would not take the tag: ' + (err?.message || 'no reason given.') }, 502)
+    }
+    console.log('billing: paid invoice tagged after the fact', { number: invoice.number, service: drafted.service, reference: drafted.reference })
+  }
+
+  const out = await commissionPaidInvoice(invoice)
+  const tag = serviceTag(invoice)
+
+  if (out.ok) {
+    console.log('billing: invoice commissioned by hand', { number: invoice.number, reference: out.reference, engagement: out.engagement, duplicate: out.duplicate })
+    return say({ ok: true, invoice: present(invoice), engagement: out.engagement, duplicate: out.duplicate, reference: out.reference, service: tag })
+  }
+  if (out.held) {
+    // The tag is on the invoice and the commission is in the outbox, so
+    // nothing is lost — but nothing is open either, and the desk is told the
+    // actual reason rather than "try again".
+    console.error('billing: commission HELD —', out.error, out.reference)
+    return say({ ok: false, held: true, invoice: present(invoice), reference: out.reference, error: 'The workspace would not take it, so it is held and will retry. It said: ' + out.error }, 502)
+  }
+  // Refused by the decision itself — after a successful tag that should not
+  // happen, but the reason is said rather than swallowed.
+  return say({ ok: false, invoice: present(invoice), error: 'That invoice cannot open an engagement (' + out.reason + ').' }, 400)
 }
 
 async function resend(stripe, body, req) {

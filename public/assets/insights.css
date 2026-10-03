@@ -405,3 +405,9 @@
 .bill-meta { margin: 6px 0 0; font-size: 12.5px; color: var(--muted, rgba(78,49,44,0.55)); }
 .bill-actions { display: flex; gap: 8px; margin: 12px 0 0; flex-wrap: wrap; }
 .bill-actions a { text-decoration: none; }
+.bill-tag { color: var(--sage, #567363); }
+.bill-tag-missing { color: var(--dusk, #8a5a4e); font-weight: 500; }
+.bill-card[data-status="paid"]:has(.bill-tag-missing) { border-color: var(--dusk, #8a5a4e); }
+.bill-open { display: grid; grid-template-columns: 1fr 160px auto; gap: 10px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--hairline, rgba(78,49,44,0.12)); }
+.bill-open .bill-fine { grid-column: 1 / -1; }
+@media (max-width: 640px) { .bill-open { grid-template-columns: 1fr; } }

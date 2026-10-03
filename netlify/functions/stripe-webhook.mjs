@@ -14,11 +14,24 @@
 //     mailbox that was never configured.
 //   · Deliver exactly once. Every order is keyed by its payment intent and
 //     carries a `delivered` flag, so a replayed event re-sends nothing.
-import { clean, siteOrigin, stripeClient, subscriptionInvoice } from '../shared/catalog.mjs'
+import { clean, siteOrigin, stripeClient } from '../shared/catalog.mjs'
 import { deliverOrder } from '../shared/deliver.mjs'
 import { ensureOrder, markDelivered, orderByIntent } from '../shared/storage.mjs'
 import { SERVICES } from '../shared/services.mjs'
 import { commissionFromOrder, deliverCommission, flushOutbox } from '../shared/commission.mjs'
+import { mailbox, sendMail } from '../shared/mail.mjs'
+import {
+  REFUSED_LOUDLY,
+  commissionPaidInvoice,
+  heldInvoiceNotice,
+  invoiceCommission,
+  untaggedPaidNotice,
+} from '../shared/invoice-commission.mjs'
+
+// The decision is the shared module's; it is re-exported here so the tests
+// that grew up beside this function keep their import, and so the function
+// log and the test read the same name.
+export { invoiceCommission }
 
 const HANDLED = new Set([
   'payment_intent.succeeded',
@@ -117,7 +130,7 @@ export default async (req) => {
   // An INVOICE went paid. Handled entirely apart from the branches below,
   // which are written for a PaymentIntent: the object has a different shape,
   // a different id space, and — most importantly — no order record behind it.
-  if (event.type === 'invoice.paid') return invoicePaid(intent)
+  if (event.type === 'invoice.paid') return invoicePaid(intent, siteOrigin(req))
 
   // A SERVICE, not a cart of files. Nothing to download and nothing to email a
   // link to — what this payment bought is two weeks of a team's work, so the
@@ -252,116 +265,53 @@ export default async (req) => {
 // in HANDLED, so every one of them returned 2xx-and-do-nothing, and an
 // engagement somebody had just paid for simply never opened.
 //
-// Everything here is a guard, and each one exists because without it something
-// specific goes wrong:
+// The decision and the sending live in shared/invoice-commission.mjs, because
+// the billing desk needs the same two things for the invoice that was paid and
+// opened nothing. What is left here is the webhook's own part: the status code
+// Stripe is answered with, and the desk notices.
 //
-//   · The craft membership renews by subscription, and a subscription cycle IS
-//     an invoice. Without the first guard every $29 renewal would open a
-//     done-for-you engagement.
-//   · A trialling membership's first invoice is $0 and Stripe marks it paid by
-//     itself. Without the second, a free trial would open one too.
-//   · Invoices raised by hand in the Stripe dashboard are a documented path
-//     and carry whatever metadata a person typed, usually none. They pass
-//     through in silence rather than filling the log with errors.
-//
-// There is deliberately NO order record. `ensureOrder` writes under
-// `by-intent/`, which the stockroom ledger and the account scan both read
-// blind and unfiltered — an invoice has no download entitlement, no receipt
-// and no token, so a row there would be pollution. Idempotency instead rests
-// on the reference, which is minted when the invoice is CREATED and lives in
-// its metadata: every Stripe retry carries the same one, and the workspace
-// holds `reference` as a primary key and answers a repeat with the engagement
-// it already opened.
-/**
- * The decision, pure: does this invoice open an engagement, and as what?
- *
- * Returns `{ reason }` for every invoice that should pass through untouched,
- * or `{ commission }` for one that should cross to the workspace. Separated
- * from the sending so the guards — which are the entire value of this branch —
- * are a thing that can be tested without a network, a Stripe, or a workspace.
- */
-export function invoiceCommission(inv = {}) {
-  const meta = inv.metadata || {}
+// The notices are the second fix. The guards in `invoiceCommission` are right
+// to let an untagged invoice pass — a dashboard-raised invoice must not open an
+// engagement on a guess — but "pass" used to mean "vanish". A real payment
+// from a real client went by with nothing but a 200, and the only way anyone
+// found out was the client asking. So a paid, non-subscription invoice that
+// opens nothing now writes to the desk, naming the invoice and the one button
+// that fixes it. Renewals and $0 trials are still silent; they are not news.
+export async function invoicePaid(inv, origin) {
+  const out = await commissionPaidInvoice(inv)
 
-  if (subscriptionInvoice(inv)) return { reason: 'subscription' }
-
-  // `amount_paid` and not `total`: a fully discounted invoice is still nothing
-  // collected, and an engagement is not opened on nothing collected.
-  if (!(Number(inv.amount_paid) > 0)) return { reason: 'nothing-paid' }
-
-  if (meta.kind !== 'service') return { reason: 'not-a-service' }
-
-  const service = SERVICES[meta.service]
-  if (!service) return { reason: 'unknown-service' }
-
-  // The dedupe key. Without it a Stripe retry — and Stripe retries for days —
-  // opens a second engagement for one payment, so a missing one is refused
-  // loudly rather than papered over with a fresh reference.
-  const reference = String(meta.reference || '').trim()
-  if (!reference) return { reason: 'no-reference' }
-
-  // `customers.create` in the billing desk sets `name: company || contact`, so
-  // `customer_name` here may be the company. The person's name is carried in
-  // the invoice's own metadata for exactly this reason.
-  const name = String(meta.contact || inv.customer_name || '').trim()
-  const email = String(meta.email || inv.customer_email || '').trim().toLowerCase()
-  // The workspace rejects both outright, and a rejected commission sits in the
-  // outbox being retried forever without ever being able to succeed.
-  if (!name || !email) return { reason: 'incomplete' }
-
-  const mode = meta.mode === 'deposit' ? 'deposit' : 'full'
-  return {
-    service: meta.service,
-    reference,
-    commission: commissionFromOrder({
-      order: {
-        reference,
-        name,
-        email,
-        handle: '',
-        platform: '',
-        niche: '',
-        joinCraft: false,
-        currency: inv.currency || 'usd',
-        amount: Number(inv.amount_paid) || 0,
-        // Absent on a deposit invoice on purpose — the billing desk takes
-        // free-text lines and does not know the whole fee, so the workspace
-        // applies the house convention rather than a number we invented.
-        fullAmount: Number(meta.fullAmount) > 0 ? Number(meta.fullAmount) : 0,
-      },
-      service,
-      mode,
-      // The invoice's own id, so the engagement's origin points at the thing
-      // that was actually paid and a person can find it in Stripe.
-      intent: { id: inv.id },
-      answers: {},
-      notes: [inv.number && `Invoice ${inv.number}`, inv.description].filter(Boolean).join('\n'),
-    }),
+  if (out.ok) {
+    console.log('stripe-webhook: invoice commissioned', { reference: out.reference, service: out.service, invoice: inv.number || inv.id, engagement: out.engagement, duplicate: out.duplicate })
+    return Response.json({ received: true, handled: true, engagement: out.engagement, duplicate: out.duplicate })
   }
+
+  if (out.held) {
+    // Held. A 500 brings Stripe back — the cheapest retry there is — and the
+    // outbox keeps the commission even if Stripe never returns. The desk is
+    // told once per attempt rather than left to find out from the client.
+    console.error('stripe-webhook: invoice commission HELD —', out.error, out.reference)
+    await deskNotice(heldInvoiceNotice(inv, { reference: out.reference, error: out.error, origin }), inv)
+    return Response.json({ error: 'Commission held' }, { status: out.retry === false ? 200 : 500 })
+  }
+
+  const { reason } = out
+  if (REFUSED_LOUDLY.has(reason)) {
+    console.error(`stripe-webhook: a service invoice refused — ${reason}`, inv?.id, inv?.number || '')
+  }
+  // Money landed, nothing opened, and it is not a renewal or a trial: the one
+  // case worth a human's minute. Everything else is the ordinary traffic this
+  // branch exists to ignore.
+  if (reason !== 'subscription' && reason !== 'nothing-paid') {
+    console.warn('stripe-webhook: a paid invoice opened nothing —', reason, inv?.id, inv?.number || '')
+    await deskNotice(untaggedPaidNotice(inv, { origin, reason }), inv)
+  }
+  return Response.json({ received: true, handled: false, reason })
 }
 
-/** The sending, thin, around the decision above. */
-export async function invoicePaid(inv) {
-  const { reason, commission, reference, service } = invoiceCommission(inv)
-  if (reason) {
-    // Two of these are somebody's mistake and belong in the log; the rest are
-    // the ordinary traffic this branch exists to ignore.
-    if (reason === 'unknown-service' || reason === 'no-reference' || reason === 'incomplete') {
-      console.error(`stripe-webhook: a service invoice refused — ${reason}`, inv?.id, inv?.number || '')
-    }
-    return Response.json({ received: true, handled: false, reason })
-  }
-
-  const sent = await deliverCommission(commission)
-
-  if (sent.ok) {
-    flushOutbox({ limit: 5 }).catch(() => {})
-    console.log('stripe-webhook: invoice commissioned', { reference, service, invoice: inv.number || inv.id, engagement: sent.code || '' })
-    return Response.json({ received: true, handled: true, engagement: sent.code || '' })
-  }
-
-  // Held. A 500 brings Stripe back — the cheapest retry there is — and the
-  // outbox keeps the commission even if Stripe never returns.
-  console.error('stripe-webhook: invoice commission HELD —', sent.error, reference)
-  return Response.json({ error: 'Commission held' }, { status: sent.retry === false ? 200 : 500 })
+/** Best-effort, and never the reason a webhook fails: a notice that could not
+    be posted is logged, and Stripe is still answered about the payment. */
+async function deskNotice({ subject, text }, inv) {
+  if (!mailbox()) return
+  const sent = await sendMail({ to: null, replyTo: inv?.customer_email || undefined, subject, text }).catch((err) => ({ ok: false, detail: String(err?.message || err) }))
+  if (!sent.ok) console.error('stripe-webhook: desk notice not sent —', sent.reason, sent.detail || '')
 }
