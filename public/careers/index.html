@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Careers — not hiring today | createspace</title>
-  <meta name="description" content="No open roles today, and we would rather say so plainly than keep a listing up. When one opens, this page is where it happens first and the alert list hears it." />
+  <title>Careers — Brand Architect roles | createspace</title>
+  <meta name="description" content="createspace is building its next Brand Architects: a remote, part-time Brand Architect Intern cohort open now, and a Brand Architect Jr. seat opening to applications in November." />
   <link rel="canonical" href="https://createspacebrand.com/careers/" />
   <meta property="og:site_name" content="createspace · community + talent" />
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="Careers — not hiring today | createspace" />
-  <meta property="og:description" content="Not hiring today. Ask again soon — the alert list hears the day a role goes up." />
+  <meta property="og:title" content="Careers — Brand Architect roles | createspace" />
+  <meta property="og:description" content="createspace is building its next Brand Architects: a remote, part-time Brand Architect Intern cohort open now, and a Brand Architect Jr. seat opening to applications in November." />
   <meta property="og:url" content="https://createspacebrand.com/careers/" />
   <meta property="og:image" content="https://createspacebrand.com/assets/og.png" />
   <meta property="og:image:width" content="1200" />
@@ -41,8 +41,8 @@
         "@type": "WebPage",
         "@id": "https://createspacebrand.com/careers/#page",
         "url": "https://createspacebrand.com/careers/",
-        "name": "Careers — not hiring today",
-        "description": "No open roles today, and we would rather say so plainly than keep a listing up. When one opens, this page is where it happens first and the alert list hears it.",
+        "name": "Careers — Brand Architect roles",
+        "description": "createspace is building its next Brand Architects: a remote, part-time Brand Architect Intern cohort open now, and a Brand Architect Jr. seat opening to applications in November.",
         "isPartOf": {
           "@id": "https://createspacebrand.com/#website"
         },
@@ -68,6 +68,22 @@
   <!-- First-party visit counter. Path, referrer, time on page, scroll depth.
        No cookie, no third party, nothing that survives the tab. -->
   <script src="/assets/measure.js?v=1" defer></script>
+  <script type="module" src="/assets/careers.js?v=1"></script>
+  <style>
+    /* Careers — the posting's state, in the house's quiet badge. */
+    .posting-badge { justify-self: start; display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; }
+    .posting-badge::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+    .posting-badge[data-state="open"] { color: var(--sage); border-color: var(--sage); }
+    .posting-badge[data-state="open"]::before { background: var(--sage); }
+    .posting-badge[data-state="upcoming"]::before { background: var(--dusk); }
+    .posting-state { font-size: 14px; font-weight: 500; color: var(--sage); margin: 18px 0 0; }
+    .role-card { display: grid; gap: 14px; padding: 30px 30px 28px; background: var(--card); border: 1px solid var(--hairline); border-radius: var(--radius-card); box-shadow: var(--card-shadow); color: inherit; text-decoration: none; }
+    .role-card h2 { font-size: 24px; font-weight: 300; margin: 0; }
+    .role-card .role-meta { font-size: 13px; color: var(--muted); margin: 0; }
+    .careers-form { display: grid; gap: 30px; }
+    .careers-form .form-chapter { display: grid; gap: 16px; }
+    .role-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+  </style>
 </head>
 <body data-drop-date="2026-10-26T09:00:00-04:00" data-drop-from="2026-08-17T09:00:00-04:00">
 <a class="skip" href="#main">Skip to content</a>
@@ -130,20 +146,32 @@
 </header>
 
 <main id="main" class="shell" style="max-width: 1080px; padding-top: clamp(44px, 5.6vw, 68px); padding-bottom: clamp(60px, 8vw, 110px);">
-  <div class="settle" style="max-width: 38em;">
+  <div class="settle" style="max-width: 40em;">
     <span class="eyebrow eyebrow-wide">Careers</span>
-    <h1 data-words class="t-hero" style="margin: 20px 0 0;">Not hiring today. <span class="emph-sage">Ask again soon.</span></h1>
-    <p class="lede settle-late" style="margin: 22px 0 0;">We're small and staying small for now, so there are no open roles. That will change as the community grows — and when it does, this page is where it happens first.</p>
+    <h1 data-words class="t-hero" style="margin: 20px 0 0;">We're building the studio's <span class="emph-sage">next Brand Architects.</span></h1>
+    <p class="lede settle-late" style="margin: 22px 0 0;">Two ways in, both fully remote and part-time. A guided cohort for people learning to build brands, and a seat for someone who already has — with a real path from one to the other.</p>
   </div>
 
-  <div data-settle class="mock-frame" style="max-width: none; margin-top: clamp(32px, 4vw, 44px); padding: 40px 30px; background: var(--card);">
-    <h2 class="t-27 emph" style="margin: 0 0 10px;">No open positions right now</h2>
-    <p class="body-15" style="margin: 0 auto; max-width: 34em;">Nothing to apply for right now, and we'd rather say that plainly than keep a permanent listing up.</p>
+  <div data-settle class="role-cards" style="margin-top: clamp(32px, 4vw, 44px);">
+    <a class="role-card" href="/careers/brand-architect-intern/">
+      <span class="posting-badge" data-posting-badge="brand-architect-intern" data-state="open">Open</span>
+      <h2>Brand Architect Intern</h2>
+      <p class="role-meta">Cohort 01 · Remote · Part-time, about 15–20 hours a week</p>
+      <p class="body-15" style="margin: 0;">A guided program through the house's own Brand Architect education — foundations, certification, the workspace, supervised live work and a capstone — with one direct hire into the Brand Architect Jr. seat at the close.</p>
+      <span class="body-14" style="color: var(--sage); font-weight: 600;">Read the role and apply →</span>
+    </a>
+    <a class="role-card" href="/careers/brand-architect-jr/">
+      <span class="posting-badge" data-posting-badge="brand-architect-jr" data-state="upcoming">Opens soon</span>
+      <h2>Brand Architect Jr.</h2>
+      <p class="role-meta">Remote · Part-time, about 20–25 hours a week · opens in November</p>
+      <p class="body-15" style="margin: 0;">The Brand Architect seat at its first stage: creative direction and the brand build on our campaigns, the Brand Architect Engine and our own socials, under the founder's review.</p>
+      <span class="body-14" style="color: var(--sage); font-weight: 600;">Read the role →</span>
+    </a>
   </div>
 
   <div data-settle class="split" style="--cols: 1.05fr 0.95fr; --gap: 44px; margin-top: clamp(40px, 5vw, 60px); align-items: start;">
     <div>
-      <h2 class="shop-eyebrow" style="margin: 0 0 16px;">What we look for when we do hire</h2>
+      <h2 class="shop-eyebrow" style="margin: 0 0 16px;">What we look for</h2>
       <div class="rows">
         <div>
           <h3>A real visual eye</h3>
@@ -157,15 +185,19 @@
           <h3>Warmth, on the record</h3>
           <p class="body-14" style="margin: 0;">Everything we make ends in a conversation with a creator. That has to sit well with you.</p>
         </div>
+        <div>
+          <h3>Honest hours</h3>
+          <p class="body-14" style="margin: 0;">Part-time works when the hours are real. Tell us what you can give, and we'll build around it.</p>
+        </div>
       </div>
-      <p class="body-15" style="margin: 22px 0 0;">Interested in the internship instead? <a href="/internships/" style="color: var(--sage); text-decoration: underline; text-underline-offset: 3px;">See the internships page</a>.</p>
+      <p class="body-15" style="margin: 22px 0 0;">Looking for a different kind of internship? <a href="/internships/" style="color: var(--sage); text-decoration: underline; text-underline-offset: 3px;">See the internships page</a>. Creators joining the roster apply <a href="https://createspacebrand.online/apply" style="color: var(--sage); text-decoration: underline; text-underline-offset: 3px;">through casting</a> — that's a different door.</p>
     </div>
 
     <div class="form-card">
       <form data-form="careers" data-done="careers-done" novalidate>
         <label class="hp" aria-hidden="true">Leave this field empty <input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
         <span class="eyebrow eyebrow-wide">First to know</span>
-        <h2 class="t-24 emph" style="margin: 10px 0 12px;">How to hear first when a role opens</h2>
+        <h2 class="t-24 emph" style="margin: 10px 0 12px;">Hear first when another role opens</h2>
         <p class="body-15" style="margin: 0 0 20px;">One email, only when there's an actual job. No newsletter.</p>
         <label class="field">
           <span>Email</span>
