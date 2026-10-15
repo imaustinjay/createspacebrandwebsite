@@ -3,7 +3,7 @@
 The public website for **createspace · community + talent**, ported from the
 Claude Design handoff (`Createspace_brand_website_design.zip`), plus the
 storefront from the second handoff (`Createspace_Storefront_standalone.html`).
-Twenty-nine real routes, two stylesheets, thirteen serverless functions. The workspace app
+Thirty-one real routes, two stylesheets, twenty-two serverless functions. The workspace app
 (createspacebrand.online) lives in its own repo — `createspace-workspace` —
 and deploys separately; the brand context this site is built from is
 `reference/PUBLIC_SITE_CONTEXT.md` over there.
@@ -61,7 +61,9 @@ and deploys separately; the brand context this site is built from is
     assessment/index.html Find your fit — the service-fit assessment (seven questions → one service, onto the list)
     collection/           The Collection Program — the paid Community cohort
     partnerships/         Partnerships — collaborations, sponsorship, tools
-    careers/              Careers — no open roles, plus the alert list
+    careers/              Careers — the open Brand Architect postings, plus the alert list
+    careers/brand-architect-intern/  Brand Architect Intern, Cohort 01 — the program and the application
+    careers/brand-architect-jr/      Brand Architect Jr. — the seat; "tell me when it opens" until Nov 2, then the application
     internships/          Internships — what interns work on, plus the form
     shop/index.html       The shop — hero, the Fall Drop, the craft
     shop/products/        Digital products, then one page per product
@@ -118,6 +120,47 @@ Arriving with `?via=card` (what the tap card on the workspace links to) shows a 
 pre-selects "We met in person", and tags the desk email as *from the tap
 card*. Linked from every nav menu and footer as **Work with us**, from the
 brands page, and in the sitemap.
+
+## Careers (`/careers/`) — applications into Talent Acquisition
+
+The first roles the house posts publicly: the **Brand Architect Intern** cohort
+(`/careers/brand-architect-intern/`, open now) and the **Brand Architect Jr.**
+seat (`/careers/brand-architect-jr/`, opens to applications Monday, November 2).
+Unlike every other form on this site, a job application does not land in an
+inbox: it is filed straight into the workspace's **Talent Acquisition** board,
+so hiring stays in one system.
+
+- **The form** is drawn by `public/assets/careers.js` from
+  `public/assets/careers-core.mjs`, which mirrors the workspace's own
+  application forms field for field. The ids are a shared vector:
+  `netlify/shared/careers.test.mjs` here and `shared/careersCore.test.mjs` in
+  the workspace hold the same lists, so a field renamed on one side fails both.
+  These forms use `data-careers-form`, never `data-form` — `shop.js` would
+  otherwise send them to the shop inbox.
+- **The window** is live: `/api/careers-postings` is proxied to the workspace,
+  where the founder edits each posting's dates (Talent Acquisition → Postings).
+  While a posting is open the page shows the application; before it opens, or
+  once it closes or is paused, it shows a short *tell me when it opens* form
+  instead, and the workspace keeps those names on the posting. The dates in
+  `careers-core.mjs` stand in when the workspace does not answer.
+- **The door** is `netlify/functions/careers.mjs` at `/api/careers`: honeypot,
+  minimum fill time, five an hour per IP, answers re-read with the same core
+  file. It signs the body with `SERVICE_BRIDGE_SECRET` and posts it to the
+  workspace's `/api/site-application` (`netlify/shared/careers.mjs`); a
+  submission the workspace can't take yet is **held** in the
+  `careers-applications` outbox and retried with the next one. The workspace
+  decides what it is filed as — an application only inside the window.
+- **Mail, best-effort:** a desk copy with every answer to `CAREERS_EMAIL`
+  (else `INQUIRY_EMAIL`, else the house mailbox) with reply-to set to the
+  applicant, and a short note to the applicant with their reference.
+- **Schema:** the intern page carries `JobPosting` JSON-LD (remote, intern +
+  part-time, valid through November 30). The Jr. page deliberately carries
+  none until it opens — add it when it does.
+
+Linked from every nav menu and footer as **Careers**, from `/internships/`,
+and in the sitemap. This is the one application flow that lives on this site
+rather than createspacebrand.online, because the postings are public and the
+workspace has no public jobs page; it still lands nowhere but the workspace.
 
 ## The service-fit assessment (`/assessment/`)
 
@@ -178,7 +221,8 @@ doesn't carry the founder's address isn't a card. It links back here to
 
 The workspace keeps its own repo, Netlify site and env; the two share nothing
 but a read-only view of which application seasons are open (see Supabase,
-below). Every application flow itself lives on createspacebrand.online.
+below). Every application flow itself lives on createspacebrand.online —
+except job applications, which are posted here and filed there (see Careers).
 
 ## Environment variables
 
@@ -196,6 +240,7 @@ below). Every application flow itself lives on createspacebrand.online.
 | `STRIPE_CRAFT_TRIAL_UNTIL` | Optional ISO date for the craft's subscription trial, so "nothing is charged before August 17" is enforced rather than promised. Ignored once it's in the past. |
 | `PARTNERSHIPS_EMAIL` | Where brand enquiries land. Optional override — unset, they go to the house inbox, `hello@createspacebrand.com`. Server-side only — deliberately never printed in the client bundle, per the handoff, so it can't be scraped. |
 | `INQUIRY_EMAIL` | Where **client service inquiries** (`/inquire/`, and the tap card) land. Optional override — unset, they go wherever the house mailer already points (`SHOP_EMAIL`, then `PARTNERSHIPS_EMAIL`, then `hello@createspacebrand.com`). Server-side only, same as above. The service-fit assessment (`/assessment/`) sends its desk copy to the same address. |
+| `CAREERS_EMAIL` | Optional. Where the careers desk copy goes (`/careers/` applications and *tell me when it opens*). Falls back to `INQUIRY_EMAIL`, then the house mailbox. The application itself is filed in the workspace's Talent Acquisition either way — this is only the email copy. |
 | `SHOP_EMAIL` | Where the storefront's forms land (contact, careers and workshop alerts, internship applications, the Fall Drop list, and the Collection Program notify list when the workspace endpoint can't be reached). Optional override — falls back to `PARTNERSHIPS_EMAIL`, then to `hello@createspacebrand.com`. Server-side only, same as above. |
 | `MAIL_USER` / `MAIL_PASSWORD` | SMTP login for the sending mailbox (falls back to `TITAN_EMAIL` / `TITAN_PASSWORD`, same convention as the workspace's `shared/mailCore.mjs`). |
 | `MAIL_SMTP_HOST` / `MAIL_SMTP_PORT` | Optional; default `smtp.titan.email` : `465`. |

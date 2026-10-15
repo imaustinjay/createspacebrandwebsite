@@ -59,6 +59,26 @@
   to = "/.netlify/functions/assessment"
   status = 200
 
+# Careers — an application (or "tell me when it opens") for a posting on
+# /careers/<posting>/, read with public/assets/careers-core.mjs and carried
+# across the signed bridge (netlify/shared/careers.mjs) into the workspace's
+# Talent Acquisition; held in an outbox if the workspace can't take it yet. A
+# copy to CAREERS_EMAIL (else INQUIRY_EMAIL) and a note to the person. Same
+# guards as the inquiry, five an hour per address.
+[[redirects]]
+  from = "/api/careers"
+  to = "/.netlify/functions/careers"
+  status = 200
+
+# The postings' live windows, from the workspace (Talent Acquisition →
+# Postings is where the founder edits them). The page falls back to the dates
+# in careers-core.mjs when this does not answer.
+[[redirects]]
+  from = "/api/careers-postings"
+  to = "https://createspacebrand.online/api/careers-postings"
+  status = 200
+  force = true
+
 # The shop desk — contact, careers and workshop alerts, internship
 # applications, the Fall Drop first-look list, and the Collection Program's
 # notify list when the workspace can't take it. One handler, one destination

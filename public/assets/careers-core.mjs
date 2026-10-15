@@ -1,0 +1,200 @@
+// The careers pages' one source of truth — read by the page (to draw the form
+// and the posting's state) and by netlify/functions/careers.mjs (to check what
+// arrives). No imports: it runs in the browser and on the server unchanged.
+//
+// The forms mirror the workspace's own application forms field for field
+// (src/data/applications.ts; the ids are pinned by shared/careersCore.mjs
+// ROLE_KEYS there). The id lists are held as a vector in
+// netlify/shared/careers.test.mjs, and the workspace's careersCore.test.mjs
+// holds the same vector — so a field renamed on one side turns both suites
+// red on the same commit. Labels may read a little differently on the page;
+// the ids may not.
+//
+// POSTINGS are the defaults. The live window comes from the workspace
+// (/api/careers-postings, proxied to createspacebrand.online), where the
+// founder edits it in Talent Acquisition → Postings; these dates are what the
+// page shows when the workspace cannot be reached.
+
+export const CAREERS_TZ = 'America/Los_Angeles'
+
+export const POSTINGS = Object.freeze([
+  Object.freeze({
+    slug: 'brand-architect-intern',
+    role: 'Brand Architect Intern',
+    req: 'CS-REQ-BRA-I01',
+    cohort: 'Cohort 01',
+    location: 'Remote',
+    schedule: 'Part-time · about 15–20 hours a week',
+    status: 'active',
+    opensAt: '2026-10-13',
+    closesAt: '2026-11-30',
+    startsAt: '2027-01-11',
+  }),
+  Object.freeze({
+    slug: 'brand-architect-jr',
+    role: 'Brand Architect Jr.',
+    req: 'CS-REQ-BRA-J01',
+    cohort: '',
+    location: 'Remote',
+    schedule: 'Part-time · about 20–25 hours a week',
+    status: 'active',
+    opensAt: '2026-11-02',
+    closesAt: null,
+    startsAt: null,
+  }),
+])
+
+export const postingFor = (slug) => POSTINGS.find((p) => p.slug === String(slug || '').toLowerCase()) || null
+
+/** Today as a Pacific calendar day, YYYY-MM-DD. */
+export function pacificDay(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: CAREERS_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now)
+  const get = (t) => parts.find((p) => p.type === t)?.value
+  return `${get('year')}-${get('month')}-${get('day')}`
+}
+
+/** upcoming · open · closed · paused — the workspace's own rule (careersCore.postingState). */
+export function postingState(p, now = new Date()) {
+  if (!p) return 'closed'
+  if (p.status === 'paused') return 'paused'
+  if (p.status === 'closed') return 'closed'
+  const today = pacificDay(now)
+  const opens = p.opensAt ? String(p.opensAt).slice(0, 10) : null
+  const closes = p.closesAt ? String(p.closesAt).slice(0, 10) : null
+  if (!opens || today < opens) return 'upcoming'
+  if (closes && today > closes) return 'closed'
+  return 'open'
+}
+
+/** "Monday, November 2" — a posting date in words, read as a Pacific day. */
+export function dayInWords(iso, { weekday = true, year = false } = {}) {
+  if (!iso) return ''
+  const d = new Date(`${String(iso).slice(0, 10)}T12:00:00Z`)
+  return d.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric', ...(weekday ? { weekday: 'long' } : {}), ...(year ? { year: 'numeric' } : {}) })
+}
+
+const STRENGTHS = ['Colour & palette', 'Typography', 'Layout & composition', 'Writing & voice', 'Strategy & research', 'Social content', 'Art direction']
+const TOOLS = ['Figma', 'Adobe Illustrator', 'Adobe Photoshop', 'Adobe InDesign', 'Canva', 'Procreate', 'Notion', 'Other']
+
+/** The shared "About you" chapter — SHARED_ABOUT in the workspace. */
+const ABOUT = Object.freeze({
+  title: 'About you',
+  fields: [
+    { id: 'full_name', label: 'Full name', type: 'text', required: true, autocomplete: 'name' },
+    { id: 'email', label: 'Email', type: 'email', required: true, autocomplete: 'email' },
+    { id: 'phone', label: 'Phone', type: 'tel', autocomplete: 'tel' },
+    { id: 'location', label: 'Location', type: 'text', required: true, placeholder: 'City, state or country', autocomplete: 'address-level2' },
+    { id: 'pronouns', label: 'Pronouns', type: 'text' },
+    { id: 'links', label: 'Portfolio and links', type: 'textarea', placeholder: 'Your site, Behance, Instagram, a Drive folder — whatever shows your work.' },
+    { id: 'availability', label: 'When could you start?', type: 'select', required: true, options: ['Available now', 'Within 2 weeks', 'Within a month', 'Just exploring'] },
+    { id: 'referral', label: 'How did you hear about createspace?', type: 'text' },
+  ],
+})
+
+/** Each posting's form, in the workspace's order. */
+export const FORMS = Object.freeze({
+  'brand-architect-intern': Object.freeze([
+    ABOUT,
+    {
+      title: 'Your eye and your thinking',
+      intro: 'We hire for taste and care first. Tools are teachable.',
+      fields: [
+        { id: 'bai_path', label: 'Where are you on your path?', type: 'select', required: true, options: ['Studying design, branding, marketing or similar', 'Recently graduated', 'Self-taught and building a portfolio', 'Changing careers into brand work', 'Other'] },
+        { id: 'bai_portfolio_piece', label: 'One piece of work you’re proud of — link it, and tell us the thinking behind it', type: 'textarea', required: true, hint: 'A school project, a friend’s logo, a page you redesigned for fun — it all counts.' },
+        { id: 'bai_brand_admire', label: 'A brand whose identity you admire, and what it gets right', type: 'textarea', required: true },
+        { id: 'bai_strengths', label: 'Where does your eye naturally live?', type: 'multiselect', options: STRENGTHS },
+        { id: 'bai_tools', label: 'Tools you’re comfortable in', type: 'multiselect', options: TOOLS },
+      ],
+    },
+    {
+      title: 'The cohort',
+      intro: 'A remote, part-time program works when the hours are honest. Tell us what you can really give.',
+      fields: [
+        { id: 'bai_hours', label: 'Hours you can give each week, steadily', type: 'select', required: true, options: ['Under 10', '10–15', '15–20', '20+'] },
+        { id: 'bai_timezone', label: 'Your time zone', type: 'text', required: true, placeholder: 'Pacific, Eastern, GMT+1…' },
+        { id: 'bai_live_sessions', label: 'Can you join two live sessions a week (weekdays, Pacific time)?', type: 'select', required: true, options: ['Yes', 'Mostly', 'Not reliably'] },
+        { id: 'bai_why', label: 'Why the Brand Architect cohort, and why createspace?', type: 'textarea', required: true },
+        { id: 'bai_feedback', label: 'Tell us about a time feedback changed your work', type: 'textarea', required: true },
+      ],
+    },
+    {
+      title: 'A small brief',
+      intro: 'No right answer. We want to see where you start.',
+      fields: [
+        { id: 'bai_brief', label: 'A neighbourhood bakery wants to feel less like a chain and more like a place people belong. In a few sentences, where would you start its brand?', type: 'textarea', required: true },
+      ],
+    },
+  ]),
+  'brand-architect-jr': Object.freeze([
+    ABOUT,
+    {
+      title: 'Your work',
+      intro: 'Show us something you built, and how you built it.',
+      fields: [
+        { id: 'baj_years', label: 'Years doing brand or identity work', type: 'select', required: true, options: ['Under 1', '1–2', '3–5', '5+'] },
+        { id: 'baj_case', label: 'Walk us through one case — the brief, your decisions, and what shipped (link it)', type: 'textarea', required: true },
+        { id: 'baj_systems', label: 'A brand system you built or kept: what it held, and how other people used it', type: 'textarea', required: true },
+        { id: 'baj_strengths', label: 'Where are you strongest?', type: 'multiselect', options: STRENGTHS },
+        { id: 'baj_tools', label: 'Tools you work in', type: 'multiselect', options: TOOLS },
+      ],
+    },
+    {
+      title: 'The house, and the hours',
+      fields: [
+        { id: 'baj_critique', label: 'Look at createspace’s own presence. One thing you’d keep, one thing you’d change, and why.', type: 'textarea', required: true },
+        { id: 'baj_hours', label: 'Hours you can hold each week', type: 'select', required: true, options: ['15–20', '20–25', '25–30'] },
+        { id: 'baj_timezone', label: 'Your time zone', type: 'text', required: true, placeholder: 'Pacific, Eastern, GMT+1…' },
+        { id: 'baj_cohort', label: 'Are you in, or applying to, the Brand Architect Intern cohort?', type: 'select', options: ['No', 'Yes — in the cohort', 'Yes — applied'] },
+        { id: 'baj_why', label: 'Why this seat, and why now?', type: 'textarea', required: true },
+      ],
+    },
+  ]),
+})
+
+/** Every field id a posting's form carries, in order. */
+export const fieldIds = (slug) => (FORMS[slug] || []).flatMap((c) => c.fields.map((f) => f.id))
+/** The ids that must be answered. */
+export const requiredIds = (slug) => (FORMS[slug] || []).flatMap((c) => c.fields.filter((f) => f.required).map((f) => f.id))
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+const str = (v, max) => String(v ?? '').trim().slice(0, max)
+
+/**
+ * One submission, checked — the page runs it before sending, the server runs
+ * it again on what actually arrived. `{ error, field? }` or `{ submission }`.
+ * An option outside a select's list is refused; a list keeps only real options.
+ */
+export function readCareers(body = {}) {
+  const posting = postingFor(body.posting)
+  if (!posting) return { error: 'That posting isn’t one we have.' }
+  const kind = body.kind === 'interest' ? 'interest' : 'application'
+  const raw = body.answers && typeof body.answers === 'object' && !Array.isArray(body.answers) ? body.answers : {}
+  const name = str(raw.full_name ?? body.name, 160)
+  const email = str(raw.email ?? body.email, 254).toLowerCase()
+  if (!name) return { error: 'Your name, so we know who we’re talking to.', field: 'full_name' }
+  if (!EMAIL_RE.test(email)) return { error: 'That email doesn’t look complete — mind checking it?', field: 'email' }
+  if (kind === 'interest') {
+    return { submission: { posting: posting.slug, kind, name, email, answers: { full_name: name, email, ...(str(raw.note ?? body.note, 1000) ? { note: str(raw.note ?? body.note, 1000) } : {}) } } }
+  }
+  const answers = {}
+  for (const chapter of FORMS[posting.slug]) {
+    for (const f of chapter.fields) {
+      let v = raw[f.id]
+      if (f.type === 'multiselect') {
+        v = (Array.isArray(v) ? v : v ? [v] : []).map((x) => str(x, 120)).filter((x) => f.options.includes(x))
+        if (v.length) answers[f.id] = [...new Set(v)]
+      } else if (f.type === 'select') {
+        v = str(v, 120)
+        if (v && !f.options.includes(v)) return { error: `Pick one of the options for “${f.label}”.`, field: f.id }
+        if (v) answers[f.id] = v
+      } else {
+        v = str(v, f.type === 'textarea' ? 4000 : 300)
+        if (v) answers[f.id] = v
+      }
+      if (f.required && !answers[f.id]) return { error: `One more: “${f.label}”.`, field: f.id }
+    }
+  }
+  answers.full_name = name
+  answers.email = email
+  return { submission: { posting: posting.slug, kind, name, email, answers } }
+}
