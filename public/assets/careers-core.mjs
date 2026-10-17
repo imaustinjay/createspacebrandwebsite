@@ -42,6 +42,20 @@ export const POSTINGS = Object.freeze([
     closesAt: null,
     startsAt: null,
   }),
+  // Two openings, until filled. The term is not posted: every creator starts
+  // with a first month, and a longer contract is offered after it.
+  Object.freeze({
+    slug: 'content-creator',
+    role: 'Content Creator (Contract)',
+    req: 'CS-REQ-CC-C01',
+    cohort: '',
+    location: 'Remote',
+    schedule: 'Contract · seven pieces a month',
+    status: 'active',
+    opensAt: '2026-10-17',
+    closesAt: null,
+    startsAt: null,
+  }),
 ])
 
 export const postingFor = (slug) => POSTINGS.find((p) => p.slug === String(slug || '').toLowerCase()) || null
@@ -74,6 +88,8 @@ export function dayInWords(iso, { weekday = true, year = false } = {}) {
 }
 
 const STRENGTHS = ['Colour & palette', 'Typography', 'Layout & composition', 'Writing & voice', 'Strategy & research', 'Social content', 'Art direction']
+const CREATOR_FORMATS = ['Talk-to-camera', 'Green screen', 'Voiceover with B-roll', 'Day in the life', 'Text on screen, no talking', 'Recommendations and lists', 'Storytelling']
+const CREATOR_GEAR = ['iPhone / smartphone', 'Mirrorless / DSLR', 'Gimbal / stabilizer', 'Lighting kit', 'Audio gear', 'CapCut', 'Premiere / Final Cut / Resolve']
 const TOOLS = ['Figma', 'Adobe Illustrator', 'Adobe Photoshop', 'Adobe InDesign', 'Canva', 'Procreate', 'Notion', 'Other']
 
 /** The shared "About you" chapter — SHARED_ABOUT in the workspace. */
@@ -146,6 +162,37 @@ export const FORMS = Object.freeze({
         { id: 'baj_timezone', label: 'Your time zone', type: 'text', required: true, placeholder: 'Pacific, Eastern, GMT+1…' },
         { id: 'baj_cohort', label: 'Are you in, or applying to, the Brand Architect Intern cohort?', type: 'select', options: ['No', 'Yes — in the cohort', 'Yes — applied'] },
         { id: 'baj_why', label: 'Why this seat, and why now?', type: 'textarea', required: true },
+      ],
+    },
+  ]),
+  'content-creator': Object.freeze([
+    ABOUT,
+    {
+      title: 'Your content',
+      intro: 'Show us organic work you made — posts that live on a page, not paid ads.',
+      fields: [
+        { id: 'ccc_handle', label: 'Your TikTok and Instagram handles', type: 'text', required: true, placeholder: '@yourname on TikTok, @yourname on Instagram' },
+        { id: 'ccc_portfolio', label: 'Links to two or three organic posts you made', type: 'textarea', required: true, hint: 'On your own page or a brand’s. Tell us in a line what each one was for.' },
+        { id: 'ccc_styles', label: 'Formats you’re strong in', type: 'multiselect', required: true, options: CREATOR_FORMATS },
+        { id: 'ccc_gear', label: 'What you shoot and edit on', type: 'multiselect', options: CREATOR_GEAR },
+        { id: 'ccc_gear_detail', label: 'Your core kit, in a line', type: 'text', placeholder: 'iPhone 15 Pro, a ring light, CapCut…' },
+      ],
+    },
+    {
+      title: 'The work',
+      intro: 'Every piece starts from a concept we write, with links to the content that inspired it. The job is to make it exactly as outlined.',
+      fields: [
+        { id: 'ccc_direction', label: 'Tell us about a time you made content to someone else’s brief. What did you do when you had a different idea?', type: 'textarea', required: true },
+        { id: 'ccc_cadence', label: 'Can you deliver two pieces every week, on a weekly deadline?', type: 'select', required: true, options: ['Yes', 'Most weeks', 'Not reliably'] },
+        { id: 'ccc_turnaround', label: 'From a concept to a finished piece, how long do you usually take?', type: 'select', options: ['1–2 days', '3–4 days', 'About a week'] },
+      ],
+    },
+    {
+      title: 'The rate, and why us',
+      intro: 'The rate is set: $600 a month for seven pieces, plus $300–$600 for any UGC project we offer you. As a startup on a fixed budget, it isn’t negotiable.',
+      fields: [
+        { id: 'ccc_rate_ok', label: 'Does the set rate work for you?', type: 'select', required: true, options: ['Yes, the rate works for me', 'No'] },
+        { id: 'ccc_why', label: 'Why createspace? What would you bring to our page?', type: 'textarea', required: true },
       ],
     },
   ]),
