@@ -50,7 +50,7 @@ export const POSTINGS = Object.freeze([
     req: 'CS-REQ-CC-C01',
     cohort: '',
     location: 'Remote',
-    schedule: 'Contract · seven pieces a month',
+    schedule: 'Contract · short-form · two pieces a week',
     status: 'active',
     opensAt: '2026-10-17',
     closesAt: null,
@@ -169,7 +169,7 @@ export const FORMS = Object.freeze({
     ABOUT,
     {
       title: 'Your content',
-      intro: 'Show us organic work you made — posts that live on a page, not paid ads.',
+      intro: 'Show us short-form organic work you made — posts that live on a page, not paid ads.',
       fields: [
         { id: 'ccc_handle', label: 'Your TikTok and Instagram handles', type: 'text', required: true, placeholder: '@yourname on TikTok, @yourname on Instagram' },
         { id: 'ccc_portfolio', label: 'Links to two or three organic posts you made', type: 'textarea', required: true, hint: 'On your own page or a brand’s. Tell us in a line what each one was for.' },
@@ -180,7 +180,7 @@ export const FORMS = Object.freeze({
     },
     {
       title: 'The work',
-      intro: 'Every piece starts from a concept we write, with links to the content that inspired it. The job is to make it exactly as outlined.',
+      intro: 'Assignments are short-form — trend-based pieces, specific content concepts and repeatable formats, most 7–10 seconds long — each with links to the content that inspired it. The job is to make it exactly as outlined.',
       fields: [
         { id: 'ccc_direction', label: 'Tell us about a time you made content to someone else’s brief. What did you do when you had a different idea?', type: 'textarea', required: true },
         { id: 'ccc_cadence', label: 'Can you deliver two pieces every week, on a weekly deadline?', type: 'select', required: true, options: ['Yes', 'Most weeks', 'Not reliably'] },
@@ -188,10 +188,8 @@ export const FORMS = Object.freeze({
       ],
     },
     {
-      title: 'The rate, and why us',
-      intro: 'The rate is set: $600 a month for seven pieces, plus $300–$600 for any UGC project we offer you. As a startup on a fixed budget, it isn’t negotiable.',
+      title: 'Why us',
       fields: [
-        { id: 'ccc_rate_ok', label: 'Does the set rate work for you?', type: 'select', required: true, options: ['Yes, the rate works for me', 'No'] },
         { id: 'ccc_why', label: 'Why createspace? What would you bring to our page?', type: 'textarea', required: true },
       ],
     },

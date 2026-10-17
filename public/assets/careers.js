@@ -15,7 +15,7 @@
 // in when it does not answer within a few seconds. Submissions go to
 // /api/careers — never through shop.js, which is why these forms carry
 // data-careers-form and not data-form.
-import { POSTINGS, FORMS, postingState, dayInWords, readCareers } from './careers-core.mjs?v=2'
+import { POSTINGS, FORMS, postingState, dayInWords, readCareers } from './careers-core.mjs?v=3'
 
 const $ = (sel, root = document) => root.querySelector(sel)
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel))

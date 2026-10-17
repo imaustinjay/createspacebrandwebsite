@@ -12,12 +12,12 @@ const SHARED = ['full_name', 'email', 'phone', 'location', 'pronouns', 'links', 
 const VECTOR = {
   'brand-architect-intern': [...SHARED, 'bai_path', 'bai_portfolio_piece', 'bai_brand_admire', 'bai_strengths', 'bai_tools', 'bai_hours', 'bai_timezone', 'bai_live_sessions', 'bai_why', 'bai_feedback', 'bai_brief'],
   'brand-architect-jr': [...SHARED, 'baj_years', 'baj_case', 'baj_systems', 'baj_strengths', 'baj_tools', 'baj_critique', 'baj_hours', 'baj_timezone', 'baj_cohort', 'baj_why'],
-  'content-creator': [...SHARED, 'ccc_handle', 'ccc_portfolio', 'ccc_styles', 'ccc_gear', 'ccc_gear_detail', 'ccc_direction', 'ccc_cadence', 'ccc_turnaround', 'ccc_rate_ok', 'ccc_why'],
+  'content-creator': [...SHARED, 'ccc_handle', 'ccc_portfolio', 'ccc_styles', 'ccc_gear', 'ccc_gear_detail', 'ccc_direction', 'ccc_cadence', 'ccc_turnaround', 'ccc_why'],
 }
 const REQUIRED = {
   'brand-architect-intern': ['full_name', 'email', 'location', 'availability', 'bai_path', 'bai_portfolio_piece', 'bai_brand_admire', 'bai_hours', 'bai_timezone', 'bai_live_sessions', 'bai_why', 'bai_feedback', 'bai_brief'],
   'brand-architect-jr': ['full_name', 'email', 'location', 'availability', 'baj_years', 'baj_case', 'baj_systems', 'baj_critique', 'baj_hours', 'baj_timezone', 'baj_why'],
-  'content-creator': ['full_name', 'email', 'location', 'availability', 'ccc_handle', 'ccc_portfolio', 'ccc_styles', 'ccc_direction', 'ccc_cadence', 'ccc_rate_ok', 'ccc_why'],
+  'content-creator': ['full_name', 'email', 'location', 'availability', 'ccc_handle', 'ccc_portfolio', 'ccc_styles', 'ccc_direction', 'ccc_cadence', 'ccc_why'],
 }
 
 test('the forms carry exactly the workspace’s field ids, in its order', () => {
@@ -211,11 +211,13 @@ test('a posting that is not open carries no JobPosting schema (the playbook: not
   assert.ok(creator.includes('"CONTRACTOR"'))
 })
 
-test('the content creator posting states the set rate and never a term', () => {
+test('the content creator posting names no rate and no term — both come after the first stage', () => {
   const html = page('careers/content-creator/index.html')
-  assert.match(html, /\$600/)
-  assert.match(html, /\$300–\$600/)
+  assert.doesNotMatch(html, /\$\d|baseSalary|per month|a month for/i, 'the rate is discussed after the application, never posted')
   assert.doesNotMatch(html, /3-month|three-month|1-month|one-month/i, 'the term is not posted')
+  assert.match(html, /7–10 seconds/)
+  assert.doesNotMatch(page('careers/index.html'), /\$\d/, 'the careers card names no rate')
+  assert.doesNotMatch(readFileSync(new URL('../../public/assets/careers-core.mjs', import.meta.url), 'utf8'), /\$\d/, 'nor does the form')
   const card = page('careers/index.html')
   assert.ok(card.includes('href="/careers/content-creator/"'))
   assert.ok(card.includes('data-posting-badge="content-creator"'))
