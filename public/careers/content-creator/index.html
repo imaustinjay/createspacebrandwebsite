@@ -99,7 +99,7 @@
   <!-- First-party visit counter. Path, referrer, time on page, scroll depth.
        No cookie, no third party, nothing that survives the tab. -->
   <script src="/assets/measure.js?v=1" defer></script>
-  <script type="module" src="/assets/careers.js?v=3"></script>
+  <script type="module" src="/assets/careers.js?v=4"></script>
   <style>
     /* Careers — the posting's state, in the house's quiet badge. */
     .posting-badge { justify-self: start; display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; }
@@ -271,12 +271,10 @@
 
   <section data-settle class="form-card" style="margin-top: clamp(40px, 5vw, 60px); max-width: 760px;" aria-labelledby="apply-h">
     <span class="eyebrow eyebrow-wide">Apply</span>
-    <h2 id="apply-h" class="t-27 emph" style="margin: 10px 0 12px;">Apply for the role</h2>
-    <p class="body-15" style="margin: 0 0 26px;">About ten minutes. Have the links to two or three of your organic posts ready.</p>
-    <div data-careers-form="content-creator">
-      <p class="body-15" style="margin: 0;">Loading…</p>
-      <noscript><p class="body-15">This form needs JavaScript. You can also write to <a href="mailto:hello@createspacebrand.com?subject=Content%20Creator">hello@createspacebrand.com</a>.</p></noscript>
-    </div>
+    <h2 id="apply-h" class="t-27 emph" style="margin: 10px 0 12px;">Ready to apply?</h2>
+    <p class="body-15" style="margin: 0 0 22px;">The application and a short screening assessment, on one page — about fifteen minutes. Have the links to two or three of your organic posts ready.</p>
+    <p class="posting-state" data-posting-state="content-creator" style="margin: 0 0 18px;">Applications open</p>
+    <a class="btn btn-primary" href="/careers/content-creator/apply/">Apply now</a>
   </section>
 </main>
 

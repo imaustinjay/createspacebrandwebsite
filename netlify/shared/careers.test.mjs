@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { POSTINGS, FORMS, fieldIds, requiredIds, postingFor, postingState, pacificDay, dayInWords, readCareers } from '../../public/assets/careers-core.mjs'
+import { POSTINGS, FORMS, applyPathFor, fieldIds, requiredIds, postingFor, postingState, pacificDay, dayInWords, readCareers } from '../../public/assets/careers-core.mjs'
 import { applicationFrom, careersReference } from './careers.mjs'
 
 /* ── the vector both repositories hold ───────────────────────────────────
@@ -12,12 +12,12 @@ const SHARED = ['full_name', 'email', 'phone', 'location', 'pronouns', 'links', 
 const VECTOR = {
   'brand-architect-intern': [...SHARED, 'bai_path', 'bai_portfolio_piece', 'bai_brand_admire', 'bai_strengths', 'bai_tools', 'bai_hours', 'bai_timezone', 'bai_live_sessions', 'bai_why', 'bai_feedback', 'bai_brief'],
   'brand-architect-jr': [...SHARED, 'baj_years', 'baj_case', 'baj_systems', 'baj_strengths', 'baj_tools', 'baj_critique', 'baj_hours', 'baj_timezone', 'baj_cohort', 'baj_why'],
-  'content-creator': [...SHARED, 'ccc_handle', 'ccc_portfolio', 'ccc_styles', 'ccc_gear', 'ccc_gear_detail', 'ccc_direction', 'ccc_cadence', 'ccc_turnaround', 'ccc_why'],
+  'content-creator': [...SHARED, 'ccc_handle', 'ccc_portfolio', 'ccc_styles', 'ccc_gear', 'ccc_gear_detail', 'ccc_direction', 'ccc_cadence', 'ccc_turnaround', 'ccc_why', 'ccc_scr_concept', 'ccc_scr_trend', 'ccc_scr_brief', 'ccc_scr_late', 'ccc_scr_hook'],
 }
 const REQUIRED = {
   'brand-architect-intern': ['full_name', 'email', 'location', 'availability', 'bai_path', 'bai_portfolio_piece', 'bai_brand_admire', 'bai_hours', 'bai_timezone', 'bai_live_sessions', 'bai_why', 'bai_feedback', 'bai_brief'],
   'brand-architect-jr': ['full_name', 'email', 'location', 'availability', 'baj_years', 'baj_case', 'baj_systems', 'baj_critique', 'baj_hours', 'baj_timezone', 'baj_why'],
-  'content-creator': ['full_name', 'email', 'location', 'availability', 'ccc_handle', 'ccc_portfolio', 'ccc_styles', 'ccc_direction', 'ccc_cadence', 'ccc_why'],
+  'content-creator': ['full_name', 'email', 'location', 'availability', 'ccc_handle', 'ccc_portfolio', 'ccc_styles', 'ccc_direction', 'ccc_cadence', 'ccc_why', 'ccc_scr_concept', 'ccc_scr_trend', 'ccc_scr_brief', 'ccc_scr_late', 'ccc_scr_hook'],
 }
 
 test('the forms carry exactly the workspace’s field ids, in its order', () => {
@@ -185,16 +185,22 @@ const page = (p) => readFileSync(new URL(`../../public/${p}`, import.meta.url), 
 
 test('every careers page is in the sitemap and routed, and each posting page mounts its own form', () => {
   const sitemap = page('sitemap.xml')
-  for (const p of ['careers/', 'careers/brand-architect-intern/', 'careers/brand-architect-jr/', 'careers/content-creator/']) {
+  for (const p of ['careers/', 'careers/brand-architect-intern/', 'careers/brand-architect-jr/', 'careers/content-creator/', 'careers/content-creator/apply/']) {
     assert.ok(sitemap.includes(`https://createspacebrand.com/${p}</loc>`), `${p} is not in the sitemap`)
   }
   for (const p of POSTINGS) {
-    const html = page(`careers/${p.slug}/index.html`)
-    assert.ok(html.includes(`data-careers-form="${p.slug}"`), `${p.slug} does not mount its form`)
+    const at = applyPathFor(p.slug)
+    const html = page(`${at}index.html`)
+    assert.ok(html.includes(`data-careers-form="${p.slug}"`), `${p.slug} does not mount its form at ${at}`)
     assert.ok(html.includes('/assets/careers.js'), `${p.slug} does not load careers.js`)
-    assert.ok(html.includes(`<link rel="canonical" href="https://createspacebrand.com/careers/${p.slug}/" />`))
+    assert.ok(html.includes(`<link rel="canonical" href="https://createspacebrand.com/${at}" />`))
     assert.ok(!/Createspace Talent/.test(html), 'never the parent name')
   }
+  // The content creator role page carries the role and an Apply now button — never the form itself.
+  const role = page('careers/content-creator/index.html')
+  assert.ok(!role.includes('data-careers-form='), 'the application is not on the role page')
+  assert.match(role, /href="\/careers\/content-creator\/apply\/">Apply now</)
+  assert.ok(!page('careers/content-creator/apply/index.html').includes('"JobPosting"'), 'the listing lives on the role page only')
   const toml = readFileSync(new URL('../../netlify.toml', import.meta.url), 'utf8')
   assert.ok(toml.includes('from = "/api/careers"'))
   assert.ok(toml.includes('from = "/api/careers-postings"'))
@@ -216,6 +222,7 @@ test('the content creator posting names no rate and no term — both come after 
   assert.doesNotMatch(html, /\$\d|baseSalary|per month|a month for/i, 'the rate is discussed after the application, never posted')
   assert.doesNotMatch(html, /3-month|three-month|1-month|one-month/i, 'the term is not posted')
   assert.match(html, /7–10 seconds/)
+  assert.doesNotMatch(page('careers/content-creator/apply/index.html'), /\$\d|3-month|one-month/i, 'nor the apply page')
   assert.doesNotMatch(page('careers/index.html'), /\$\d/, 'the careers card names no rate')
   assert.doesNotMatch(readFileSync(new URL('../../public/assets/careers-core.mjs', import.meta.url), 'utf8'), /\$\d/, 'nor does the form')
   const card = page('careers/index.html')

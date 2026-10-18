@@ -58,6 +58,14 @@ export const POSTINGS = Object.freeze([
   }),
 ])
 
+/**
+ * Where a posting's application lives. Most postings carry their form on the
+ * role page; the content creator posting keeps the role page to the role and
+ * puts the application and screening on its own page, behind Apply now.
+ */
+export const APPLY_PATHS = Object.freeze({ 'content-creator': 'careers/content-creator/apply/' })
+export const applyPathFor = (slug) => APPLY_PATHS[slug] || `careers/${slug}/`
+
 export const postingFor = (slug) => POSTINGS.find((p) => p.slug === String(slug || '').toLowerCase()) || null
 
 /** Today as a Pacific calendar day, YYYY-MM-DD. */
@@ -90,6 +98,11 @@ export function dayInWords(iso, { weekday = true, year = false } = {}) {
 const STRENGTHS = ['Colour & palette', 'Typography', 'Layout & composition', 'Writing & voice', 'Strategy & research', 'Social content', 'Art direction']
 const CREATOR_FORMATS = ['Talk-to-camera', 'Green screen', 'Voiceover with B-roll', 'Day in the life', 'Text on screen, no talking', 'Recommendations and lists', 'Storytelling']
 const CREATOR_GEAR = ['iPhone / smartphone', 'Mirrorless / DSLR', 'Gimbal / stabilizer', 'Lighting kit', 'Audio gear', 'CapCut', 'Premiere / Final Cut / Resolve']
+// The screening's right answers live in the workspace (brandCreatorCore SCREENING_KEY); the page only asks.
+const SCREENING_CONCEPT = 'A sample concept: “POV: you posted today and nobody watched.” A 7–10 second talk-to-camera piece that ends on “no one builds alone.” Walk us through exactly how you would shoot it, beat by beat.'
+const SCREENING_BRIEF = ['Shoot it as written', 'Shoot it as written, and send a note with my idea', 'Shoot it my way — the result matters most', 'Ask first, and wait for an answer before shooting']
+const SCREENING_LATE = ['Upload it late without saying anything', 'Tell the team as soon as I know, and agree a new time', 'Skip it this week', 'Upload whatever I have on time']
+const SCREENING_HOOK = ['In the first second', 'By the middle', 'At the end', 'A piece that short doesn’t need one']
 const TOOLS = ['Figma', 'Adobe Illustrator', 'Adobe Photoshop', 'Adobe InDesign', 'Canva', 'Procreate', 'Notion', 'Other']
 
 /** The shared "About you" chapter — SHARED_ABOUT in the workspace. */
@@ -191,6 +204,17 @@ export const FORMS = Object.freeze({
       title: 'Why us',
       fields: [
         { id: 'ccc_why', label: 'Why createspace? What would you bring to our page?', type: 'textarea', required: true },
+      ],
+    },
+    {
+      title: 'Screening assessment',
+      intro: 'Five short questions about how you work. There’s no trick — we want to see how you think.',
+      fields: [
+        { id: 'ccc_scr_concept', label: SCREENING_CONCEPT, type: 'textarea', required: true, hint: 'The first second, the shots, the on-screen text and the audio — in order.' },
+        { id: 'ccc_scr_trend', label: 'A trend you would make for createspace right now. Link it, and tell us how you would adapt it in 7–10 seconds.', type: 'textarea', required: true },
+        { id: 'ccc_scr_brief', label: 'A concept says to open on a close-up, but you think a wide shot would be stronger. What do you do?', type: 'select', required: true, options: SCREENING_BRIEF },
+        { id: 'ccc_scr_late', label: 'A piece is due Friday and you’re sick on Thursday. What do you do?', type: 'select', required: true, options: SCREENING_LATE },
+        { id: 'ccc_scr_hook', label: 'In a 7–10 second piece, when does the hook need to land?', type: 'select', required: true, options: SCREENING_HOOK },
       ],
     },
   ]),
