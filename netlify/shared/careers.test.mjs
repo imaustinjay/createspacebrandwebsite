@@ -13,11 +13,13 @@ const VECTOR = {
   'brand-architect-intern': [...SHARED, 'bai_path', 'bai_portfolio_piece', 'bai_brand_admire', 'bai_strengths', 'bai_tools', 'bai_hours', 'bai_timezone', 'bai_live_sessions', 'bai_why', 'bai_feedback', 'bai_brief'],
   'brand-architect-jr': [...SHARED, 'baj_years', 'baj_case', 'baj_systems', 'baj_strengths', 'baj_tools', 'baj_critique', 'baj_hours', 'baj_timezone', 'baj_cohort', 'baj_why'],
   'content-creator': [...SHARED, 'ccc_handle', 'ccc_portfolio', 'ccc_styles', 'ccc_gear', 'ccc_gear_detail', 'ccc_direction', 'ccc_cadence', 'ccc_turnaround', 'ccc_why'],
+  'social-strategist': [...SHARED, 'str_approach', 'str_sources', 'str_warm_brand', 'str_years', 'str_cadence', 'str_brief', 'str_analytics_comfort', 'str_tools', 'str_why', 'str_pod'],
 }
 const REQUIRED = {
   'brand-architect-intern': ['full_name', 'email', 'location', 'availability', 'bai_path', 'bai_portfolio_piece', 'bai_brand_admire', 'bai_hours', 'bai_timezone', 'bai_live_sessions', 'bai_why', 'bai_feedback', 'bai_brief'],
   'brand-architect-jr': ['full_name', 'email', 'location', 'availability', 'baj_years', 'baj_case', 'baj_systems', 'baj_critique', 'baj_hours', 'baj_timezone', 'baj_why'],
   'content-creator': ['full_name', 'email', 'location', 'availability', 'ccc_handle', 'ccc_portfolio', 'ccc_styles', 'ccc_direction', 'ccc_cadence', 'ccc_why'],
+  'social-strategist': ['full_name', 'email', 'location', 'availability', 'str_approach', 'str_warm_brand', 'str_years', 'str_cadence', 'str_brief', 'str_analytics_comfort', 'str_why'],
 }
 
 test('the forms carry exactly the workspace’s field ids, in its order', () => {
@@ -29,8 +31,8 @@ test('the forms carry exactly the workspace’s field ids, in its order', () => 
 })
 
 test('the postings name the workspace’s seats exactly (the naming the space uses)', () => {
-  assert.deepEqual(POSTINGS.map((p) => p.role), ['Brand Architect Intern', 'Brand Architect Jr.', 'Content Creator (Contract)'])
-  assert.deepEqual(POSTINGS.map((p) => p.req), ['CS-REQ-BRA-I01', 'CS-REQ-BRA-J01', 'CS-REQ-CC-C01'])
+  assert.deepEqual(POSTINGS.map((p) => p.role), ['Brand Architect Intern', 'Brand Architect Jr.', 'Content Creator (Contract)', 'Social Strategist'])
+  assert.deepEqual(POSTINGS.map((p) => p.req), ['CS-REQ-BRA-I01', 'CS-REQ-BRA-J01', 'CS-REQ-CC-C01', 'CS-REQ-STR-01'])
   for (const p of POSTINGS) assert.equal(p.location, 'Remote')
 })
 
@@ -185,7 +187,7 @@ const page = (p) => readFileSync(new URL(`../../public/${p}`, import.meta.url), 
 
 test('every careers page is in the sitemap and routed, and each posting page mounts its own form', () => {
   const sitemap = page('sitemap.xml')
-  for (const p of ['careers/', 'careers/brand-architect-intern/', 'careers/brand-architect-jr/', 'careers/content-creator/']) {
+  for (const p of ['careers/', 'careers/brand-architect-intern/', 'careers/brand-architect-jr/', 'careers/content-creator/', 'careers/social-strategist/']) {
     assert.ok(sitemap.includes(`https://createspacebrand.com/${p}</loc>`), `${p} is not in the sitemap`)
   }
   for (const p of POSTINGS) {
@@ -221,4 +223,14 @@ test('the content creator posting names no rate and no term — both come after 
   const card = page('careers/index.html')
   assert.ok(card.includes('href="/careers/content-creator/"'))
   assert.ok(card.includes('data-posting-badge="content-creator"'))
+})
+
+test('the social strategist posting is open, links from the careers page, and mounts its form', () => {
+  const html = page('careers/social-strategist/index.html')
+  assert.ok(html.includes('"JobPosting"'), 'the social strategist posting is open')
+  assert.ok(html.includes('"CS-REQ-STR-01"'))
+  assert.ok(!/Trends Strategist/.test(html), 'the seat is the Social Strategist')
+  const card = page('careers/index.html')
+  assert.ok(card.includes('href="/careers/social-strategist/"'))
+  assert.ok(card.includes('data-posting-badge="social-strategist"'))
 })

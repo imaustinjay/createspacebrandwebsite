@@ -56,6 +56,19 @@ export const POSTINGS = Object.freeze([
     closesAt: null,
     startsAt: null,
   }),
+  // The strategy half of the Content pod — a staff seat, until filled.
+  Object.freeze({
+    slug: 'social-strategist',
+    role: 'Social Strategist',
+    req: 'CS-REQ-STR-01',
+    cohort: '',
+    location: 'Remote',
+    schedule: 'Staff · the Content pod',
+    status: 'active',
+    opensAt: '2026-10-21',
+    closesAt: null,
+    startsAt: null,
+  }),
 ])
 
 export const postingFor = (slug) => POSTINGS.find((p) => p.slug === String(slug || '').toLowerCase()) || null
@@ -191,6 +204,39 @@ export const FORMS = Object.freeze({
       title: 'Why us',
       fields: [
         { id: 'ccc_why', label: 'Why createspace? What would you bring to our page?', type: 'textarea', required: true },
+      ],
+    },
+  ]),
+  'social-strategist': Object.freeze([
+    ABOUT,
+    {
+      title: 'Trend intelligence',
+      fields: [
+        { id: 'str_approach', label: 'How do you actually spot a trend early?', type: 'textarea', required: true, hint: 'Your sources, your instincts, how you tell a real signal from noise.' },
+        { id: 'str_sources', label: 'Where do you watch for signal?', type: 'multiselect', options: ['TikTok', 'Instagram / Reels', 'YouTube', 'X / Twitter', 'Reddit / forums', 'Newsletters', 'Audio / podcasts'] },
+        { id: 'str_warm_brand', label: 'What’s a current trend you’d bring to a warm, calm brand — and how would you adapt it so it still feels like us?', type: 'textarea', required: true, hint: 'The “how” matters most. Plenty of trends are loud; ours can’t be.' },
+      ],
+    },
+    {
+      title: 'Strategy & planning',
+      fields: [
+        { id: 'str_years', label: 'Years in social strategy', type: 'select', required: true, options: ['Under 1', '1–2', '3–5', '6+'] },
+        { id: 'str_cadence', label: 'How do you plan channels and a posting cadence that’s sustainable?', type: 'textarea', required: true },
+        { id: 'str_brief', label: 'How do you turn a trend into a brief someone else can execute cleanly?', type: 'textarea', required: true, hint: 'You hand briefs to the Visual & Account Engagement Specialist — clarity is the whole job here.' },
+      ],
+    },
+    {
+      title: 'Analytics & tools',
+      fields: [
+        { id: 'str_analytics_comfort', label: 'Comfort reading analytics and adjusting from them', type: 'select', required: true, options: ['Very comfortable', 'Comfortable', 'Basic', 'Prefer the qualitative side'] },
+        { id: 'str_tools', label: 'Tools you use', type: 'multiselect', options: ['Native analytics', 'Later / Buffer / Hootsuite', 'Notion', 'Airtable', 'Google Trends', 'TrendTok / trend tools', 'Spreadsheets'] },
+      ],
+    },
+    {
+      title: 'Fit',
+      fields: [
+        { id: 'str_why', label: 'How would you keep strategy in service of connection, not just reach?', type: 'textarea', required: true, hint: 'We exist to fight creator loneliness — growth that doesn’t serve that isn’t the goal.' },
+        { id: 'str_pod', label: 'This is half of a two-person pod with the Visual & Account Engagement Specialist. How do you partner well with the person who executes?', type: 'textarea' },
       ],
     },
   ]),
