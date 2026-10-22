@@ -459,12 +459,12 @@ announcement bar.
 
 ### Simple Edits — the Fall Drop, and the counter
 
-The drop lands **Monday 26 October 2026, 9am ET**, and is named **Simple
+The drop lands **Monday 16 November 2026, 9am ET**, and is named **Simple
 Edits**. One attribute pair on `<body>` decides that, on every page that shows
 a counter:
 
 ```html
-<body data-drop-date="2026-10-26T09:00:00-04:00"
+<body data-drop-date="2026-11-16T09:00:00-05:00"
       data-drop-from="2026-08-17T09:00:00-04:00">
 ```
 

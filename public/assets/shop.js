@@ -603,7 +603,7 @@
   // reason — a screen reader should hear the sentence, not the ticking.
   var cdTargets = document.querySelectorAll('[data-countdown], [data-cd]')
   if (cdTargets.length) {
-    var stamp = document.body.getAttribute('data-drop-date') || '2026-10-26T09:00:00-04:00'
+    var stamp = document.body.getAttribute('data-drop-date') || '2026-11-16T09:00:00-05:00'
     var target = new Date(stamp).getTime()
     // Where the runway began, for the meter under the plate. Absent, there is
     // no honest denominator, so no meter is drawn rather than a made-up one.
