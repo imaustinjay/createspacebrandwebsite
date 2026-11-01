@@ -234,3 +234,12 @@ test('the social strategist posting is open, links from the careers page, and mo
   assert.ok(card.includes('href="/careers/social-strategist/"'))
   assert.ok(card.includes('data-posting-badge="social-strategist"'))
 })
+
+test('a posting page’s header Apply goes to its own form, not to casting', () => {
+  for (const slug of ['content-creator', 'social-strategist']) {
+    const html = readFileSync(new URL(`../../public/careers/${slug}/index.html`, import.meta.url), 'utf8')
+    assert.match(html, /<section id="apply"[^>]*aria-labelledby="apply-h"/, `${slug}: the form section is the #apply anchor`)
+    assert.match(html, /class="btn btn-primary nav-apply" href="#apply"/, `${slug}: the header button goes to the form`)
+    assert.doesNotMatch(html, /class="(btn btn-primary )?nav-apply(-alt)?" href="https:\/\/createspacebrand\.online\/apply"/, `${slug}: the header still sends applicants to casting`)
+  }
+})
