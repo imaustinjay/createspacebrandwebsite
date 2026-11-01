@@ -61,9 +61,11 @@ and deploys separately; the brand context this site is built from is
     assessment/index.html Find your fit — the service-fit assessment (seven questions → one service, onto the list)
     collection/           The Collection Program — the paid Community cohort
     partnerships/         Partnerships — collaborations, sponsorship, tools
-    careers/              Careers — the open Brand Architect postings, plus the alert list
+    careers/              Careers — every posting the house has open, plus the alert list
     careers/brand-architect-intern/  Brand Architect Intern, Cohort 01 — the program and the application
     careers/brand-architect-jr/      Brand Architect Jr. — the seat; "tell me when it opens" until Nov 2, then the application
+    careers/content-creator/         Content Creator (Contract) — the role and the application (no rate on the page)
+    careers/social-strategist/       Social Strategist (Staff) — the role and the application
     internships/          Internships — what interns work on, plus the form
     shop/index.html       The shop — hero, the Fall Drop, the craft
     shop/products/        Digital products, then one page per product
@@ -123,9 +125,15 @@ brands page, and in the sitemap.
 
 ## Careers (`/careers/`) — applications into Talent Acquisition
 
-The first roles the house posts publicly: the **Brand Architect Intern** cohort
-(`/careers/brand-architect-intern/`, open now) and the **Brand Architect Jr.**
-seat (`/careers/brand-architect-jr/`, opens to applications Monday, November 2).
+The roles the house posts publicly: the **Brand Architect Intern** cohort
+(`/careers/brand-architect-intern/`), the **Brand Architect Jr.** seat
+(`/careers/brand-architect-jr/`, opens to applications Monday, November 2), the
+**Content Creator (Contract)** (`/careers/content-creator/`, CS-REQ-CC-C01 — the
+rate is the conversation's, never the page's, and a test holds that) and the
+**Social Strategist (Staff)** (`/careers/social-strategist/`, CS-REQ-STR-01).
+Each posting page's header **Apply** goes to its own form (`#apply`); the
+roster's casting door is linked in the copy, where the page says which door is
+which.
 Unlike every other form on this site, a job application does not land in an
 inbox: it is filed straight into the workspace's **Talent Acquisition** board,
 so hiring stays in one system.
@@ -155,7 +163,12 @@ so hiring stays in one system.
   applicant, and a short note to the applicant with their reference.
 - **Schema:** the intern page carries `JobPosting` JSON-LD (remote, intern +
   part-time, valid through November 30). The Jr. page deliberately carries
-  none until it opens — add it when it does.
+  none until it opens — add it when it does. The Content Creator page carries
+  one with `employmentType: CONTRACTOR`; the Social Strategist page carries one
+  with no employment type until the seat's hours are set.
+- **After the hire:** onboarding is the workspace's, not the site's — the
+  founder sends the seat invitation (or moves an existing creator's account
+  into the seat) from the application in Talent Acquisition.
 
 Linked from every nav menu and footer as **Careers**, from `/internships/`,
 and in the sitemap. This is the one application flow that lives on this site
