@@ -79,6 +79,35 @@
   status = 200
   force = true
 
+# The triage line on /triage/ — an open line for any creative-career question.
+# Three doors, proxied straight through to the workspace, which owns the bank
+# (three hundred and more researched, sourced entries in shared/triage/), the
+# engine that reads a question and answers from them, and the live line a
+# person on the team picks up. A proxy (status 200, forced), not a redirect:
+# the ask and the line are POSTs, and same-origin keeps the page working
+# regardless of CORS. GET /api/triage-bank is the questions the line knows
+# (cached ten minutes upstream); POST /api/triage answers one question; GET
+# and POST /api/triage-line open, continue and read a thread by its token.
+# When the workspace does not answer, the page says the line is quiet and
+# leaves the question with a person through /api/shop (kind: triage).
+[[redirects]]
+  from = "/api/triage-bank"
+  to = "https://createspacebrand.online/api/triage-bank"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/triage"
+  to = "https://createspacebrand.online/api/triage"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/triage-line"
+  to = "https://createspacebrand.online/api/triage-line"
+  status = 200
+  force = true
+
 # The shop desk — contact, careers and workshop alerts, internship
 # applications, the Fall Drop first-look list, and the Collection Program's
 # notify list when the workspace can't take it. One handler, one destination

@@ -48,6 +48,18 @@ const FORMS = {
       ['link', 'Link to their work', 'required'],
     ],
   },
+  // The triage line's fallback. /triage/ asks the workspace first — the bank,
+  // the engine and the live line live there — and lands here only when that
+  // cannot be reached, so a question somebody chose to leave with a person is
+  // never lost to a deployment gap. The question is the whole point of it.
+  triage: {
+    subject: (f) => `Triage line — a question left for a person${f.name ? ` (${f.name})` : ''}`,
+    fields: [
+      ['name', 'Name'],
+      ['email', 'Email', 'required'],
+      ['question', 'The question', 'required'],
+    ],
+  },
   careers: {
     subject: () => 'Careers alert — new signup',
     fields: [['email', 'Email', 'required']],
@@ -73,7 +85,7 @@ const FORMS = {
   },
 }
 
-const LIMITS = { message: 4000, goal: 2000, default: 300 }
+const LIMITS = { message: 4000, goal: 2000, question: 2000, default: 300 }
 
 // Env values arrive however they were pasted — strip wrapping quotes and edge
 // whitespace, never interior content (same reasoning as enquiry.mjs).
