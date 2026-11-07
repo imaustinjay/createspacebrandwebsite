@@ -59,6 +59,7 @@ and deploys separately; the brand context this site is built from is
     contact/index.html    Contact — a person, not a queue
     inquire/index.html    Work with us — the new client service inquiry (intake form)
     assessment/index.html Find your fit — the service-fit assessment (seven questions → one service, onto the list)
+    triage/index.html     The triage line — an open line for creative-career questions, answered from the workspace's sourced bank; a person one word away
     collection/           The Collection Program — the paid Community cohort
     partnerships/         Partnerships — collaborations, sponsorship, tools
     careers/              Careers — every posting the house has open, plus the alert list
@@ -212,6 +213,43 @@ in this order, and the first is the one that matters:
 Mail is best-effort: the result on the page and the row on the list are the
 two things the door exists for, and neither waits on SMTP. Linked from every
 nav menu and footer as **Find your fit**, and in the sitemap.
+
+## The triage line (`/triage/`)
+
+An open line for anyone with a question about building a creative career —
+personal branding, brand deals, usage rights, protecting their work, their
+portfolio, the platforms, the business, growth, the long game. A question goes
+in; an answer comes back read from a bank of three hundred and more researched
+entries, with the sources it was read from named and dated under it, the
+line's reading of the question beside it (the topic, where the person stands,
+how pressing), related questions, and a person on the team one word away.
+Nothing on it is legal, tax or financial advice, and the page says so.
+
+Everything that decides lives in the workspace (`createspace-workspace`:
+`shared/triageCore.mjs` the engine, `shared/triage/` the bank, the four doors
+in `netlify/functions/triage*.mjs`). This repo holds the page and a thin hand:
+
+- `public/triage/index.html` · `assets/triage.css` · `assets/triage.js`
+- `netlify.toml` proxies `/api/triage-bank`, `/api/triage` and
+  `/api/triage-line` straight to `createspacebrand.online` (status 200,
+  forced — the ask and the line are POSTs, and same-origin keeps the page
+  working regardless of CORS). The team's desk door is never proxied here.
+- The page reads the bank's questions once so it can suggest what the line
+  already knows as you type; each ask goes to `/api/triage`; the live line
+  runs through `/api/triage-line` by a 24-character token the page keeps in
+  this browser and in the address bar (`?line=…`), so a thread survives a
+  reload and a mailed reply's link lands back on it. The page polls the thread
+  every four seconds while it is open; a person's reply to a visitor who has
+  left is mailed by the workspace.
+- When the workspace cannot be reached the page says the line is quiet and
+  offers to leave the question with a person: `/api/shop` with
+  `kind: triage` (`netlify/functions/shop.mjs`), the same desk every other
+  storefront form lands on, so nobody who chose to ask is lost to a
+  deployment gap.
+
+Linked from every nav menu and footer as **The triage line**, and in the
+sitemap. `tests/triage.test.mjs` holds the page, the links, the proxies and
+the fallback.
 
 ## The tap card lives on the workspace, not here
 
